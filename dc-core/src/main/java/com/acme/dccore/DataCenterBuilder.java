@@ -24,7 +24,15 @@ public class DataCenterBuilder {
      * Build a small datacenter with comprehensive thermal modeling
      */
     public static Datacenter buildSmallDC(Simulation sim) {
-        return buildSmallDCWithThermalModeling(sim, 27.0); // 27°C supply temperature (warmer)
+        return buildSmallDCWithThermalModeling(sim, 24.0); // 24°C supply temperature (cooler)
+    }
+
+    /**
+     * Build a small datacenter without thermal output (for use with custom
+     * analysis)
+     */
+    public static Datacenter buildSmallDCQuiet(Simulation sim) {
+        return buildSmallDCQuietInternal(sim, 24.0);
     }
 
     /**
@@ -80,8 +88,65 @@ public class DataCenterBuilder {
 
         racks.add(rack);
 
-        // Print thermal analysis
-        printThermalAnalysis(racks, supplyTempC);
+        // Print thermal analysis - DISABLED: Using updated analysis in App.java
+        // printThermalAnalysis(racks, supplyTempC);
+
+        return new DatacenterSimple(sim, hostList, new VmAllocationPolicySimple());
+    }
+
+    /**
+     * Build datacenter without thermal analysis output (quiet version)
+     */
+    public static Datacenter buildSmallDCQuietInternal(Simulation sim, double supplyTempC) {
+        List<Host> hostList = new ArrayList<>();
+        List<RackSpec> racks = new ArrayList<>();
+
+        // Define one rack with 4 servers and comprehensive thermal specs
+        RackSpec rack = new RackSpec(1);
+        ServerSpec serverSpec = new ServerSpec(
+                4, // cores
+                1000, // MIPS per core
+                8192, // RAM MB
+                100000L, // Storage MB (long)
+                500.0, // max power W (increased from 400W)
+                180.0, // idle power W (reduced from 200W)
+                0.88, // psuEfficiency (88% - improved efficiency)
+                true, // dualPSU (redundant PSU for high-power server)
+                0.08, // psuOverhead (8% - higher overhead)
+                450.0, // maxAirflowCFM (increased from 350 CFM)
+                20.0, // deltaT_C (temperature rise - increased from 15°C)
+                35.0, // maxInletTemp_C (increased from 32°C)
+                16.0, // minInletTemp_C (reduced from 18°C)
+                500.0, // thermalDesignPower (matches max power)
+                0.18, // fanPowerPercent (18% of server power - increased)
+                true, // variableFanSpeed
+                0.4, // minFanSpeed (40% minimum - increased from 30%)
+                2, // uHeight (2U server - taller server)
+                "2U", // formFactor
+                800.0, // depth_mm (0.8m = 800mm - deeper server)
+                482.6 // width_mm (19" rack = 482.6mm)
+        );
+
+        // Create CloudSim hosts with thermal awareness - increased to 6 servers
+        for (int i = 0; i < 6; i++) {
+            rack.addServer(serverSpec);
+
+            List<Pe> peList = new ArrayList<>();
+            for (int c = 0; c < serverSpec.getCores(); c++) {
+                peList.add(new PeSimple(serverSpec.getMipsPerCore()));
+            }
+
+            Host host = new HostSimple(
+                    serverSpec.getRamMb(),
+                    serverSpec.getStorageMb(),
+                    serverSpec.getStorageMb(),
+                    peList);
+            host.setPowerModel(new PowerModelHostSimple(serverSpec.getMaxPowerW(), serverSpec.getIdlePowerW()));
+            hostList.add(host);
+        }
+
+        racks.add(rack);
+        // NO thermal analysis output - using custom analysis in caller
 
         return new DatacenterSimple(sim, hostList, new VmAllocationPolicySimple());
     }

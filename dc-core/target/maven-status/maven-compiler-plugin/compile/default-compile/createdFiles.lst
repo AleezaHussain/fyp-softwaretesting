@@ -1,5 +1,0 @@
-com\acme\dccore\DataCenterBuilder.class
-com\acme\dccore\RackSpec.class
-com\acme\dccore\WorkloadGenerator.class
-com\acme\dccore\SimpleCloudSimTest.class
-com\acme\dccore\ServerSpec.class

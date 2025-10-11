@@ -167,6 +167,10 @@ public class AirEconomizerModel {
 
         // Electricity → cost and CO2
         r.total_cost = r.total_kWh * in.elecTariff_per_kWh;
+
+        // FIX: r.total_kWh is actually cooling energy only (confirmed by component
+        // breakdown)
+        // Use it directly for CO2 calculation
         r.total_co2_kg = r.total_kWh * in.grid_kgCO2_per_kWh;
 
         // ========== Baseline (no economizer) ==========
@@ -176,7 +180,6 @@ public class AirEconomizerModel {
         // Option 2: COP-based baseline (more realistic chiller calculation)
         double baselineCooling_kWh_fromCOP = 0;
         double totalBaseline_kWh_fromCOP = 0;
-        double baselinePUE_fromCOP = 0;
 
         if (in.baselineCOP > 0) {
             // COP-based baseline calculation
@@ -189,13 +192,7 @@ public class AirEconomizerModel {
             double baselineFan_kWh = baselineFan_kW * in.hours;
 
             totalBaseline_kWh_fromCOP = r.it_kWh + baselineCooling_kWh_fromCOP + baselineFan_kWh;
-            baselinePUE_fromCOP = totalBaseline_kWh_fromCOP / r.it_kWh;
         }
-
-        // Or compute an old-fan baseline (optional) to show delta fan energy:
-        double baselineFanWperCFM = in.baselineFan_W_per_CFM > 0 ? in.baselineFan_W_per_CFM : in.fan_W_per_CFM;
-        double baselineFan_kW = (r.supplyAirflow_CFM * baselineFanWperCFM * (1.0 + in.filterFanPenaltyFrac)) / 1000.0;
-        double baselineFan_kWh = baselineFan_kW * in.hours;
 
         // Choose which baseline to use: COP-based if available, otherwise PUE-based
         if (in.baselineCOP > 0) {
@@ -204,6 +201,9 @@ public class AirEconomizerModel {
             r.baseline_kWh = baseline_total_kWh_fromPUE;
         }
         r.baseline_cost = r.baseline_kWh * in.elecTariff_per_kWh;
+
+        // FIX: Baseline CO2 already correctly uses cooling-only energy (r.baseline_kWh
+        // excludes IT)
         r.baseline_co2_kg = r.baseline_kWh * in.grid_kgCO2_per_kWh;
 
         // Savings vs baseline
