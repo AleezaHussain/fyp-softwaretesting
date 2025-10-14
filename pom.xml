@@ -18,6 +18,7 @@
   <modules>
     <module>dc-core</module>
     <module>cooling-air-economizer</module>
+    <module>crah-crac</module>
   </modules>
 
 </project>
