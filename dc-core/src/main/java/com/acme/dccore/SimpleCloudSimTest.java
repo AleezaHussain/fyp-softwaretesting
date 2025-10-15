@@ -22,12 +22,54 @@ public class SimpleCloudSimTest {
         // Create CloudSim Plus simulation
         CloudSimPlus simulation = new CloudSimPlus();
 
-        // Create simple datacenter with 1 host, 1 VM, 1 cloudlet
+        // Create datacenter with hosts
         Datacenter datacenter = createDatacenter(simulation);
+        List<Host> hosts = datacenter.getHostList();
+
+        // Create VMs and cloudlets
+        List<Vm> vmList = new ArrayList<>();
+        List<Cloudlet> cloudletList = new ArrayList<>();
+        for (int i = 0; i < 2; i++) {
+            Vm vm = new VmSimple(i, 1000, 1); // 1000 MIPS, 1 core
+            vm.setRam(1024).setBw(1000).setSize(10000);
+            vmList.add(vm);
+            Cloudlet cloudlet = new CloudletSimple(i, 10000, 1); // length, cores
+            cloudlet.setUtilizationModel(new UtilizationModelFull());
+            cloudletList.add(cloudlet);
+        }
+        // Replace with correct broker reference
+        // Example:
+        // DatacenterBroker broker = simulation.getFirstBroker();
+        // broker.submitVmList(vmList);
+        // broker.submitCloudletList(cloudletList);
+
+        // Immersion cooling setup (example values)
+        ImmersionCoolingUnit coolingUnit = new ImmersionCoolingUnit(
+                0.000083, // flowRate m^3/s (5 lpm)
+                1800,     // fluidCp J/(kg*K)
+                1200,     // fluidDensity kg/m^3
+                35,       // inletTemp deg C
+                100,      // heatTransferCoeff
+                0.65,     // pumpEfficiency
+                4.0,      // chillerCOP
+                35,       // bathSetpoint
+                45,       // maxBathTemp
+                25        // minBathTemp
+        );
+        ImmersionThermalModel thermalModel = new ImmersionThermalModel(35, 10000);
+        ImmersionCoolingController controller = new ImmersionCoolingController(35, 45, 25);
+        ImmersionCoolingPowerModel powerModel = new ImmersionCoolingPowerModel();
+        ImmersionCoolingPolicy policy = new ImmersionCoolingPolicy(50, 55);
+
+        // Register ImmersionCoolingManager for periodic thermal/cooling events
+    double timestepSeconds = 10; // 10s timestep
+    ImmersionCoolingManager manager = new ImmersionCoolingManager(
+        timestepSeconds, hosts,
+        coolingUnit, thermalModel, controller, powerModel, policy);
+    // If needed, register manager with clock tick listener instead of addEntity
 
         System.out.println("CloudSim Plus 8.0.0 is working!");
         simulation.start();
-
         System.out.println("Simulation finished successfully!");
     }
 

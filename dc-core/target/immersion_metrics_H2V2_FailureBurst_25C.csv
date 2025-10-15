@@ -1,0 +1,5 @@
+scenario,time_s,host_id,host_temp_C,bath_temp_C,flow_rate_m3s,pump_power_W,chiller_power_W,cooling_energy_J,pump_energy_J,chiller_energy_J,total_cooling_energy_J,cop_inst
+H2V2_FailureBurst_25C,75.100,0,35.0000,25.0050,0.010000,16.667,100.000,500.000,16.667,100.000,616.667,4.285714
+H2V2_FailureBurst_25C,75.100,1,35.0000,25.0100,0.010000,16.667,100.000,500.000,33.333,200.000,1233.333,4.285714
+H2V2_FailureBurst_25C,75.210,0,35.0000,25.0100,0.010000,16.667,0.000,0.000,50.000,200.000,1250.000,0.000000
+H2V2_FailureBurst_25C,75.210,1,35.0000,25.0100,0.010000,16.667,0.000,0.000,66.667,200.000,1266.667,0.000000

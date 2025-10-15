@@ -1,5 +1,13 @@
-com\acme\dccore\DataCenterBuilder.class
+com\acme\dccore\MainWithImmersion.class
+com\acme\dccore\ImmersionCoolingUnit.class
+com\acme\dccore\ImmersionThermalModel.class
+com\acme\dccore\ImmersionCoolingPolicy.class
+com\acme\dccore\ImmersionCoolingController.class
+com\acme\dccore\ImmersionCoolingManager.class
+com\acme\dccore\CoolingModel.class
 com\acme\dccore\RackSpec.class
+com\acme\dccore\ImmersionCoolingPowerModel.class
 com\acme\dccore\WorkloadGenerator.class
 com\acme\dccore\SimpleCloudSimTest.class
+com\acme\dccore\DataCenterBuilder.class
 com\acme\dccore\ServerSpec.class
