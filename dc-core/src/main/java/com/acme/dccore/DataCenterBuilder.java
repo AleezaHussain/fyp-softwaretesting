@@ -14,6 +14,8 @@ import org.cloudsimplus.vms.Vm;
 import org.cloudsimplus.vms.VmSimple;
 import org.cloudsimplus.allocationpolicies.VmAllocationPolicySimple;
 import org.cloudsimplus.power.models.PowerModelHostSimple;
+import org.cloudsimplus.util.Log;
+import ch.qos.logback.classic.Level;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -91,6 +93,8 @@ public class DataCenterBuilder {
         // Print thermal analysis - DISABLED: Using updated analysis in App.java
         // printThermalAnalysis(racks, supplyTempC);
 
+        // Ensure Datacenter lifecycle INFO logs are visible for callers (e.g., demos)
+        Log.setLevel(Datacenter.LOGGER, Level.INFO);
         return new DatacenterSimple(sim, hostList, new VmAllocationPolicySimple());
     }
 
@@ -148,6 +152,10 @@ public class DataCenterBuilder {
         racks.add(rack);
         // NO thermal analysis output - using custom analysis in caller
 
+        // Keep this quiet builder enabling Datacenter INFO logging as well so
+        // callers that expect lifecycle messages (e.g., CRAH/CRAC demos) will
+        // see consistent CloudSimPlus lifecycle output.
+        Log.setLevel(Datacenter.LOGGER, Level.INFO);
         return new DatacenterSimple(sim, hostList, new VmAllocationPolicySimple());
     }
 

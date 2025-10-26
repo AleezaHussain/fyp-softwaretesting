@@ -17,6 +17,11 @@
     </properties>
 
     <dependencies>
-        <!-- Add dependencies here when required -->
+        <!-- Use dc-core to get CloudSimPlus and shared datacenter builders -->
+        <dependency>
+            <groupId>com.acme.dccore</groupId>
+            <artifactId>dc-core</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
     </dependencies>
 </project>
