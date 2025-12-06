@@ -1,7 +1,8 @@
-package org.cloudbus.cloudsim.chilledwater;
+package com.acme.chilledwatersystem;
 
 /**
- * Tracks energy, cost, CO2 for cooling and can also track water cost if desired.
+ * Tracks energy, cost, CO2 for cooling and can also track water cost if
+ * desired.
  * Default grid CO2 factor ~0.45 kg/kWh. Default tariff $0.10/kWh.
  */
 public class Economics {
@@ -25,13 +26,32 @@ public class Economics {
         waterCostUSD += m3 * waterTariffUSDperM3;
     }
 
-    public double getCoolingEnergyKWh(){ return coolKWh; }
-    public double getCoolingCostUSD(){ return coolCostUSD; }
-    public double getCoolingCO2kg(){ return coolCO2kg; }
-    public double getWaterCostUSD(){ return waterCostUSD; }
+    public double getCoolingEnergyKWh() {
+        return coolKWh;
+    }
+
+    public double getCoolingCostUSD() {
+        return coolCostUSD;
+    }
+
+    public double getCoolingCO2kg() {
+        return coolCO2kg;
+    }
+
+    public double getWaterCostUSD() {
+        return waterCostUSD;
+    }
 
     // Tuners
-    public void setElecTariffUSDperKWh(double v){ this.elecTariffUSDperKWh = v; }
-    public void setGridCO2kgPerKWh(double v){ this.gridCO2kgPerKWh = v; }
-    public void setWaterTariffUSDperM3(double v){ this.waterTariffUSDperM3 = v; }
+    public void setElecTariffUSDperKWh(double v) {
+        this.elecTariffUSDperKWh = v;
+    }
+
+    public void setGridCO2kgPerKWh(double v) {
+        this.gridCO2kgPerKWh = v;
+    }
+
+    public void setWaterTariffUSDperM3(double v) {
+        this.waterTariffUSDperM3 = v;
+    }
 }

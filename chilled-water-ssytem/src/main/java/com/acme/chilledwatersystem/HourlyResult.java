@@ -1,4 +1,4 @@
-package org.cloudbus.cloudsim.chilledwater;
+package com.acme.chilledwatersystem;
 
 public class HourlyResult {
     public int hour;
@@ -18,6 +18,7 @@ public class HourlyResult {
     public double hourWaterL;
     public double pumpPowerKW;
     public double towerPowerKW;
-    // Note: keep existing field names used elsewhere (crahKW/chillerKW/pumpKW/towerKW)
+    // Note: keep existing field names used elsewhere
+    // (crahKW/chillerKW/pumpKW/towerKW)
     public double chillerCOP;
 }

@@ -1,4 +1,4 @@
-package org.cloudbus.cloudsim.datacenter;
+package com.acme.chilledwatersystem.datacenter;
 
 import java.util.List;
 
@@ -22,5 +22,7 @@ public class DataCenterModel {
         return totalHeat; // kW heat to cooling system
     }
 
-    public List<Rack> getRacks() { return racks; }
+    public List<Rack> getRacks() {
+        return racks;
+    }
 }

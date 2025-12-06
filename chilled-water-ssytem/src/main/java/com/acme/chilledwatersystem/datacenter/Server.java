@@ -1,9 +1,9 @@
-package org.cloudbus.cloudsim.datacenter;
+package com.acme.chilledwatersystem.datacenter;
 
 public class Server {
     private String id;
-    private double ratedPowerKW;  // IT power at 100% load
-    private double currentLoad;   // 0.0–1.0 fraction
+    private double ratedPowerKW; // IT power at 100% load
+    private double currentLoad; // 0.0–1.0 fraction
     private double heatOutputKW;
 
     public Server(String id, double ratedPowerKW) {
@@ -16,7 +16,15 @@ public class Server {
         this.heatOutputKW = ratedPowerKW * currentLoad;
     }
 
-    public double getHeatOutput() { return heatOutputKW; }
-    public double getRatedPower() { return ratedPowerKW; }
-    public double getLoad() { return currentLoad; }
+    public double getHeatOutput() {
+        return heatOutputKW;
+    }
+
+    public double getRatedPower() {
+        return ratedPowerKW;
+    }
+
+    public double getLoad() {
+        return currentLoad;
+    }
 }

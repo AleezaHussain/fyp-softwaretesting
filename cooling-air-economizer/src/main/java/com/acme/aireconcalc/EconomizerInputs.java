@@ -64,6 +64,14 @@ public class EconomizerInputs {
     public double elecTariff_per_kWh; // e.g., PKR/kWh or USD/kWh
     public double grid_kgCO2_per_kWh; // grid emission factor kg CO2 / kWh
 
+    // Supply/return air temperatures (for physics-based free cooling)
+    public double supplyTemp_C; // supply air setpoint (°C)
+    public double returnAirTemp_C; // estimate of return/exhaust air temperature (°C)
+
+    // Air properties (defaults)
+    public double airDensity_kg_per_m3 = 1.20; // typical air density at ~20°C
+    public double cp_air_kJ_per_kgK = 1.005; // specific heat of dry air (kJ/kg·K)
+
     // CAPEX/OPEX for ROI
     public double capexEconomizerUSD; // upfront cost for economizer hardware + install
     public double annualOpexMaintUSD; // annual maintenance (filters, service)

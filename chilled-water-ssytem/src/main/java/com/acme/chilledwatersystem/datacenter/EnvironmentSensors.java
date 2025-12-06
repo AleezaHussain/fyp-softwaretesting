@@ -1,4 +1,4 @@
-package org.cloudbus.cloudsim.datacenter;
+package com.acme.chilledwatersystem.datacenter;
 
 public class EnvironmentSensors {
     private double tempInlet;
@@ -11,7 +11,15 @@ public class EnvironmentSensors {
         this.humidity = rh;
     }
 
-    public double getInletTemp() { return tempInlet; }
-    public double getOutletTemp() { return tempOutlet; }
-    public double getHumidity() { return humidity; }
+    public double getInletTemp() {
+        return tempInlet;
+    }
+
+    public double getOutletTemp() {
+        return tempOutlet;
+    }
+
+    public double getHumidity() {
+        return humidity;
+    }
 }

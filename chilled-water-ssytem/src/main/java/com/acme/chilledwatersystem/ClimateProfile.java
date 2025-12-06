@@ -1,4 +1,4 @@
-package org.cloudbus.cloudsim.chilledwater;
+package com.acme.chilledwatersystem;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -33,11 +33,17 @@ public class ClimateProfile {
                     String[] p = s.split(",");
                     double a = Double.parseDouble(p[0].trim());
                     double w = Double.parseDouble(p[1].trim());
-                    for (int h = 0; h < 24; h++) { ambientHourly[h] = a; wetbulbHourly[h] = w; }
+                    for (int h = 0; h < 24; h++) {
+                        ambientHourly[h] = a;
+                        wetbulbHourly[h] = w;
+                    }
                     return;
                 } else {
                     double a = Double.parseDouble(s);
-                    for (int h = 0; h < 24; h++) { ambientHourly[h] = a; wetbulbHourly[h] = a - 2.0; }
+                    for (int h = 0; h < 24; h++) {
+                        ambientHourly[h] = a;
+                        wetbulbHourly[h] = a - 2.0;
+                    }
                     return;
                 }
             } catch (Exception e) {
@@ -46,13 +52,15 @@ public class ClimateProfile {
         }
 
         boolean loaded = tryLoadCsv(label);
-        if (!loaded) createFallback();
+        if (!loaded)
+            createFallback();
     }
 
     private boolean tryLoadCsv(String label) {
         try {
             File f = new File(label);
-            if (!f.exists()) return false;
+            if (!f.exists())
+                return false;
 
             List<Double> amb = new ArrayList<>();
             List<Double> wb = new ArrayList<>();
@@ -60,9 +68,11 @@ public class ClimateProfile {
                 String line;
                 while ((line = r.readLine()) != null) {
                     line = line.trim();
-                    if (line.isEmpty() || line.startsWith("#")) continue;
+                    if (line.isEmpty() || line.startsWith("#"))
+                        continue;
                     String[] parts = line.split(",");
-                    if (parts.length < 3) continue;
+                    if (parts.length < 3)
+                        continue;
                     amb.add(Double.parseDouble(parts[1]));
                     wb.add(Double.parseDouble(parts[2]));
                 }
@@ -84,7 +94,10 @@ public class ClimateProfile {
         }
     }
 
-    /** Hot and humid profile: high ambient, wet-bulb close to ambient to simulate humid conditions. */
+    /**
+     * Hot and humid profile: high ambient, wet-bulb close to ambient to simulate
+     * humid conditions.
+     */
     private void createHotHumid() {
         for (int h = 0; h < 24; h++) {
             // hotter baseline (e.g., 32°C) with modest diurnal swing
@@ -94,7 +107,15 @@ public class ClimateProfile {
         }
     }
 
-    public double getAmbientTemp(int hour) { return ambientHourly[hour % 24]; }
-    public double getWetBulbTemp(int hour)  { return wetbulbHourly[hour % 24]; }
-    public String getLabel() { return label; }
+    public double getAmbientTemp(int hour) {
+        return ambientHourly[hour % 24];
+    }
+
+    public double getWetBulbTemp(int hour) {
+        return wetbulbHourly[hour % 24];
+    }
+
+    public String getLabel() {
+        return label;
+    }
 }

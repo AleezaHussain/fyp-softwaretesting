@@ -1,4 +1,4 @@
-package org.cloudbus.cloudsim.chilledwater;
+package com.acme.chilledwatersystem;
 
 public class ChillerUnit {
     private double baseCOP = 6.0;
@@ -35,7 +35,8 @@ public class ChillerUnit {
         double plrPenalty = 0.5 * (1.0 - plr);
 
         double cop = baseCOP * tempFactor - plrPenalty;
-        if (cop < minCOP) cop = minCOP;
+        if (cop < minCOP)
+            cop = minCOP;
 
         powerKW = loadKW / cop;
         heatRejectedKW = loadKW + powerKW;
@@ -45,7 +46,15 @@ public class ChillerUnit {
         // economizer is on, caller may set chiller power to 0 or route around this.
     }
 
-    public double getPower() { return powerKW; }
-    public double getHeatRejected() { return heatRejectedKW; }
-    public double getLastCOP() { return lastCOP; }
+    public double getPower() {
+        return powerKW;
+    }
+
+    public double getHeatRejected() {
+        return heatRejectedKW;
+    }
+
+    public double getLastCOP() {
+        return lastCOP;
+    }
 }

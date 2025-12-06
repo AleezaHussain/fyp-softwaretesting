@@ -1,7 +1,7 @@
-package org.cloudbus.cloudsim.chilledwater;
+package com.acme.chilledwatersystem;
 
 import java.util.List;
-import org.cloudbus.cloudsim.datacenter.*;
+import com.acme.chilledwatersystem.datacenter.*;
 import org.cloudsimplus.core.CloudSimPlus;
 import org.cloudsimplus.brokers.DatacenterBrokerSimple;
 import org.cloudsimplus.vms.Vm;
@@ -164,7 +164,7 @@ public class ChilledWaterMain {
         }
 
         // Emit CloudSim-like lifecycle INFO logs so outputs match expected format
-        org.cloudbus.cloudsim.datacenter.SimulationLogger slog = new org.cloudbus.cloudsim.datacenter.SimulationLogger();
+        com.acme.chilledwatersystem.datacenter.SimulationLogger slog = new com.acme.chilledwatersystem.datacenter.SimulationLogger();
         double simTime = totalHours; // approximate simulation time in hours for the run
         // Broker shutdown lifecycle (simulated messages for familiarity)
         slog.infoWithTime(simTime, "DatacenterBrokerSimple2", "is shutting down...");

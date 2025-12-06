@@ -310,81 +310,21 @@ public class App {
 
                 // ---- Run Cooling Model (for internal calculations) ----
                 AirEconomizerModel model = new AirEconomizerModel();
-                model.compute(in); // Run model but use component breakdown for final results
 
-                // FIX: DYNAMIC AIRFLOW SCALING - Use actual rack demand instead of arbitrary
-                // CFM/kW
-                double requiredCFM_approx = totalITLoadWithFans_kW * 110; // ~110 CFM/kW for server cooling needs
-                double designMargin = 1.15; // 15% safety margin for hot spots
-                double dynamicAirflow_CFM = requiredCFM_approx * designMargin; // Smart scaled airflow
+                // Ensure IT load includes server fans for the economizer model
+                in.itAvgKW = totalITLoadWithFans_kW;
 
-                // Allow override to test different approaches
-                boolean useDynamicScaling = false; // 🔧 TOGGLE: true for smart scaling, false for fixed CFM/kW
-                double finalAirflow_CFM = useDynamicScaling ? dynamicAirflow_CFM : unifiedAirflow_CFM;
+                // Provide supply/return/air properties for physics-based calc
+                in.supplyTemp_C = supplyTempC;
+                in.returnAirTemp_C = thermalLoad.maxExhaustTempC > 0 ? thermalLoad.maxExhaustTempC
+                                : (supplyTempC + 10.0);
 
-                System.out.printf("=== AIRFLOW OPTIMIZATION ===\n");
-                System.out.printf("Required cooling airflow: ~%.0f CFM (%.0f CFM/kW)\n",
-                                requiredCFM_approx, requiredCFM_approx / totalITLoadWithFans_kW);
-                System.out.printf("Design margin: %.0f%% safety factor\n", (designMargin - 1.0) * 100);
-                System.out.printf("Dynamic scaled airflow: %.0f CFM\n", dynamicAirflow_CFM);
-                System.out.printf("Fixed CFM/kW approach: %.0f CFM (320 CFM/kW)\n", unifiedAirflow_CFM);
-                System.out.printf("Using: %s (%.0f CFM)\n",
-                                useDynamicScaling ? "Dynamic scaling" : "Fixed CFM/kW", finalAirflow_CFM);
+                AirEconomizerModel.Result econResult = model.compute(in); // physics-based econ calculation
 
-                // ---- Component-wise Energy Calculation (Test System) ----
-                double totalCFM = finalAirflow_CFM; // Use optimized airflow
-
-                // Test System HVAC Fans
-                double testSupplyFan_kW = (totalCFM * in.fan_W_per_CFM * (1 + in.filterFanPenaltyFrac)) / 1000.0;
-                double testReturnFan_kW = (totalCFM * in.returnFan_W_per_CFM * (1 + in.filterFanPenaltyFrac)) / 1000.0;
-                double testTotalHVACFan_kW = testSupplyFan_kW + testReturnFan_kW;
-                double testFanEnergy_kWh = testTotalHVACFan_kW * in.hours;
-
-                // Test System Mechanical Cooling - must account for economizer operation
-                double mechCOP = 4.0; // Test system COP
-                // FIX: Mechanical cooling = base cooling load × mechanical trim fraction
-                double baseCoolingLoad_kW = thermalLoad.totalITLoadKW / mechCOP; // Basic cooling load
-                double testMechCooling_kW = baseCoolingLoad_kW * in.mechTrimFracAtPartial; // Apply economizer reduction
-
-                // Test System Pumps (constant small load regardless of economizer mode)
-                double testPumpPowerFrac = 0.05; // 5% pumps
-                double testPumpPower_kW = thermalLoad.totalITLoadKW * testPumpPowerFrac;
-
-                // Calculate separate energy components
-                double testMechEnergy_kWh = testMechCooling_kW * in.hours; // Mechanical chillers only
-                double testPumpEnergy_kWh = testPumpPower_kW * in.hours; // Pumps only
-                double testSensorEnergy_kWh = 0.05 * in.hours; // Sensors and misc (reduced from 0.5 to 0.05 kW)
-
-                // Test System Total Cooling+Aux
-                double testTotalCoolingAux_kWh = testFanEnergy_kWh + testMechEnergy_kWh + testPumpEnergy_kWh
-                                + testSensorEnergy_kWh;
-
-                // ---- Component-wise Energy Calculation (Baseline System) ----
-
-                // Baseline HVAC Fans (less efficient)
-                double baselineFan_kW = (totalCFM * in.baselineFan_W_per_CFM * 1.10) / 1000.0; // 1.0 W/CFM + 10%
-                                                                                               // penalty
-                double baselineFanEnergy_kWh = baselineFan_kW * in.hours;
-
-                // Baseline Mechanical Cooling (less efficient, full mechanical - no economizer)
-                double baselineCOP = in.baselineCOP; // 3.5 baseline COP
-                double baselineMechCooling_kW = thermalLoad.totalITLoadKW / baselineCOP;
-                double baselineMechEnergy_kWh = baselineMechCooling_kW * in.hours;
-
-                // Baseline Pumps (less efficient)
-                double baselinePumpPowerFrac = 0.06; // 6% pumps (less efficient)
-                double baselinePumpPower_kW = thermalLoad.totalITLoadKW * baselinePumpPowerFrac;
-                double baselinePumpEnergy_kWh = baselinePumpPower_kW * in.hours;
-
-                // Baseline Sensors/Misc
-                double baselineSensorEnergy_kWh = 0.06 * in.hours; // Higher sensor load (slightly higher than test)
-
-                // Baseline Total Cooling+Aux
-                double baselineTotalCoolingAux_kWh = baselineFanEnergy_kWh + baselineMechEnergy_kWh
-                                + baselinePumpEnergy_kWh + baselineSensorEnergy_kWh;
-
-                // Calculate actual savings
-                double actualSavings_kWh = baselineTotalCoolingAux_kWh - testTotalCoolingAux_kWh;
+                // ---- Dynamic airflow / optimization handled above and detailed energy
+                // accounting is done inside AirEconomizerModel. We avoid re-computing a
+                // second, inconsistent energy accounting here to keep a single authoritative
+                // energy pipeline (see AirEconomizerModel.Result).
 
                 // ---- FIX: Comprehensive Reporting After All Calculations ----
                 System.out.println("\n=== CORRECTED DATACENTER THERMAL ANALYSIS ===");
@@ -392,16 +332,13 @@ public class App {
                 System.out.println("----------------------------------------");
                 System.out.printf("Total Power: %.2f kW (computing: %.2f kW + server fans: %.2f kW)\n",
                                 totalITLoadWithFans_kW, thermalLoad.totalITLoadKW, serverFanPowerKW);
-                System.out.printf("Total Airflow: %.0f CFM (%s approach)\n",
-                                totalCFM, useDynamicScaling ? "dynamic scaling" : "320 CFM/kW");
+                System.out.printf("Total Airflow: %.0f CFM (fixed 320 CFM/kW)\n",
+                                unifiedAirflow_CFM);
+                double requiredCFM_approx = totalITLoadWithFans_kW * 110; // ~110 CFM/kW
+                double totalCFM = unifiedAirflow_CFM; // currently using fixed CFM/kW approach
+                double overairFactor = requiredCFM_approx > 0 ? totalCFM / requiredCFM_approx : 1.0;
                 System.out.printf("RTI Analysis: Delivering %.0f CFM vs Required ~%.0f CFM (Over-airing by %.1fx)\n",
-                                totalCFM, requiredCFM_approx, totalCFM / requiredCFM_approx);
-
-                System.out.println("\n=== FINAL CORRECTED THERMAL-AWARE SIMULATION ===");
-                System.out.printf("Total IT Load: %.2f kW (computing + server fans: %.2f + %.2f)\n",
-                                totalITLoadWithFans_kW, thermalLoad.totalITLoadKW, serverFanPowerKW);
-                System.out.printf("Unified Airflow: %.0f CFM (%s approach)\n",
-                                totalCFM, useDynamicScaling ? "dynamic scaling" : "fixed 320 CFM/kW");
+                                totalCFM, requiredCFM_approx, overairFactor);
 
                 // RTI Analysis with explanation
 
@@ -427,70 +364,32 @@ public class App {
                 System.out.printf("- Hours: Econ=%.0f, Partial=%.0f, Mechanical=%.0f\n",
                                 in.econHours, in.partialHours, in.mechHours);
 
-                System.out.printf("\n=== COMPONENT-WISE ENERGY BREAKDOWN ===\n");
-                System.out.printf("TEST SYSTEM (Improved):\n");
-                System.out.printf("  HVAC Fans: %.2f kW (supply %.2f + return %.2f) → %.0f kWh/yr\n",
-                                testTotalHVACFan_kW, testSupplyFan_kW, testReturnFan_kW, testFanEnergy_kWh);
-                System.out.printf("  Mechanical Chillers: %.2f kW (COP=%.1f) → %.0f kWh/yr\n",
-                                testMechCooling_kW, mechCOP, testMechEnergy_kWh);
-                System.out.printf("  Pumps: %.2f kW → %.0f kWh/yr\n",
-                                testPumpPower_kW, testPumpEnergy_kWh);
-                System.out.printf("  Sensors/Misc: 0.05 kW → %.0f kWh/yr\n", testSensorEnergy_kWh);
-                System.out.printf("  Total Cooling+Aux: %.0f kWh/yr\n", testTotalCoolingAux_kWh);
+                // === FINAL AIR-SIDE ECONOMIZER MODEL SUMMARY ===
+                System.out.println("\n=== AIR-SIDE ECONOMIZER MODEL (Physics-based) SUMMARY ===");
+                System.out.printf("IT Energy (year): %.0f kWh\n", econResult.it_kWh);
+                System.out.printf("Total cooling + auxiliaries (ASE model): %.0f kWh/yr\n", econResult.total_kWh);
+                System.out.printf("  - Econ hours cooling+aux: %.0f kWh\n", econResult.total_kWh_econ);
+                System.out.printf("  - Partial hours cooling+aux: %.0f kWh\n", econResult.total_kWh_partial);
+                System.out.printf("  - Mechanical hours cooling+aux: %.0f kWh\n", econResult.total_kWh_mech);
+                System.out.printf("Mechanical cooling energy (partial): %.0f kWh\n", econResult.mech_kWh_partial);
+                System.out.printf("Mechanical cooling energy (mech): %.0f kWh\n", econResult.mech_kWh_mech);
+                System.out.printf("Baseline cooling energy (no-econ): %.0f kWh/yr\n", econResult.baseline_kWh);
+                System.out.printf("Estimated energy savings: %.0f kWh/yr (%.1f %%)\n", econResult.savings_kWh,
+                                (econResult.savings_kWh / Math.max(1.0, econResult.baseline_kWh)) * 100.0);
+                System.out.printf("Estimated annual electricity cost (ASE): %.2f\n", econResult.total_cost);
+                System.out.printf("Estimated annual CO2 (ASE): %.0f kg/yr\n", econResult.total_co2_kg);
+                System.out.printf("Estimated annual water use (evap assist): %.1f L/yr\n", econResult.total_water_L);
 
-                System.out.printf("\nBASELINE SYSTEM (Standard):\n");
-                System.out.printf("  HVAC Fans: %.2f kW (%.1f W/CFM) → %.0f kWh/yr\n",
-                                baselineFan_kW, in.baselineFan_W_per_CFM, baselineFanEnergy_kWh);
-                System.out.printf("  Mechanical Chillers: %.2f kW (COP=%.1f) → %.0f kWh/yr\n",
-                                baselineMechCooling_kW, baselineCOP, baselineMechEnergy_kWh);
-                System.out.printf("  Pumps: %.2f kW → %.0f kWh/yr\n",
-                                baselinePumpPower_kW, baselinePumpEnergy_kWh);
-                System.out.printf("  Sensors/Misc: 0.06 kW → %.0f kWh/yr\n", baselineSensorEnergy_kWh);
-                System.out.printf("  Total Cooling+Aux: %.0f kWh/yr\n", baselineTotalCoolingAux_kWh);
-
-                System.out.println("\n=== APPLES-TO-APPLES COMPARISON ===");
-                System.out.printf("IT Energy (including server fans): %.0f kWh/yr\n",
-                                totalITLoadWithFans_kW * in.hours);
-                System.out.printf("Baseline cooling energy: %.0f kWh/yr\n", baselineTotalCoolingAux_kWh);
-                System.out.printf("Test cooling energy:     %.0f kWh/yr\n", testTotalCoolingAux_kWh);
-                System.out.printf("Energy savings:          %.0f kWh/yr (%s)\n",
-                                actualSavings_kWh, actualSavings_kWh > 0 ? "SAVINGS" : "PENALTY");
-
-                // FIX: CORRECTED CO2 calculation using component breakdown values
-                double correctBaselineCO2 = baselineTotalCoolingAux_kWh * in.grid_kgCO2_per_kWh;
-                double correctTestCO2 = testTotalCoolingAux_kWh * in.grid_kgCO2_per_kWh;
-                double correctCO2Savings = correctBaselineCO2 - correctTestCO2;
-
-                System.out.printf("\n=== CORRECTED CO2 CALCULATION ===\n");
-                System.out.printf("Baseline CO2: %.0f × %.3f = %.0f kg/yr\n",
-                                baselineTotalCoolingAux_kWh, in.grid_kgCO2_per_kWh, correctBaselineCO2);
-                System.out.printf("Test CO2:     %.0f × %.3f = %.0f kg/yr\n",
-                                testTotalCoolingAux_kWh, in.grid_kgCO2_per_kWh, correctTestCO2);
-                System.out.printf("CO2 Savings:  %.0f kg/yr (%.1f tonnes/yr)\n",
-                                correctCO2Savings, correctCO2Savings / 1000.0);
-
-                // FIX: Currency-consistent ROI calculation
-                double tariffUSD_per_kWh = in.elecTariff_per_kWh / 280.0; // Convert PKR to USD
-                double annualSavingsUSD = actualSavings_kWh * tariffUSD_per_kWh;
-                double capexUSD = in.capexEconomizerUSD;
-                double paybackYears = Math.abs(annualSavingsUSD) > 0.01 ? capexUSD / annualSavingsUSD : 999.9;
-
-                System.out.println("\n=== CURRENCY-CONSISTENT ROI ===");
-                System.out.printf("Electricity rate: %.2f PKR/kWh (%.4f USD/kWh)\n",
-                                in.elecTariff_per_kWh, tariffUSD_per_kWh);
-                System.out.printf("Annual savings:   %.0f USD (%s%.0f kWh)\n",
-                                annualSavingsUSD, actualSavings_kWh >= 0 ? "+" : "", actualSavings_kWh);
-                System.out.printf("Capital cost:     %.0f USD\n", capexUSD);
-                System.out.printf("Payback period:   %.1f years\n", paybackYears);
-
-                System.out.println("\n=== ENVIRONMENTAL IMPACT ===");
-                System.out.printf("Grid emission factor: %.2f kg CO2/kWh\n", in.grid_kgCO2_per_kWh);
-                System.out.printf("Baseline CO2 emissions: %.0f kg/yr (%.1f tonnes/yr)\n",
-                                correctBaselineCO2, correctBaselineCO2 / 1000);
-                System.out.printf("Test system CO2 emissions: %.0f kg/yr (%.1f tonnes/yr)\n",
-                                correctTestCO2, correctTestCO2 / 1000);
-                System.out.printf("Annual CO2 savings: %.0f kg/yr (%.1f tonnes/yr)\n",
-                                correctCO2Savings, correctCO2Savings / 1000);
+                // ROI / payback using economizer CAPEX
+                double tariffUSD = in.elecTariff_per_kWh / 280.0; // PKR -> USD (approx used earlier)
+                double annualSavingsUSD_model = econResult.savings_kWh * tariffUSD;
+                double payback_model_years = Math.abs(annualSavingsUSD_model) > 0.01
+                                ? in.capexEconomizerUSD / annualSavingsUSD_model
+                                : Double.POSITIVE_INFINITY;
+                System.out.printf("Model-based annual savings: %.0f kWh -> %.2f USD/yr\n", econResult.savings_kWh,
+                                annualSavingsUSD_model);
+                System.out.printf("Economizer CAPEX: %.0f USD, Payback (model): %.2f years\n",
+                                in.capexEconomizerUSD, payback_model_years);
         }
 
         /**

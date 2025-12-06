@@ -1,4 +1,4 @@
-package org.cloudbus.cloudsim.chilledwater;
+package com.acme.chilledwatersystem;
 
 import java.util.List;
 
@@ -33,19 +33,21 @@ public class ChilledWaterCoolingSystem {
         this.metrics = metrics;
     }
 
-    public void update(java.util.List<org.cloudbus.cloudsim.datacenter.Rack> racks, double ambient, double wetBulb) {
+    public void update(java.util.List<com.acme.chilledwatersystem.datacenter.Rack> racks, double ambient,
+            double wetBulb) {
         // compute total IT heat from racks
         double totalItKW = 0.0;
-        for (org.cloudbus.cloudsim.datacenter.Rack r : racks) {
+        for (com.acme.chilledwatersystem.datacenter.Rack r : racks) {
             totalItKW += r.getTotalHeat();
         }
 
         SmartController controller = new SmartController();
         SmartController.Decision d = controller.decide(totalItKW, wetBulb, 22.0);
 
-        // CRAH fans: compute per-rack fan power (controller's fan fraction applied per rack)
+        // CRAH fans: compute per-rack fan power (controller's fan fraction applied per
+        // rack)
         double crahPower = 0.0;
-        for (org.cloudbus.cloudsim.datacenter.Rack r : racks) {
+        for (com.acme.chilledwatersystem.datacenter.Rack r : racks) {
             double rackHeat = r.getTotalHeat();
             // sum fan power across CRAH units for this rack
             crahPower += crahUnits.stream().mapToDouble(c -> c.getFanPower(rackHeat) * d.crahFanFrac).sum();
@@ -85,18 +87,47 @@ public class ChilledWaterCoolingSystem {
         metrics.addHour(totalPowerKW);
     }
 
-    public double getLastHourWaterL() { return lastHourWaterL; }
-    public double getWUE() { return waterConsumption.getWUE(); }
-    public double getLastChillerPowerKW() { return lastChillerPowerKW; }
-    public double getLastChillerCOP() { return lastChillerCOP; }
+    public double getLastHourWaterL() {
+        return lastHourWaterL;
+    }
 
-    public double getLastCRAHPowerKW() { return lastCRAHPowerKW; }
-    public double getLastPumpPowerKW() { return lastPumpPowerKW; }
-    public double getLastTowerPowerKW() { return lastTowerPowerKW; }
+    public double getWUE() {
+        return waterConsumption.getWUE();
+    }
 
-    public double getTotalWaterL() { return waterConsumption.getTotalWaterL(); }
-    public double getTotalWaterCostUSD() { return waterConsumption.getTotalWaterCostUSD(); }
+    public double getLastChillerPowerKW() {
+        return lastChillerPowerKW;
+    }
 
-    public double getPUE() { return pue; }
-    public double getCoolingPower() { return totalPowerKW; }
+    public double getLastChillerCOP() {
+        return lastChillerCOP;
+    }
+
+    public double getLastCRAHPowerKW() {
+        return lastCRAHPowerKW;
+    }
+
+    public double getLastPumpPowerKW() {
+        return lastPumpPowerKW;
+    }
+
+    public double getLastTowerPowerKW() {
+        return lastTowerPowerKW;
+    }
+
+    public double getTotalWaterL() {
+        return waterConsumption.getTotalWaterL();
+    }
+
+    public double getTotalWaterCostUSD() {
+        return waterConsumption.getTotalWaterCostUSD();
+    }
+
+    public double getPUE() {
+        return pue;
+    }
+
+    public double getCoolingPower() {
+        return totalPowerKW;
+    }
 }

@@ -1,16 +1,17 @@
-package org.cloudbus.cloudsim.chilledwater;
+package com.acme.chilledwatersystem;
 
 /**
- * Dynamically calculates tower water use and cost based on real-time conditions.
+ * Dynamically calculates tower water use and cost based on real-time
+ * conditions.
  */
 public class WaterConsumption {
 
     // Default values (tunable)
-    private final double baseEvapLperKWh = 0.90;         // L/kWh at 25°C
-    private final double refWetBulbC = 25.0;              // reference temperature
-    private final double tempSensitivity = 0.02;          // +2% per °C above ref
-    private double blowdownMultiplier = 1.15;             // total water = evap × this
-    private double waterTariffUSDPerM3 = 1.20;            // dollars per cubic meter
+    private final double baseEvapLperKWh = 0.90; // L/kWh at 25°C
+    private final double refWetBulbC = 25.0; // reference temperature
+    private final double tempSensitivity = 0.02; // +2% per °C above ref
+    private double blowdownMultiplier = 1.15; // total water = evap × this
+    private double waterTariffUSDPerM3 = 1.20; // dollars per cubic meter
 
     // Accumulators
     private double totalWaterL = 0.0;
@@ -19,9 +20,11 @@ public class WaterConsumption {
 
     /**
      * Add an hour of water use based on heat rejected and ambient conditions.
-     * @param heatRejectedKW  total heat rejected this hour (≈ cooling load + chiller loss)
-     * @param ITkWhr          IT energy (kWh) this hour
-     * @param wetBulbC        hourly wet-bulb temperature
+     * 
+     * @param heatRejectedKW total heat rejected this hour (≈ cooling load + chiller
+     *                       loss)
+     * @param ITkWhr         IT energy (kWh) this hour
+     * @param wetBulbC       hourly wet-bulb temperature
      */
     public void addHour(double heatRejectedKW, double ITkWhr, double wetBulbC) {
         double delta = wetBulbC - refWetBulbC;
@@ -37,7 +40,8 @@ public class WaterConsumption {
     }
 
     public double getWUE() {
-        if (totalITkWh <= 0.0) return 0.0;
+        if (totalITkWh <= 0.0)
+            return 0.0;
         return totalWaterL / totalITkWh;
     }
 
