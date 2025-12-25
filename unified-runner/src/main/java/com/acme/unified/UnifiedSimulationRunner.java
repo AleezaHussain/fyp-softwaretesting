@@ -20,6 +20,10 @@ import java.util.List;
  */
 public class UnifiedSimulationRunner {
     public static void main(String[] args) throws Exception {
+        System.out.println("==================================================");
+        System.out.println("  AIR ECONOMIZER COOLING SIMULATION");
+        System.out.println("==================================================\n");
+        
         SimConfig cfg = new SimConfig();
         int days = 365;
         int scaleFactor = 100;
@@ -31,16 +35,21 @@ public class UnifiedSimulationRunner {
             try { days = Integer.parseInt(args[2]); } catch (Exception e) {}
         }
 
+        System.out.println("Configuration:");
+        System.out.println("  Climate Zone: " + climateLabel);
+        System.out.println("  Scale Factor: " + scaleFactor + " servers");
+        System.out.println("  Simulation Duration: " + days + " days (" + (days * 24) + " hours)");
+        
         double designMaxItKW = cfg.getDouble("design.max.it.kW", 500.0);
 
         // create techniques
         List<CoolingTechnique> techs = new ArrayList<>();
-        techs.add(new CRACAdapter(designMaxItKW));
-        techs.add(new CRAHAdapter(designMaxItKW));
-    techs.add(new AirEconomizerAdapter(scaleFactor));
-    techs.add(new ChilledWaterAdapter(scaleFactor));
+        // Running only Air Economizer
+        techs.add(new AirEconomizerAdapter(scaleFactor));
+        System.out.println("  Cooling Technique: Air Economizer\n");
 
         // climate + DC model for IT profile
+        System.out.println("Initializing climate profile and datacenter model...");
         ClimateProfile climate = new ClimateProfile(climateLabel);
 
         // create a simple datacenter model to derive per-hour IT
@@ -48,6 +57,7 @@ public class UnifiedSimulationRunner {
         for (int i = 0; i < scaleFactor; i++) servers.add(new Server("S" + i, 5.0));
         Rack rack = new Rack("R1", servers, Math.max(1.0, scaleFactor / 10.0));
         DataCenterModel dc = new DataCenterModel(List.of(rack), new ITLoadProfile());
+        System.out.println("Datacenter: " + servers.size() + " servers in 1 rack\n");
 
         int totalHours = Math.max(1, days * 24);
 
@@ -66,11 +76,18 @@ public class UnifiedSimulationRunner {
 
         double tariff = cfg.getDouble("electricity.tariff", 0.10);
         double co2factor = cfg.getDouble("co2.factor", 0.45);
+        
+        System.out.println("Economic Parameters:");
+        System.out.println("  Electricity Tariff: $" + tariff + "/kWh");
+        System.out.println("  CO2 Factor: " + co2factor + " kg/kWh\n");
 
         double[] totalEnergyKWh = new double[techs.size()];
         double[] totalCost = new double[techs.size()];
         double[] totalCO2 = new double[techs.size()];
 
+        System.out.println("Starting simulation...");
+        System.out.println("--------------------------------------------------\n");
+        
         for (int hour = 0; hour < totalHours; hour++) {
             double itLoadKW = dc.updateAndGetTotalHeat(hour % 24);
             double ambient = climate.getAmbientTemp(hour);
@@ -85,8 +102,19 @@ public class UnifiedSimulationRunner {
                 BufferedWriter w = writers.get(i);
                 w.write(String.format("%d,%.3f,%.3f,%.2f,%.2f\n", hour, itLoadKW, coolingKW, ambient, wetbulb));
             }
+            
+            // Show progress every 240 hours (10 days)
+            if ((hour + 1) % 240 == 0 || hour == 0) {
+                int day = (hour + 1) / 24;
+                System.out.printf("Hour %4d (Day %3d) | IT Load: %6.2f kW | Ambient: %5.1f°C | Wetbulb: %5.1f°C | Cooling: %6.2f kW\n", 
+                    hour, day, itLoadKW, ambient, wetbulb, totalEnergyKWh[0] / (hour + 1));
+            }
         }
-
+        
+        System.out.println("\n--------------------------------------------------");
+        System.out.println("Simulation Complete!\n");
+        
+        System.out.println("Writing results to files...");
         for (BufferedWriter w : writers) w.close();
 
         // write summary
@@ -100,6 +128,22 @@ public class UnifiedSimulationRunner {
             }
         }
 
-        System.out.println("Unified simulation finished. Results in: " + outDir.toAbsolutePath());
+        System.out.println("\n==================================================");
+        System.out.println("  SIMULATION RESULTS");
+        System.out.println("==================================================\n");
+        
+        for (int i = 0; i < techs.size(); i++) {
+            CoolingTechnique t = techs.get(i);
+            System.out.println("Technique: " + t.getName());
+            System.out.printf("  Total Energy: %,.2f kWh\n", totalEnergyKWh[i]);
+            System.out.printf("  Total Cost: $%,.2f\n", totalCost[i]);
+            System.out.printf("  Total CO2: %,.2f kg\n", totalCO2[i]);
+            System.out.printf("  Water Usage: %,.2f L\n", t.getTotalWaterL());
+            System.out.printf("  Average Cooling Power: %.2f kW\n", totalEnergyKWh[i] / totalHours);
+        }
+        
+        System.out.println("\n==================================================");
+        System.out.println("Results saved in: " + outDir.toAbsolutePath());
+        System.out.println("==================================================");
     }
 }

@@ -20,6 +20,7 @@
     <module>cooling-air-economizer</module>
     <module>crah-crac</module>
     <module>chilled-water-ssytem</module>
+    <module>dataset-generator</module>
   </modules>
 
 </project>
