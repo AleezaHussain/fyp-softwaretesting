@@ -1,0 +1,20 @@
+# Maven / Java
+target/
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven plugin noise
+**/maven-status/
+**/createdFiles.lst
+**/inputFiles.lst
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store

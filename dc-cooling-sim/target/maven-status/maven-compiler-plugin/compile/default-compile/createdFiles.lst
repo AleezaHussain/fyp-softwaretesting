@@ -1,6 +1,0 @@
-com\acme\dcsim\App.class
-com\acme\dcsim\CoolingModel.class
-com\acme\dcsim\PueCoolingModel.class
-com\acme\dcsim\CopCoolingModel.class
-com\acme\dcsim\EnergyAccountant$EnvSupplier.class
-com\acme\dcsim\EnergyAccountant.class
