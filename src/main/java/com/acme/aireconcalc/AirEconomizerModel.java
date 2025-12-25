@@ -95,16 +95,36 @@ public class AirEconomizerModel {
                                                                                                    // outside air
 
         // Mechanical cooling electricity:
-        // Partial hours: only a fraction of IT heat still needs compressor (trim)
-        double it_kWh_partial = in.itAvgKW * in.partialHours;
-        double it_kWh_mech = in.itAvgKW * in.mechHours;
+        // === PHYSICS-BASED FREE COOLING and MECHANICAL TRIM ===
+        // Convert CFM -> m^3/s: 1 CFM = 0.00047194745 m^3/s
+        double vdot_m3_per_s = r.supplyAirflow_CFM * 0.00047194745;
+        double mdot_kg_per_s = in.airDensity_kg_per_m3 * vdot_m3_per_s;
 
-        r.mech_kWh_partial = (it_kWh_partial * in.mechTrimFracAtPartial) / Math.max(in.mechCOP, 0.01);
-        r.mech_kWh_mech = (it_kWh_mech) / Math.max(in.mechCOP, 0.01);
+        // Full-economizer free cooling power (kW): m_dot * cp * (T_return - T_supply)
+        double deltaT_full = in.returnAirTemp_C - in.supplyTemp_C;
+        double q_free_kW_full = Math.max(0.0, mdot_kg_per_s * in.cp_air_kJ_per_kgK * deltaT_full);
+
+        // Partial mode: mixed temperature from OA and return air
+        double mixedTemp_partial = in.outsideAirFrac_partial * in.avgOutdoorTemp_C
+                + (1.0 - in.outsideAirFrac_partial) * in.returnAirTemp_C;
+        double deltaT_partial = mixedTemp_partial - in.supplyTemp_C;
+        double q_free_kW_partial = Math.max(0.0, mdot_kg_per_s * in.cp_air_kJ_per_kgK * deltaT_partial);
+
+        // Mechanical required (remaining heat) per mode (kW)
+        double mech_need_kW_econ = Math.max(0.0, in.itAvgKW - q_free_kW_full);
+        double mech_need_kW_partial = Math.max(0.0, in.itAvgKW - q_free_kW_partial);
+        double mech_need_kW_mech = in.itAvgKW; // mechanical-only hours must remove full IT heat
+
+        // Convert to electrical energy (kWh) using COP and hours
+        r.mech_kWh_partial = (mech_need_kW_partial / Math.max(in.mechCOP, 0.01)) * in.partialHours;
+        r.mech_kWh_mech = (mech_need_kW_mech / Math.max(in.mechCOP, 0.01)) * in.mechHours;
 
         // Pump power (CHW/CW circulation) - proportional to mechanical cooling load
         double pump_kWh_partial = r.mech_kWh_partial * in.pumpPowerFrac;
         double pump_kWh_mech = r.mech_kWh_mech * in.pumpPowerFrac;
+        // record pump energy in result object
+        r.pump_kWh_partial = pump_kWh_partial;
+        r.pump_kWh_mech = pump_kWh_mech;
 
         // Weather-dependent reheat / humidifier (improved logic)
         double reheatActiveHours = 0;
@@ -167,8 +187,9 @@ public class AirEconomizerModel {
 
         // Electricity → cost and CO2
         r.total_cost = r.total_kWh * in.elecTariff_per_kWh;
-        
-        // FIX: r.total_kWh is actually cooling energy only (confirmed by component breakdown)
+
+        // FIX: r.total_kWh is actually cooling energy only (confirmed by component
+        // breakdown)
         // Use it directly for CO2 calculation
         r.total_co2_kg = r.total_kWh * in.grid_kgCO2_per_kWh;
 
@@ -200,8 +221,9 @@ public class AirEconomizerModel {
             r.baseline_kWh = baseline_total_kWh_fromPUE;
         }
         r.baseline_cost = r.baseline_kWh * in.elecTariff_per_kWh;
-        
-        // FIX: Baseline CO2 already correctly uses cooling-only energy (r.baseline_kWh excludes IT)
+
+        // FIX: Baseline CO2 already correctly uses cooling-only energy (r.baseline_kWh
+        // excludes IT)
         r.baseline_co2_kg = r.baseline_kWh * in.grid_kgCO2_per_kWh;
 
         // Savings vs baseline
