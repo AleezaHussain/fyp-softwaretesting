@@ -18,6 +18,7 @@
     <module>dc-core</module>
     <module>cooling-air-economizer</module>
     <module>cooling-evaporative</module>
+    <module>cooling-aislecontainment</module>
   </modules>
 
 </project>
