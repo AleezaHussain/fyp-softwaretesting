@@ -1,0 +1,6 @@
+com\acme\aisle\HotColdAisleSimulation.class
+com\acme\aisle\AisleLauncher.class
+com\acme\aisle\HotColdAisleSimulation$Step.class
+com\acme\aisle\ComparisonRunner.class
+com\acme\aisle\ComparisonRunner$Result.class
+com\acme\aisle\HotColdAisleSimulation$Scenario.class

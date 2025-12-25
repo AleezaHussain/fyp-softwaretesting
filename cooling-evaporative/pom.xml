@@ -2,26 +2,16 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
   <parent>
     <groupId>com.acme</groupId>
     <artifactId>fyp-datacenter</artifactId>
     <version>1.0-SNAPSHOT</version>
   </parent>
 
-  <groupId>com.acme.dccore</groupId>
-  <artifactId>dc-core</artifactId>
+  <groupId>com.acme.evap</groupId>
+  <artifactId>cooling-evaporative</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
-
-  <dependencies>
-    <!-- CloudSim Plus -->
-    <dependency>
-      <groupId>org.cloudsimplus</groupId>
-      <artifactId>cloudsimplus</artifactId>
-      <version>${cloudsimplus.version}</version>
-    </dependency>
-  </dependencies>
 
   <build>
     <plugins>
@@ -38,7 +28,7 @@
         <artifactId>exec-maven-plugin</artifactId>
         <version>3.1.0</version>
         <configuration>
-          <mainClass>com.acme.dccore.MainWithImmersion</mainClass>
+          <mainClass>com.acme.evap.App</mainClass>
         </configuration>
       </plugin>
     </plugins>

@@ -1,0 +1,8 @@
+com\acme\evap\FanModel$Params.class
+com\acme\evap\EvaporativeCoolingModel.class
+com\acme\evap\App$Scenario.class
+com\acme\evap\EvaporativeCoolingModel$Inputs.class
+com\acme\evap\FanModel.class
+com\acme\evap\App.class
+com\acme\evap\EvapMetricsRecorder.class
+com\acme\evap\EvaporativeCoolingModel$Outputs.class

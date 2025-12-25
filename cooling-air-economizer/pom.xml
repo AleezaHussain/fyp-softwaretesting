@@ -1,6 +1,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
@@ -9,22 +10,42 @@
     <version>1.0-SNAPSHOT</version>
   </parent>
 
-  <groupId>com.acme.dccore</groupId>
-  <artifactId>dc-core</artifactId>
+  <groupId>com.acme.aireconcalc</groupId>
+  <artifactId>cooling-air-economizer</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
+  <properties>
+    <junit.version>5.11.0</junit.version>
+  </properties>
+
   <dependencies>
-    <!-- CloudSim Plus -->
+    <!-- ✅ Baseline DC module -->
+    <dependency>
+      <groupId>com.acme.dccore</groupId>
+      <artifactId>dc-core</artifactId>
+      <version>1.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- ✅ CloudSim Plus -->
     <dependency>
       <groupId>org.cloudsimplus</groupId>
       <artifactId>cloudsimplus</artifactId>
       <version>${cloudsimplus.version}</version>
     </dependency>
+
+    <!-- ✅ JUnit for testing -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
     <plugins>
+      <!-- Java 17 compiler -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
@@ -33,13 +54,22 @@
           <release>${maven.compiler.release}</release>
         </configuration>
       </plugin>
+
+      <!-- Run App.java -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
-        <version>3.1.0</version>
+        <version>3.5.0</version>
         <configuration>
-          <mainClass>com.acme.dccore.MainWithImmersion</mainClass>
+          <mainClass>com.acme.aireconcalc.App</mainClass>
         </configuration>
+      </plugin>
+
+      <!-- JUnit runner -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
       </plugin>
     </plugins>
   </build>
