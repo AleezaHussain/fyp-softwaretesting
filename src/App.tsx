@@ -15,6 +15,8 @@ import { Advisory } from './pages/Advisory'
 import { Reporting } from './pages/Reporting'
 import { Profile } from './pages/Profile'
 import { Simulations } from './pages/Simulations'
+import { NewSimulation } from './pages/NewSimulation'
+import { DataCenterBuilder } from './pages/DataCenterBuilder'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -93,6 +95,22 @@ function App() {
           element={
             <ProtectedRoute>
               <Simulations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/simulation/new"
+          element={
+            <ProtectedRoute>
+              <NewSimulation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/builder"
+          element={
+            <ProtectedRoute>
+              <DataCenterBuilder />
             </ProtectedRoute>
           }
         />

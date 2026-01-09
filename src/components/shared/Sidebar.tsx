@@ -21,6 +21,7 @@ export const Sidebar: React.FC = () => {
     { path: '/dashboard', icon: Home, label: 'Home' },
     { path: '/simulations', icon: BarChart3, label: 'Simulations' },
     { path: '/reports', icon: FileText, label: 'Reports' },
+    { path: '/builder', icon: BarChart3, label: 'Builder' },
     { path: '/profile', icon: User, label: 'Profile' },
   ]
 
