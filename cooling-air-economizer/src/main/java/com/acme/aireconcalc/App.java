@@ -38,358 +38,105 @@ public class App {
         public static void main(String[] args) {
                 // Simulation environment
                 CloudSimPlus sim = new CloudSimPlus();
-
-                // Baseline datacenter (2 racks × 4 servers)
                 DataCenterBuilder.buildSmallDC(sim);
-
-                // Broker
                 DatacenterBrokerSimple broker = new DatacenterBrokerSimple(sim);
-
-                // VMs
                 Vm vm1 = new VmSimple(1000, 2).setRam(2048).setBw(1000).setSize(10000);
-                Vm vm2 = new VmSimple(1000, 2).setRam(2048).setBw(1000).setSize(10000);
-                List<Vm> vmList = Arrays.asList(vm1, vm2);
-                broker.submitVmList(vmList);
 
-                // Workload
-                List<Cloudlet> cloudlets = WorkloadGenerator.generateWorkload(10, 10000, 2);
-                broker.submitCloudletList(cloudlets);
-
-                // Run the simulation
-                sim.start();
-
-                // NEW: Extract actual rack specifications from DataCenterBuilder
-                // This simulates getting rack data from the datacenter
-                java.util.List<com.acme.dccore.RackSpec> racks = extractRacksFromDatacenter();
-                double serverUtilization = 0.95; // 95% average utilization (high load scenario)
-
-                // Calculate thermal load from actual server/rack specifications
-                double supplyTempC = 24.0; // Optimized supply temperature instead of 27.0°C
-                ThermalIntegrator.ThermalLoad thermalLoad = ThermalIntegrator.calculateThermalLoad(racks,
-                                serverUtilization);
-
-                // FIX: Calculate unified airflow using ACTUAL test parameter (not hardcoded)
-                double testCfmPerKW = 350; // 🔧 CHANGE THIS: 300 (tight), 350 (design), 450 (excess)
-                double unifiedAirflow_CFM = thermalLoad.totalITLoadKW * testCfmPerKW;
-
-                // Override thermal load airflow to ensure consistency
-                thermalLoad.totalAirflowCFM = unifiedAirflow_CFM;
-
-                // FIX: Server fan accounting - server fans are part of IT load by PUE
-                // definition
-                double fanPowerPercent = 18.0; // 18% of server power for fans
-                double serverFanPowerKW = thermalLoad.totalITLoadKW * (fanPowerPercent / 100.0);
-
-                // FIX: Total IT load includes server fans (PUE definition)
-                double totalITLoadWithFans_kW = thermalLoad.totalITLoadKW + serverFanPowerKW;
-
-                // ===================================================================
-                // 🎛️ KEY TESTING KNOBS - MODIFY THESE VALUES TO TEST DIFFERENT SCENARIOS
-                // ===================================================================
-
-                // 🌡️ Weather & Environmental Testing
-                // Test 8.0 (cold) → 100% economizer | 22.0 (mild) → partial | 30.0 (hot) →
-                // mechanical
-                double testOutdoorTemp_C = 22.0; // 🔧 TEST 2: MILD CLIMATE - Typical US conditions
-                double testOutdoorRH = 40.0; // 🔧 CHANGE THIS: 40% (dry), 80% (humid)
-
-                // ⚙️ Airflow & Fan System Testing
-                double testSupplyFan_W_per_CFM = 0.35; // 🔧 CHANGE THIS: 0.30 (efficient), 0.45 (design), 0.60
-                                                       // (inefficient)
-                double testReturnFan_W_per_CFM = 0.28; // 🔧 CHANGE THIS: 0.25 (efficient), 0.35 (design), 0.50
-                                                       // (inefficient)
-                double testFanEfficiency = 0.80; // 🔧 CHANGE THIS: 0.60 (old), 0.70 (design), 0.85 (premium)
-
-                // ❄️ Economizer Control Testing
-                double testEconLockoutEnthalpy = 65.0; // 🔧 CHANGE THIS: 50 (more econ), 55 (design), 60 (less econ)
-
-                // 🌡️ Temperature Control Testing
-                double testSupplyTemp_C = 25.0; // 🔧 CHANGE THIS: 22 (safe), 24 (design), 25 (efficient)
-
-                // 💰 Economic Analysis Testing - SMART CAPEX SCALING
-                // Scale CAPEX based on actual system size (IT load + airflow requirements)
-                double baseCapexPerKW = 2500; // $2.5k per kW IT load (realistic for small systems)
-                double airflowCapexPerCFM = 6.0; // $6 per CFM installed (dampers, controls, ductwork)
-                double fixedCapex = 1500; // $1.5k fixed costs (sensors, commissioning)
-
-                // For small systems, use dynamic airflow (425 CFM) rather than oversized fixed
-                // approach (912 CFM)
-                double smallSystemAirflow_CFM = 425; // Realistic airflow for 3kW system
-                double scaledCapex = fixedCapex + (totalITLoadWithFans_kW * baseCapexPerKW)
-                                + (smallSystemAirflow_CFM * airflowCapexPerCFM);
-
-                // Allow override for testing different scenarios
-                boolean useScaledCapex = true; // 🔧 TOGGLE: true for realistic scaling, false for fixed $22k
-                double testCapitalCost_USD = useScaledCapex ? scaledCapex : 22000;
-
-                System.out.printf("=== CAPEX OPTIMIZATION ===\n");
-                System.out.printf("IT load-based cost: %.2f kW × $%.0f = $%.0f\n",
-                                totalITLoadWithFans_kW, baseCapexPerKW, totalITLoadWithFans_kW * baseCapexPerKW);
-                System.out.printf("Airflow-based cost: %.0f CFM × $%.1f = $%.0f\n",
-                                smallSystemAirflow_CFM, airflowCapexPerCFM,
-                                smallSystemAirflow_CFM * airflowCapexPerCFM);
-                System.out.printf("Fixed costs: $%.0f (sensors, commissioning)\n", fixedCapex);
-                System.out.printf("Scaled CAPEX: $%.0f (right-sized for %.0fkW system)\n", scaledCapex,
-                                totalITLoadWithFans_kW);
-                System.out.printf("Fixed CAPEX: $22,000 (oversized assumption)\n");
-                System.out.printf("Using: %s ($%.0f)\n",
-                                useScaledCapex ? "Scaled CAPEX" : "Fixed CAPEX", testCapitalCost_USD);
-
-                // ===================================================================
-                // Configuration set - will be displayed after all calculations
-
-                // Update supply temperature
-                supplyTempC = testSupplyTemp_C;
-
-                // Analyze thermal performance with optimized supply temperature
-                ThermalIntegrator.ThermalAnalysis thermalAnalysis = ThermalIntegrator.analyzeThermalPerformance(racks,
-                                supplyTempC);
-
-                // Create economizer inputs from actual thermal analysis
-                EconomizerInputs in = ThermalIntegrator.createEconomizerInputs(thermalLoad, 8760);
-
-                // Override/customize specific parameters with TEST VALUES
-                in.cfmPerKW = testCfmPerKW;
-                in.fan_W_per_CFM = testSupplyFan_W_per_CFM / testFanEfficiency; // Apply efficiency to fan power
-                in.returnFan_W_per_CFM = testReturnFan_W_per_CFM / testFanEfficiency;
-                in.returnFan_W_per_CFM = testReturnFan_W_per_CFM;
-                in.filterFanPenaltyFrac = 0.10;
-
-                // Containment (reduce bypass) - Note: These may need to be added to
-                // EconomizerInputs class
-                // hasHotColdAisle = true
-                // hasBlanking = true
-
-                // Supply air setpoint (optimize) - supplyTempC = 24 (also test 22, 23, 25)
-                // Note: This may need to be added to EconomizerInputs class or used in thermal
-                // analysis
-
-                // Economizer controls (psychrometric) - Note: These may need to be added to
-                // EconomizerInputs
-                // econEnableType = "enthalpy"
-                // econLockoutEnthalpy = 55 (kJ/kg)
-                // maxOutsideAirFrac = 0.8
-
-                // Baseline and operational parameters
-                in.itPUE_baseline = 1.35;
-                in.elecTariff_per_kWh = 140; // 🔧 TEST: Higher energy costs ($0.50/kWh equivalent in PKR)
-                in.grid_kgCO2_per_kWh = 0.45; // adjust to your grid
-
-                // Run length
-                in.hours = 8760; // Full year analysis
-
-                // FIXED: Proper mode selection based on outdoor conditions using TEST VALUES
-                double outdoorEnthalpy = calculateEnthalpy(testOutdoorTemp_C, testOutdoorRH);
-                double econLockoutEnthalpy = testEconLockoutEnthalpy;
-
-                System.out.printf("\n=== DEBUG: ENTHALPY CALCULATION ===\n");
-                System.out.printf("Temperature: %.1f°C, Humidity: %.1f%%\n", testOutdoorTemp_C, testOutdoorRH);
-                System.out.printf("Outdoor Enthalpy: %.1f kJ/kg\n", outdoorEnthalpy);
-                System.out.printf("Economizer Lockout Threshold: %.1f kJ/kg\n", econLockoutEnthalpy);
-
-                // Use temperature-based logic for more realistic mode determination
-                if (testOutdoorTemp_C < 15.0) {
-                        // COLD CONDITIONS: Full economizer mode - mechanical OFF except pumps
-                        in.econHours = 8760; // Full year economizer operation
-                        in.partialHours = 0; // No partial hours
-                        in.mechHours = 0; // No mechanical only hours
-                        in.outsideAirFrac_partial = 1.0; // Full outside air
-                        in.mechTrimFracAtPartial = 0.0; // NO mechanical trim (economizer only)
-                } else if (testOutdoorTemp_C < 25.0) {
-                        // MILD CONDITIONS: Partial economizer mode - realistic for 22°C
-                        in.econHours = 8760 * 0.3; // 30% full economizer hours
-                        in.partialHours = 8760 * 0.5; // 50% partial hours (dominant)
-                        in.mechHours = 8760 * 0.2; // 20% mechanical only
-                        in.outsideAirFrac_partial = 0.6; // 60% outside air in partial
-                        in.mechTrimFracAtPartial = 0.40; // 40% mechanical trim
-                } else {
-                        // HOT CONDITIONS: Economizer lockout - mechanical cooling dominant
-                        in.econHours = 0; // No economizer hours in hot conditions
-                        in.partialHours = 8760 * 0.2; // 20% partial hours (limited)
-                        in.mechHours = 8760 * 0.8; // 80% mechanical cooling
-                        in.outsideAirFrac_partial = 0.2; // 20% outside air in partial
-                        in.mechTrimFracAtPartial = 0.8; // 80% mechanical trim
+                // --- Scenario definition ---
+                class Scenario {
+                        String label;
+                        double oaTempC;
+                        double oaRH;
+                        double raTempC;
+                        double supplyTempC;
+                        Scenario(String label, double oaTempC, double oaRH, double raTempC, double supplyTempC) {
+                                this.label = label;
+                                this.oaTempC = oaTempC;
+                                this.oaRH = oaRH;
+                                this.raTempC = raTempC;
+                                this.supplyTempC = supplyTempC;
+                        }
                 }
-                in.capexEconomizerUSD = testCapitalCost_USD;
-                in.annualOpexMaintUSD = 5000;
-                in.analysisHoursPerYear = 8760;
-                in.baselineFan_W_per_CFM = 1.0;
+                Scenario[] scenarios = new Scenario[] {
+                        new Scenario("Baseline (Hot, Humid)", 35.0, 80.0, 38.0, 20.0),
+                        new Scenario("Mild, Dry", 18.0, 30.0, 30.0, 18.0),
+                        new Scenario("Cool, Humid", 12.0, 90.0, 28.0, 18.0),
+                        new Scenario("Cold, Dry", 2.0, 20.0, 22.0, 18.0)
+                };
+                double totalITLoadWithFans_kW = 50.0;
+                EconomizerController controller = new EconomizerController();
 
-                // ===================================================================
-                // 🎛️ KEY TESTING KNOBS - MODIFY THESE VALUES TO TEST DIFFERENT SCENARIOS
-                // ===================================================================
+                for (Scenario sc : scenarios) {
 
-                // Determine mode label based on enthalpy and parameters
-                String modeName;
-                if (in.outsideAirFrac_partial == 1.0 && in.mechTrimFracAtPartial == 0.0) {
-                        modeName = "Full Economizer";
-                } else if (in.outsideAirFrac_partial > 0.1 && in.mechTrimFracAtPartial > 0.0) {
-                        modeName = "Partial Economizer";
-                } else {
-                        modeName = "Mechanical Cooling";
-                }
+                        WeatherData oa = new WeatherData();
+                        oa.dryBulbC = sc.oaTempC;
+                        oa.relativeHumidity = sc.oaRH;
+                        oa.dewPointC = Psychrometrics.calcDewPoint(sc.oaTempC, sc.oaRH);
+                        ReturnAir ra = new ReturnAir();
+                        ra.tempC = sc.raTempC;
+                        Setpoints sp = new Setpoints();
+                        sp.supplyTempC = sc.supplyTempC;
+                        EconomizerMode mode = (sc.label.contains("Baseline"))
+                                        ? EconomizerMode.MECHANICAL
+                                        : controller.decideMode(oa, ra, sp);
+                        double oaFrac = controller.computeOAFraction(mode, oa, sp, ra);
+                        double deltaT = ra.tempC - sp.supplyTempC;
+                        double airflowKgPerSec = controller.computeAirflowKgPerSec(totalITLoadWithFans_kW, deltaT);
+                        double cfm = airflowKgPerSec * 2118.88;
+                        double fanKW = controller.computeFanPowerKW(cfm, totalITLoadWithFans_kW, mode);
+                        double coolingKW = controller.computeCoolingKW(mode, oaFrac, oa, ra, sp, airflowKgPerSec,
+                                        totalITLoadWithFans_kW);
+                        System.out.println("\n--- Scenario: " + sc.label + " ---");
+                        System.out.printf("Weather: %.1f°C, %.1f%% RH, Dew Point: %.1f°C\n", oa.dryBulbC,
+                                        oa.relativeHumidity, oa.dewPointC);
+                        System.out.printf("Return Air Temp: %.1f°C, Supply Setpoint: %.1f°C\n", ra.tempC,
+                                        sp.supplyTempC);
+                        System.out.printf("Mode: %s, OA Fraction: %.2f\n", mode, oaFrac);
+                        System.out.printf("IT Load (including server fans): %.2f kW\n", totalITLoadWithFans_kW);
+                        System.out.printf("Facility Fan Power (CRAH/CRAC, incl. relief): %.2f kW\n", fanKW);
+                        System.out.printf("Cooling / Conditioning Energy: %.2f kW\n", coolingKW);
+                        System.out.printf("Airflow: %.2f kg/s (%.0f CFM)\n", airflowKgPerSec, cfm);
 
-                // === UNIFIED CONFIGURATION DISPLAY ===
-                System.out.println("\n🎛️ ECONOMIZER SIMULATION CONFIGURATION");
-                System.out.println("========================================");
-                System.out.printf("Weather: %.1f°C / %.1f%% RH (enthalpy %.1f kJ/kg)\n",
-                                testOutdoorTemp_C, testOutdoorRH, outdoorEnthalpy);
-                System.out.printf("Mode: %s (OA=%.1f, mechTrim=%.2f)\n",
-                                modeName, in.outsideAirFrac_partial, in.mechTrimFracAtPartial);
-                System.out.printf("Airflow: %.0f CFM/kW\n", testCfmPerKW);
+                        // --- Validation & Logging Section ---
+                        boolean demandMet = (mode == EconomizerMode.FULL_ECON || mode == EconomizerMode.PARTIAL_ECON
+                                        || mode == EconomizerMode.MECHANICAL);
+                        boolean airflowSufficient = (airflowKgPerSec > 0.0 && cfm > 0.0);
+                        boolean supplyTempSafe = (sp.supplyTempC >= 18.0 && sp.supplyTempC <= 28.0);
+                        boolean worstCaseHandled = (mode == EconomizerMode.MECHANICAL
+                                        && (oa.dryBulbC >= 28.0 || oa.relativeHumidity >= 70.0));
+                        boolean energyBalance = (totalITLoadWithFans_kW > 0 && fanKW > 0 && coolingKW >= 0);
 
-                // Calculate effective W/CFM for display
-                double displaySupply_W_per_CFM = (testSupplyFan_W_per_CFM / testFanEfficiency) * (1 + 0.10);
-                double displayReturn_W_per_CFM = (testReturnFan_W_per_CFM / testFanEfficiency) * (1 + 0.10);
-
-                System.out.printf("Fan Efficiency: %.0f%% (effective: %.3f/%.3f W/CFM supply/return)\n",
-                                testFanEfficiency * 100, displaySupply_W_per_CFM, displayReturn_W_per_CFM);
-                System.out.printf("Supply Temperature: %.1f°C\n", testSupplyTemp_C);
-                System.out.printf("Capital Cost: $%.0f USD\n", testCapitalCost_USD);
-                System.out.printf("Analysis Period: %.0f hours/year\n", in.hours);
-                System.out.println("========================================\n");
-                in.avgOutdoorTemp_C = testOutdoorTemp_C;
-                in.avgOutdoorRH = testOutdoorRH;
-                in.reheatKW = 1.0;
-                in.humidifierKW = 0.5;
-                in.coldThreshold_C = 10.0;
-                in.dryThreshold_RH = 40.0;
-                in.reheatEfficiency = 0.85;
-                in.humidifierEfficiency = 0.80;
-                in.evapAssistKW = 0.0;
-                in.evapWater_L_per_kWhSensible = 0.0;
-                in.evapActiveHours = 0;
-                in.sensorMiscKW = 0.2;
-
-                // Additional test parameters (approximated in existing structure)
-                // econLockoutEnthalpy = 55 kJ/kg (default) - affects economizer switching
-                // maxOutsideAirFrac = 0.8 (default) - affects partial mode operation
-                // NOTE: outsideAirFrac_partial and mechTrimFracAtPartial will be set by mode
-                // logic below
-                // supplyTempC = 24°C (default) - affects thermal analysis
-
-                // Determine test case label based on temperature
-                String testCaseLabel, testConditions, expectedBehavior;
-                if (testOutdoorTemp_C <= 12.0) {
-                        testCaseLabel = "COLD CONDITIONS";
-                        testConditions = String.format("%.1f°C/%.1f%% RH", testOutdoorTemp_C, testOutdoorRH);
-                        expectedBehavior = "Maximum economizer savings, high free cooling hours";
-                } else if (testOutdoorTemp_C <= 25.0) {
-                        testCaseLabel = "MILD CONDITIONS";
-                        testConditions = String.format("%.1f°C/%.1f%% RH", testOutdoorTemp_C, testOutdoorRH);
-                        expectedBehavior = "Partial economizer mode, moderate savings";
-                } else {
-                        testCaseLabel = "HOT/HUMID CONDITIONS";
-                        testConditions = String.format("%.1f°C/%.1f%% RH", testOutdoorTemp_C, testOutdoorRH);
-                        expectedBehavior = "Mechanical cooling dominant, limited economizer operation";
-                }
-
-                System.out.println("\n=== PARAMETER VALIDATION TEST ===");
-                System.out.printf("TEST: %s (%s)\n", testCaseLabel, testConditions);
-                System.out.printf("Expected: %s\n", expectedBehavior);
-                System.out.println("\n=== UPDATED THERMAL-INTEGRATED ECONOMIZER ANALYSIS ===");
-                System.out.printf("Using updated parameters:\n");
-                System.out.printf("- Weather: %.1f°C / %.1f%% RH (%s)\n", in.avgOutdoorTemp_C, in.avgOutdoorRH,
-                                testCaseLabel);
-                System.out.printf("- Airflow: %.0f CFM/kW\n", in.cfmPerKW);
-                System.out.printf("- Supply fan efficiency: %.2f W/CFM\n", in.fan_W_per_CFM);
-                System.out.printf("- Return fan efficiency: %.2f W/CFM\n", in.returnFan_W_per_CFM);
-                System.out.printf("- Filter penalty: %.1f%%\n", in.filterFanPenaltyFrac * 100);
-                System.out.printf("- PSU efficiency: %.1f%% (server-level improvement)\n", 94.0);
-                System.out.printf("- PUE baseline: %.2f\n", in.itPUE_baseline);
-                System.out.printf("- Electricity tariff: %.0f per kWh\n", in.elecTariff_per_kWh);
-                System.out.printf("- Analysis period: %.0f hours\n", in.hours);
-                System.out.printf("- Outside air fraction (partial): %.1f\n", in.outsideAirFrac_partial);
-                System.out.printf("- Mechanical trim fraction: %.2f\n", in.mechTrimFracAtPartial);
-
-                // Rack density sanity check
-                double rackDensityKW = 4.0; // target: 3-6 kW typical
-                double calculatedRackDensity = thermalLoad.totalITLoadKW; // For single rack
-                System.out.printf("- Rack density check: %.1f kW (target: %.1f kW)\n", calculatedRackDensity,
-                                rackDensityKW);
-
-                // ---- Run Cooling Model (for internal calculations) ----
-                AirEconomizerModel model = new AirEconomizerModel();
-
-                // Ensure IT load includes server fans for the economizer model
-                in.itAvgKW = totalITLoadWithFans_kW;
-
-                // Provide supply/return/air properties for physics-based calc
-                in.supplyTemp_C = supplyTempC;
-                in.returnAirTemp_C = thermalLoad.maxExhaustTempC > 0 ? thermalLoad.maxExhaustTempC
-                                : (supplyTempC + 10.0);
-
-                AirEconomizerModel.Result econResult = model.compute(in); // physics-based econ calculation
-
-                // ---- Dynamic airflow / optimization handled above and detailed energy
-                // accounting is done inside AirEconomizerModel. We avoid re-computing a
-                // second, inconsistent energy accounting here to keep a single authoritative
-                // energy pipeline (see AirEconomizerModel.Result).
-
-                // ---- FIX: Comprehensive Reporting After All Calculations ----
-                System.out.println("\n=== CORRECTED DATACENTER THERMAL ANALYSIS ===");
-                System.out.printf("Supply Temperature: %.1f°C (optimized)\n", supplyTempC);
-                System.out.println("----------------------------------------");
-                System.out.printf("Total Power: %.2f kW (computing: %.2f kW + server fans: %.2f kW)\n",
-                                totalITLoadWithFans_kW, thermalLoad.totalITLoadKW, serverFanPowerKW);
-                System.out.printf("Total Airflow: %.0f CFM (fixed 320 CFM/kW)\n",
-                                unifiedAirflow_CFM);
-                double requiredCFM_approx = totalITLoadWithFans_kW * 110; // ~110 CFM/kW
-                double totalCFM = unifiedAirflow_CFM; // currently using fixed CFM/kW approach
-                double overairFactor = requiredCFM_approx > 0 ? totalCFM / requiredCFM_approx : 1.0;
-                System.out.printf("RTI Analysis: Delivering %.0f CFM vs Required ~%.0f CFM (Over-airing by %.1fx)\n",
-                                totalCFM, requiredCFM_approx, overairFactor);
-
-                // RTI Analysis with explanation
-
-                // FIX: Improved thermal performance analysis with corrected health assessment
-                System.out.println("\n=== THERMAL PERFORMANCE ANALYSIS ===");
-                for (ThermalIntegrator.RackThermalMetrics metrics : thermalAnalysis.rackMetrics) {
-                        String health;
-                        if (metrics.rciHI >= 95.0 && metrics.rciLO >= 95.0) {
-                                health = "GOOD";
-                        } else if (metrics.rciHI >= 80.0 && metrics.rciLO >= 80.0) {
-                                health = "ACCEPTABLE";
+                        System.out.println("\n[Validation Checklist]");
+                        System.out.println("Cooling demand met: " + (demandMet ? "✔" : "✗"));
+                        System.out.println("Airflow sufficient: " + (airflowSufficient ? "✔" : "✗"));
+                        System.out.println("Supply temp in safe range: " + (supplyTempSafe ? "✔" : "✗"));
+                        System.out.println("Worst-case handled: " + (worstCaseHandled ? "✔" : "✗"));
+                        System.out.println("Energy balance correct: " + (energyBalance ? "✔" : "✗"));
+                        if (demandMet && airflowSufficient && supplyTempSafe && energyBalance) {
+                                System.out.println(
+                                                "\n[Result] ✅ This technique meets the data center specification for this scenario.");
                         } else {
-                                health = "NEEDS ATTENTION";
+                                System.out.println(
+                                                "\n[Result] ❌ This technique does NOT fully meet the data center specification for this scenario.");
                         }
 
-                        System.out.printf("Rack %s: RTI=%.2f, RCI_HI=%.1f%%, RCI_LO=%.1f%%, Health=%s\n",
-                                        metrics.rackId, metrics.rti, metrics.rciHI, metrics.rciLO, health);
+                        // Annualized reporting (CHANGE SETS 1, 2, 5)
+                        double hoursPerYear = 4380.0; // CHANGE SET 5: half year
+                        double annualIT_kWh = totalITLoadWithFans_kW * hoursPerYear;
+                        double annualFan_kWh = fanKW * hoursPerYear;
+                        double annualCooling_kWh = coolingKW * hoursPerYear;
+                        double totalAnnual_kWh = annualIT_kWh + annualFan_kWh + annualCooling_kWh;
+                        double elecTariff_per_kWh = 0.30; // CHANGE SET 1: double tariff
+                        double annualCostUSD = totalAnnual_kWh * elecTariff_per_kWh;
+                        double grid_kgCO2_per_kWh = 0.70; // CHANGE SET 2: higher CO2 factor
+                        double annualCO2_kg = totalAnnual_kWh * grid_kgCO2_per_kWh;
+                        System.out.printf("Annual IT Energy: %.0f kWh\n", annualIT_kWh);
+                        System.out.printf("Annual Fan Energy: %.0f kWh\n", annualFan_kWh);
+                        System.out.printf("Annual Cooling Energy: %.0f kWh\n", annualCooling_kWh);
+                        System.out.printf("Total Annual Energy Consumed: %.0f kWh\n", totalAnnual_kWh);
+                        System.out.printf("Estimated Annual Electricity Cost: $%.0f\n", annualCostUSD);
+                        System.out.printf("Estimated Annual CO2 Emissions: %.0f kg\n", annualCO2_kg);
                 }
-
-                System.out.printf("\n=== MODE LOGIC VERIFICATION ===\n");
-                System.out.printf("- Weather: %.1f°C / %.1f%% RH (%s)\n", in.avgOutdoorTemp_C, in.avgOutdoorRH,
-                                testCaseLabel);
-                System.out.printf("- Hours: Econ=%.0f, Partial=%.0f, Mechanical=%.0f\n",
-                                in.econHours, in.partialHours, in.mechHours);
-
-                // === FINAL AIR-SIDE ECONOMIZER MODEL SUMMARY ===
-                System.out.println("\n=== AIR-SIDE ECONOMIZER MODEL (Physics-based) SUMMARY ===");
-                System.out.printf("IT Energy (year): %.0f kWh\n", econResult.it_kWh);
-                System.out.printf("Total cooling + auxiliaries (ASE model): %.0f kWh/yr\n", econResult.total_kWh);
-                System.out.printf("  - Econ hours cooling+aux: %.0f kWh\n", econResult.total_kWh_econ);
-                System.out.printf("  - Partial hours cooling+aux: %.0f kWh\n", econResult.total_kWh_partial);
-                System.out.printf("  - Mechanical hours cooling+aux: %.0f kWh\n", econResult.total_kWh_mech);
-                System.out.printf("Mechanical cooling energy (partial): %.0f kWh\n", econResult.mech_kWh_partial);
-                System.out.printf("Mechanical cooling energy (mech): %.0f kWh\n", econResult.mech_kWh_mech);
-                System.out.printf("Baseline cooling energy (no-econ): %.0f kWh/yr\n", econResult.baseline_kWh);
-                System.out.printf("Estimated energy savings: %.0f kWh/yr (%.1f %%)\n", econResult.savings_kWh,
-                                (econResult.savings_kWh / Math.max(1.0, econResult.baseline_kWh)) * 100.0);
-                System.out.printf("Estimated annual electricity cost (ASE): %.2f\n", econResult.total_cost);
-                System.out.printf("Estimated annual CO2 (ASE): %.0f kg/yr\n", econResult.total_co2_kg);
-                System.out.printf("Estimated annual water use (evap assist): %.1f L/yr\n", econResult.total_water_L);
-
-                // ROI / payback using economizer CAPEX
-                double tariffUSD = in.elecTariff_per_kWh / 280.0; // PKR -> USD (approx used earlier)
-                double annualSavingsUSD_model = econResult.savings_kWh * tariffUSD;
-                double payback_model_years = Math.abs(annualSavingsUSD_model) > 0.01
-                                ? in.capexEconomizerUSD / annualSavingsUSD_model
-                                : Double.POSITIVE_INFINITY;
-                System.out.printf("Model-based annual savings: %.0f kWh -> %.2f USD/yr\n", econResult.savings_kWh,
-                                annualSavingsUSD_model);
-                System.out.printf("Economizer CAPEX: %.0f USD, Payback (model): %.2f years\n",
-                                in.capexEconomizerUSD, payback_model_years);
         }
 
         /**
