@@ -29,20 +29,23 @@ export const ForgotPassword: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-secondary via-secondary to-primary flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-slide-in-up">
         <button
-          onClick={() => navigate('/login')}
+          onClick={() => navigate('/auth/login')}
           className="flex items-center gap-2 text-primary mb-6 font-semibold hover:gap-3 transition-all"
         >
           <ArrowLeft size={20} />
           Back to Login
         </button>
 
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold font-poppins text-primary mb-2">Reset Password</h1>
-          <p className="text-gray-600">
-            {step === 'email'
-              ? 'Enter your email to receive a reset link'
-              : 'Create a new password'}
-          </p>
+        <div className="text-center mb-8 space-y-4">
+          <img src="/logo.svg" alt="COOLIENCE" className="w-16 h-16 mx-auto drop-shadow-lg" />
+          <div>
+            <h1 className="text-3xl font-bold font-poppins text-primary mb-2">Reset Password</h1>
+            <p className="text-gray-600">
+              {step === 'email'
+                ? 'Enter your email to receive a reset link'
+                : 'Create a new password'}
+            </p>
+          </div>
         </div>
 
         {step === 'email' ? (

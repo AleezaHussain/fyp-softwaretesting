@@ -48,9 +48,12 @@ export const SignUp: React.FC = () => {
   return (
     <div className="min-h-screen gradient-primary-secondary flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-slide-in-up">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-dark-gray mb-2 font-poppins">COOLience</h1>
-          <p className="text-gray-600">Create your account</p>
+        <div className="text-center mb-8 space-y-4">
+          <img src="/logo.svg" alt="COOLIENCE" className="w-16 h-16 mx-auto drop-shadow-lg" />
+          <div>
+            <h1 className="text-3xl font-bold text-dark-gray mb-2 font-poppins">COOLience</h1>
+            <p className="text-gray-600">Create your account</p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

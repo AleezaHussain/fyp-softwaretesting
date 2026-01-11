@@ -1,0 +1,50 @@
+<svg viewBox="0 0 240 280" xmlns="http://www.w3.org/2000/svg">
+  <!-- Define styles -->
+  <defs>
+    <style>
+      @keyframes pulse-glow {
+        0%, 100% { filter: drop-shadow(0 0 4px rgba(92, 225, 229, 0.6)); }
+        50% { filter: drop-shadow(0 0 12px rgba(92, 225, 229, 0.9)); }
+      }
+      .cyan-bolt {
+        animation: pulse-glow 3s ease-in-out infinite;
+      }
+    </style>
+  </defs>
+
+  <!-- Outer circle ring -->
+  <circle cx="120" cy="110" r="95" fill="none" stroke="#d0d5e0" stroke-width="1.5" opacity="0.5"/>
+  
+  <!-- Inner circle ring (subtle) -->
+  <circle cx="120" cy="110" r="75" fill="none" stroke="#d0d5e0" stroke-width="0.5" opacity="0.3"/>
+
+  <!-- Red Lightning Bolt (Left) - Main shape -->
+  <g id="redBolt">
+    <!-- Outer glow -->
+    <path d="M 95 50 L 75 90 L 110 90 L 55 160 L 95 160 L 40 230 L 115 110 L 75 110 Z" 
+          fill="#fd5757" opacity="0.95"/>
+    <!-- Highlight for depth -->
+    <path d="M 95 50 L 85 75 L 105 75 L 70 130 L 95 130 Z" 
+          fill="#ff9999" opacity="0.4"/>
+  </g>
+
+  <!-- Cyan Lightning Bolt (Right) - Main shape with animation -->
+  <g id="cyanBolt" class="cyan-bolt">
+    <!-- Main bolt -->
+    <path d="M 145 50 L 165 90 L 130 90 L 185 160 L 145 160 L 200 230 L 125 110 L 165 110 Z" 
+          fill="#5ce1e5" opacity="0.95"/>
+    <!-- Highlight for depth -->
+    <path d="M 145 50 L 155 75 L 135 75 L 170 130 L 145 130 Z" 
+          fill="#b3e9ec" opacity="0.4"/>
+  </g>
+
+  <!-- Text: COOLIENCE -->
+  <text x="120" y="265" font-size="18" font-weight="700" text-anchor="middle" 
+        fill="#475569" letter-spacing="2.5" font-family="'Poppins', 'Segoe UI', sans-serif">
+    COOLIENCE
+  </text>
+
+  <!-- Decorative dots for polish -->
+  <circle cx="30" cy="90" r="2.5" fill="#5ce1e5" opacity="0.4"/>
+  <circle cx="210" cy="130" r="2.5" fill="#fd5757" opacity="0.4"/>
+</svg>
