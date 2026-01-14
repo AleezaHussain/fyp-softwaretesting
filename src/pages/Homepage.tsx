@@ -118,7 +118,7 @@ const ParticleCanvas: React.FC = () => {
   )
 }
 
-// Enhanced Rotating Fan Animation - Back to original style but improved
+// Enhanced Rotating Fan Animation
 const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
   const [speed, setSpeed] = useState(1)
   const [isHovering, setIsHovering] = useState(false)
@@ -141,14 +141,11 @@ const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
-      {/* Fan Container with 3D Effect */}
       <div className="relative w-full h-full">
-        {/* Outer Ring with subtle depth */}
         <div className={`absolute inset-0 rounded-full border-2 ${
           isDark ? 'border-[#5ce1e5]/30' : 'border-[#0ea5e9]/30'
         }`} />
         
-        {/* Main Fan */}
         <svg 
           viewBox="0 0 100 100" 
           className="absolute inset-2"
@@ -157,7 +154,6 @@ const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
             filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))'
           }}
         >
-          {/* Background Circle with Gradient */}
           <defs>
             <radialGradient id="fanCenter" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor={isDark ? "#5ce1e5" : "#0ea5e9"} stopOpacity="0.8" />
@@ -169,7 +165,6 @@ const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
             </linearGradient>
           </defs>
           
-          {/* Fan Blades with smooth gradient */}
           <g transform="translate(50,50)">
             {[0, 120, 240].map((angle) => (
               <g key={angle} transform={`rotate(${angle})`}>
@@ -182,7 +177,6 @@ const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
                   opacity="0.9"
                   transform="rotate(0)"
                 >
-                  {/* Subtle highlight on blade edge */}
                   <animate 
                     attributeName="opacity"
                     values="0.9;1;0.9"
@@ -195,11 +189,9 @@ const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
             ))}
           </g>
           
-          {/* Center Hub with depth */}
           <circle cx="50" cy="50" r="12" fill="url(#fanCenter)" stroke={isDark ? "#fd5757" : "#ef4444"} strokeWidth="1" />
           <circle cx="50" cy="50" r="4" fill={isDark ? "#0a0e27" : "white"} />
           
-          {/* Hub Screw Details */}
           <circle cx="50" cy="50" r="8" fill="none" stroke={isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.1)"} strokeWidth="0.5" />
           {[0, 90, 180, 270].map(angle => (
             <circle 
@@ -212,7 +204,6 @@ const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
           ))}
         </svg>
         
-        {/* Air Flow Particles - Enhanced with speed variations */}
         <div className="absolute inset-0 overflow-hidden">
           {Array.from({ length: fanSpeeds[speed - 1].particles }).map((_, i) => (
             <div
@@ -230,7 +221,6 @@ const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
             />
           ))}
           
-          {/* Speed-based additional particles */}
           {speed > 1 && Array.from({ length: speed * 4 }).map((_, i) => (
             <div
               key={`fast-${i}`}
@@ -248,7 +238,6 @@ const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
           ))}
         </div>
         
-        {/* Pulsing Energy Ring - Reacts to speed */}
         <div 
           className={`absolute inset-[-5px] rounded-full border ${
             isDark ? 'border-[#5ce1e5]' : 'border-[#0ea5e9]'
@@ -260,7 +249,6 @@ const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
         />
       </div>
       
-      {/* Speed Indicator with smooth transition */}
       <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2">
         <div className={`flex items-center gap-2 px-3 py-1 rounded-full transition-all duration-300 ${
           isDark 
@@ -281,7 +269,6 @@ const RotatingFan: React.FC<{ size?: string }> = ({ size = 'w-24 h-24' }) => {
         </div>
       </div>
       
-      {/* Hover Instruction */}
       {isHovering && (
         <div className={`absolute -top-10 left-1/2 transform -translate-x-1/2 whitespace-nowrap px-3 py-1 rounded text-xs font-medium ${
           isDark ? 'bg-black/60 text-white' : 'bg-white/90 text-gray-800'
@@ -432,7 +419,7 @@ const InteractiveCoolingWave: React.FC = () => {
   )
 }
 
-// Server Rack Animation - Simple and effective
+// Server Rack Animation
 const ServerRackAnimation: React.FC = () => {
   const [rackLoad, setRackLoad] = useState(0.6)
   const isDark = useThemeStore((state) => state.isDark)
@@ -455,12 +442,10 @@ const ServerRackAnimation: React.FC = () => {
           key={i}
           className="relative h-5 rounded overflow-hidden"
         >
-          {/* Background Track */}
           <div className={`absolute inset-0 ${
             isDark ? 'bg-[#27304a]' : 'bg-gray-200'
           }`} />
           
-          {/* Load Indicator */}
           <div 
             className={`absolute inset-0 rounded ${
               isDark 
@@ -473,7 +458,6 @@ const ServerRackAnimation: React.FC = () => {
             }}
           />
           
-          {/* Server Label */}
           <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
             <span className={`text-xs font-medium ${
               isDark ? 'text-white/80' : 'text-gray-800'
@@ -482,7 +466,6 @@ const ServerRackAnimation: React.FC = () => {
             </span>
           </div>
           
-          {/* Load Percentage */}
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
             <span className={`text-xs font-bold ${
               isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
@@ -491,7 +474,6 @@ const ServerRackAnimation: React.FC = () => {
             </span>
           </div>
           
-          {/* Activity Indicator */}
           <div className="absolute right-10 top-1/2 transform -translate-y-1/2 flex items-center gap-1">
             <div 
               className={`w-1.5 h-1.5 rounded-full ${
@@ -506,7 +488,6 @@ const ServerRackAnimation: React.FC = () => {
         </div>
       ))}
       
-      {/* Overall Load Indicator */}
       <div className={`mt-4 px-3 py-2 rounded-lg ${
         isDark ? 'bg-black/30' : 'bg-gray-100'
       }`}>
@@ -604,7 +585,6 @@ const Footer: React.FC = () => {
         ? 'bg-gradient-to-b from-[#0a0e27] to-[#1a1f3a] text-gray-300'
         : 'bg-gradient-to-b from-gray-50 to-white text-gray-700'
     }`}>
-      {/* Footer Top Wave */}
       <div className="absolute top-0 left-0 right-0 h-20 overflow-hidden">
         <svg
           viewBox="0 0 1200 120"
@@ -620,7 +600,6 @@ const Footer: React.FC = () => {
       
       <div className="container mx-auto px-6 pt-32 pb-12 relative z-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
-          {/* Brand Column */}
           <div className="space-y-6">
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
@@ -661,7 +640,6 @@ const Footer: React.FC = () => {
             </div>
           </div>
 
-          {/* Product Links */}
           <div>
             <h4 className={`text-lg font-bold mb-6 ${
               isDark ? 'text-white' : 'text-gray-900'
@@ -686,7 +664,6 @@ const Footer: React.FC = () => {
             </ul>
           </div>
 
-          {/* Company Links */}
           <div>
             <h4 className={`text-lg font-bold mb-6 ${
               isDark ? 'text-white' : 'text-gray-900'
@@ -711,7 +688,6 @@ const Footer: React.FC = () => {
             </ul>
           </div>
 
-          {/* Contact Info */}
           <div>
             <h4 className={`text-lg font-bold mb-6 ${
               isDark ? 'text-white' : 'text-gray-900'
@@ -741,7 +717,6 @@ const Footer: React.FC = () => {
           </div>
         </div>
 
-        {/* Newsletter Subscription */}
         <div className={`mb-12 p-8 rounded-2xl ${
           isDark 
             ? 'bg-gradient-to-r from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]'
@@ -781,7 +756,6 @@ const Footer: React.FC = () => {
           </div>
         </div>
 
-        {/* Bottom Bar */}
         <div className={`pt-8 border-t ${
           isDark ? 'border-[#3f4a68]' : 'border-gray-200'
         }`}>
@@ -827,7 +801,6 @@ const Footer: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating Elements */}
       <div className="absolute bottom-10 right-10">
         <div className={`w-20 h-20 rounded-full opacity-10 ${
           isDark 
@@ -843,6 +816,21 @@ export const Homepage: React.FC = () => {
   const navigate = useNavigate()
   const isDark = useThemeStore((state) => state.isDark)
   const [scrollProgress, setScrollProgress] = useState(0)
+
+  // Smooth scroll function for navigation
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      const offset = 80; // Adjust based on your navbar height
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   useEffect(() => {
     document.documentElement.style.scrollBehavior = 'smooth'
@@ -893,67 +881,63 @@ export const Homepage: React.FC = () => {
       
       <Navbar />
       
-{/* Hero Section */}
-<section className="relative pt-32 pb-20 px-6 md:pt-40 md:pb-32 overflow-hidden">
-  <div className="max-w-7xl mx-auto">
-    <div className="grid md:grid-cols-2 gap-12 items-center">
-      {/* Left Content */}
-      <div className="space-y-8">
-        <div className="space-y-6">
-          {/* Enhanced Badge */}
-          <div className="inline-block animate-in slide-in-from-left-8 duration-1000">
-            <div className={`
-              relative px-4 py-2.5 text-sm font-semibold rounded-full
-              backdrop-blur-sm border shadow-lg overflow-hidden
-              ${isDark 
-                ? 'text-cyan-100 border-cyan-500/30 bg-gradient-to-r from-cyan-900/40 to-blue-900/40' 
-                : 'text-blue-800 border-blue-300/50 bg-gradient-to-r from-blue-50/80 to-cyan-50/80'
-              }
-            `}>
-              {/* Animated glow effect */}
-              <div className={`
-                absolute inset-0 rounded-full opacity-30
-                ${isDark ? 'bg-gradient-to-r from-cyan-500 to-blue-500' : 'bg-gradient-to-r from-blue-400 to-cyan-400'}
-                animate-pulse
-              `}></div>
-              
-              {/* Pulsing dot */}
-              <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                <div className={`
-                  relative w-2 h-2 rounded-full
-                  ${isDark ? 'bg-cyan-400' : 'bg-blue-500'}
-                  animate-ping
-                `}></div>
-                <div className={`
-                  absolute inset-0 w-2 h-2 rounded-full
-                  ${isDark ? 'bg-cyan-400' : 'bg-blue-500'}
-                `}></div>
+      {/* Hero Section */}
+      <section className="relative pt-32 pb-20 px-6 md:pt-40 md:pb-32 overflow-hidden">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="space-y-8">
+              <div className="space-y-6">
+                <div className="inline-block animate-in slide-in-from-left-8 duration-1000">
+                  <div className={`
+                    relative px-4 py-2.5 text-sm font-semibold rounded-full
+                    backdrop-blur-sm border shadow-lg overflow-hidden
+                    ${isDark 
+                      ? 'text-cyan-100 border-cyan-500/30 bg-gradient-to-r from-cyan-900/40 to-blue-900/40' 
+                      : 'text-blue-800 border-blue-300/50 bg-gradient-to-r from-blue-50/80 to-cyan-50/80'
+                    }
+                  `}>
+                    <div className={`
+                      absolute inset-0 rounded-full opacity-30
+                      ${isDark ? 'bg-gradient-to-r from-cyan-500 to-blue-500' : 'bg-gradient-to-r from-blue-400 to-cyan-400'}
+                      animate-pulse
+                    `}></div>
+                    
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                      <div className={`
+                        relative w-2 h-2 rounded-full
+                        ${isDark ? 'bg-cyan-400' : 'bg-blue-500'}
+                        animate-ping
+                      `}></div>
+                      <div className={`
+                        absolute inset-0 w-2 h-2 rounded-full
+                        ${isDark ? 'bg-cyan-400' : 'bg-blue-500'}
+                      `}></div>
+                    </div>
+                    
+                    <span className="relative flex items-center gap-2 pl-5">
+                      <Activity className="w-4 h-4" />
+                      Live Cooling Optimization Active
+                    </span>
+                  </div>
+                </div>
+                
+                <h1 className={`text-5xl md:text-6xl lg:text-7xl font-bold leading-tight animate-in slide-in-from-left-8 duration-1000 ${
+                  isDark ? 'text-white' : 'text-[#1a1a2e]'
+                }`}>
+                  <span className="block">Intelligent</span>
+                  <span className={isDark ? 'text-cyan-400' : 'text-blue-600'}>
+                    Data Center
+                  </span>
+                  <span className="block">Cooling System</span>
+                </h1>
+                
+                <p className={`text-lg leading-relaxed max-w-xl animate-in fade-in duration-1000 ${
+                  isDark ? 'text-gray-400' : 'text-gray-700'
+                }`}>
+                  Experience the future of data center management with our AI-powered cooling optimization platform. 
+                  Reduce energy costs by up to 40% while maintaining peak performance.
+                </p>
               </div>
-              
-              <span className="relative flex items-center gap-2 pl-5">
-                <Activity className="w-4 h-4" />
-                Live Cooling Optimization Active
-              </span>
-            </div>
-          </div>
-          
-          <h1 className={`text-5xl md:text-6xl lg:text-7xl font-bold leading-tight animate-in slide-in-from-left-8 duration-1000 ${
-            isDark ? 'text-white' : 'text-[#1a1a2e]'
-          }`}>
-            <span className="block">Intelligent</span>
-            <span className={isDark ? 'text-cyan-400' : 'text-blue-600'}>
-              Data Center
-            </span>
-            <span className="block">Cooling System</span>
-          </h1>
-          
-          <p className={`text-lg leading-relaxed max-w-xl animate-in fade-in duration-1000 ${
-            isDark ? 'text-gray-400' : 'text-gray-700'
-          }`}>
-            Experience the future of data center management with our AI-powered cooling optimization platform. 
-            Reduce energy costs by up to 40% while maintaining peak performance.
-          </p>
-        </div>
               
               <div className="flex flex-col sm:flex-row gap-4 animate-in fade-in duration-1000">
                 <button
@@ -972,7 +956,7 @@ export const Homepage: React.FC = () => {
                 </button>
                 
                 <button
-                  onClick={() => (document.getElementById('features') as HTMLElement)?.scrollIntoView({ behavior: 'smooth' })}
+                  onClick={() => scrollToSection('features')}
                   className={`group relative px-8 py-4 font-bold rounded-xl border-2 transition-all hover:scale-105 transform ${
                     isDark
                       ? 'border-[#5ce1e5] text-[#5ce1e5] hover:bg-[#5ce1e5]/10'
@@ -987,7 +971,6 @@ export const Homepage: React.FC = () => {
               </div>
             </div>
             
-            {/* Right Visual */}
             <div className="relative h-[500px] flex items-center justify-center">
               <div className="relative w-full h-full max-w-xl">
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -1008,10 +991,13 @@ export const Homepage: React.FC = () => {
         </div>
       </section>
       
-      {/* Statistics Section */}
-      <section className={`relative py-20 px-6 ${
-        isDark ? 'bg-gradient-to-b from-transparent to-[#1a1f3a]/50' : 'bg-gradient-to-b from-transparent to-white/50'
-      }`}>
+      {/* Impact Section */}
+      <section 
+        id="impact" 
+        className={`relative py-20 px-6 scroll-mt-20 ${
+          isDark ? 'bg-gradient-to-b from-transparent to-[#1a1f3a]/50' : 'bg-gradient-to-b from-transparent to-white/50'
+        }`}
+      >
         <div className="max-w-7xl mx-auto">
           <div className="text-center space-y-6 mb-16">
             <h2 className={`text-4xl md:text-5xl font-bold ${
@@ -1052,7 +1038,6 @@ export const Homepage: React.FC = () => {
           </p>
           
           <div className="grid lg:grid-cols-3 gap-8">
-            {/* Cooling Wave Demo */}
             <div className={`p-8 rounded-3xl border-2 transition-all duration-500 hover:shadow-2xl ${
               isDark
                 ? 'bg-gradient-to-br from-[#1a1f3a]/80 to-[#27304a]/80 border-[#5ce1e5]/30 hover:border-[#5ce1e5]/60'
@@ -1070,7 +1055,6 @@ export const Homepage: React.FC = () => {
               </p>
             </div>
             
-            {/* Server Rack Demo */}
             <div className={`p-8 rounded-3xl border-2 transition-all duration-500 hover:shadow-2xl ${
               isDark
                 ? 'bg-gradient-to-br from-[#1a1f3a]/80 to-[#27304a]/80 border-[#fd5757]/30 hover:border-[#fd5757]/60'
@@ -1090,7 +1074,6 @@ export const Homepage: React.FC = () => {
               </p>
             </div>
             
-            {/* Fan Control Demo */}
             <div className={`p-8 rounded-3xl border-2 transition-all duration-500 hover:shadow-2xl ${
               isDark
                 ? 'bg-gradient-to-br from-[#1a1f3a]/80 to-[#27304a]/80 border-purple-500/30 hover:border-purple-500/60'
@@ -1114,9 +1097,12 @@ export const Homepage: React.FC = () => {
       </section>
       
       {/* Features Section */}
-      <section id="features" className={`relative py-20 px-6 scroll-mt-20 ${
-        isDark ? 'bg-gradient-to-b from-[#0a0e27] to-[#1a1f3a]' : 'bg-gradient-to-b from-slate-50 to-white'
-      }`}>
+      <section 
+        id="features" 
+        className={`relative py-20 px-6 scroll-mt-20 ${
+          isDark ? 'bg-gradient-to-b from-[#0a0e27] to-[#1a1f3a]' : 'bg-gradient-to-b from-slate-50 to-white'
+        }`}
+      >
         <div className="max-w-7xl mx-auto">
           <div className="text-center space-y-6 mb-16">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#5ce1e5] to-[#fd5757] text-white text-sm font-bold">
@@ -1214,6 +1200,191 @@ export const Homepage: React.FC = () => {
         </div>
       </section>
       
+      {/* Contact Section */}
+      <section 
+        id="contact" 
+        className={`relative py-20 px-6 scroll-mt-20 ${
+          isDark ? 'bg-gradient-to-b from-[#1a1f3a] to-[#0a0e27]' : 'bg-gradient-to-b from-white to-slate-50'
+        }`}
+      >
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center space-y-6 mb-16">
+            <h2 className={`text-4xl md:text-5xl font-bold ${
+              isDark ? 'text-white' : 'text-[#1a1a2e]'
+            }`}>
+              Contact <span className={isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'}>Us</span>
+            </h2>
+            <p className={`text-lg max-w-2xl mx-auto ${isDark ? 'text-gray-400' : 'text-gray-700'}`}>
+              Get in touch with our team for a personalized consultation and see how we can transform your data center.
+            </p>
+          </div>
+          
+          <div className="grid lg:grid-cols-2 gap-12">
+            <div className={`p-8 rounded-3xl ${
+              isDark 
+                ? 'bg-gradient-to-br from-[#1a1f3a]/80 to-[#27304a]/80 border border-[#3f4a68]'
+                : 'bg-gradient-to-br from-white/80 to-gray-50/80 border border-gray-200'
+            }`}>
+              <h3 className={`text-2xl font-bold mb-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Get in Touch
+              </h3>
+              
+              <div className="space-y-6">
+                <div className="flex items-start gap-4">
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                    isDark ? 'bg-[#fd5757]/20' : 'bg-[#ef4444]/10'
+                  }`}>
+                    <Mail className={`w-6 h-6 ${isDark ? 'text-[#fd5757]' : 'text-[#ef4444]'}`} />
+                  </div>
+                  <div>
+                    <h4 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Email</h4>
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-700'}>finalyearp027@gmail.com</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-4">
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                    isDark ? 'bg-[#5ce1e5]/20' : 'bg-[#0ea5e9]/10'
+                  }`}>
+                    <Phone className={`w-6 h-6 ${isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'}`} />
+                  </div>
+                  <div>
+                    <h4 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Phone</h4>
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-700'}>+92 345 9876879</p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-4">
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${
+                    isDark ? 'bg-purple-500/20' : 'bg-purple-400/10'
+                  }`}>
+                    <MapPin className={`w-6 h-6 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
+                  </div>
+                  <div>
+                    <h4 className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Address</h4>
+                    <p className={isDark ? 'text-gray-400' : 'text-gray-700'}>
+                      NED University of Engineering & Technology<br />
+                      Karachi, Pakistan
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-8 pt-8 border-t border-gray-700">
+                <h4 className={`font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Follow Us</h4>
+                <div className="flex gap-3">
+                  {[Facebook, Twitter, Linkedin, Instagram].map((Icon, index) => (
+                    <a
+                      key={index}
+                      href="#"
+                      className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-300 hover:scale-110 ${
+                        isDark
+                          ? 'bg-gray-800 text-gray-300 hover:bg-[#5ce1e5] hover:text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-[#0ea5e9] hover:text-white'
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className={`p-8 rounded-3xl ${
+              isDark 
+                ? 'bg-gradient-to-br from-[#1a1f3a]/80 to-[#27304a]/80 border border-[#3f4a68]'
+                : 'bg-gradient-to-br from-white/80 to-gray-50/80 border border-gray-200'
+            }`}>
+              <h3 className={`text-2xl font-bold mb-8 ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Send us a Message
+              </h3>
+              
+              <form className="space-y-6">
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      First Name
+                    </label>
+                    <input
+                      type="text"
+                      className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                        isDark
+                          ? 'bg-gray-800 text-white border border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20'
+                          : 'bg-white text-gray-900 border border-gray-300 focus:border-[#0ea5e9] focus:ring-[#0ea5e9]/20'
+                      }`}
+                      placeholder="John"
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      isDark ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                        isDark
+                          ? 'bg-gray-800 text-white border border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20'
+                          : 'bg-white text-gray-900 border border-gray-300 focus:border-[#0ea5e9] focus:ring-[#0ea5e9]/20'
+                      }`}
+                      placeholder="Doe"
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                      isDark
+                        ? 'bg-gray-800 text-white border border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20'
+                        : 'bg-white text-gray-900 border border-gray-300 focus:border-[#0ea5e9] focus:ring-[#0ea5e9]/20'
+                    }`}
+                    placeholder="john@example.com"
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${
+                    isDark ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Message
+                  </label>
+                  <textarea
+                    rows={4}
+                    className={`w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 transition-all ${
+                      isDark
+                        ? 'bg-gray-800 text-white border border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20'
+                        : 'bg-white text-gray-900 border border-gray-300 focus:border-[#0ea5e9] focus:ring-[#0ea5e9]/20'
+                    }`}
+                    placeholder="Tell us about your data center cooling needs..."
+                  />
+                </div>
+                
+                <button
+                  type="submit"
+                  className={`w-full px-6 py-4 rounded-lg font-semibold transition-all duration-300 hover:scale-105 ${
+                    isDark
+                      ? 'bg-gradient-to-r from-[#5ce1e5] to-[#fd5757] text-white'
+                      : 'bg-gradient-to-r from-[#0ea5e9] to-[#ef4444] text-white'
+                  }`}
+                >
+                  Send Message
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </section>
+      
       {/* Final CTA */}
       <section className={`relative py-20 px-6 overflow-hidden ${
         isDark ? 'bg-gradient-to-b from-[#1a1f3a] to-[#0a0e27]' : 'bg-gradient-to-b from-white to-slate-50'
@@ -1268,7 +1439,7 @@ export const Homepage: React.FC = () => {
                 </button>
                 
                 <button
-                  onClick={() => navigate('/demo')}
+                  onClick={() => scrollToSection('contact')}
                   className={`px-8 py-4 font-bold rounded-xl border-2 transition-all hover:scale-105 ${
                     isDark
                       ? 'border-white text-white hover:bg-white/10'
