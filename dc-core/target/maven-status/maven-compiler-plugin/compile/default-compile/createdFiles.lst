@@ -1,2 +1,11 @@
+dccore\datacenter\DataCenterEnvironment.class
 dccore\datacenter\DataCenterMetrics.class
+com\acme\dccore\RackSpec.class
+com\acme\dccore\WorkloadGenerator.class
+com\acme\dccore\SimpleCloudSimTest.class
+dccore\coolingtechniques\crac\CRACSystem.class
+com\acme\dccore\DataCenterBuilder.class
+dccore\datacenter\DataCenterConfig.class
 dccore\datacenter\EnergyCostCalculator.class
+dccore\coolingtechniques\crah\CRAHSystem.class
+com\acme\dccore\ServerSpec.class

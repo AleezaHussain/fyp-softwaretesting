@@ -1,6 +1,14 @@
-com\acme\unified\ChilledWaterAdapter.class
-com\acme\unified\CRAHAdapter.class
-com\acme\unified\CRACAdapter.class
+com\acme\unified\api\SimulationController.class
 com\acme\unified\CoolingTechnique.class
+com\acme\unified\api\SimulationDtos.class
+com\acme\unified\CRAHAdapter.class
+com\acme\unified\api\SimulationDtos$SummaryRow.class
+com\acme\unified\ChilledWaterAdapter.class
+com\acme\unified\api\SimulationDtos$SimParams.class
+com\acme\unified\CRACAdapter.class
+com\acme\unified\api\SimulationService.class
+com\acme\unified\api\SimulationDtos$HourResult.class
+com\acme\unified\api\SimulationDtos$SimulationResult.class
+com\acme\unified\api\UnifiedApiApplication.class
 com\acme\unified\AirEconomizerAdapter.class
 com\acme\unified\UnifiedSimulationRunner.class
