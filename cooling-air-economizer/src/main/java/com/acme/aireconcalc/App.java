@@ -63,9 +63,13 @@ public class App {
                         new Scenario("Cool, Humid", 12.0, 90.0, 28.0, 18.0),
                         new Scenario("Cold, Dry", 2.0, 20.0, 22.0, 18.0)
                 };
-                double totalITLoadWithFans_kW = 50.0;
+                // Derive IT load (including server fans) from rack/server specifications
+                java.util.List<RackSpec> racks = extractRacksFromDatacenter();
+                double assumedUtilization = 0.8; // 80% average IT utilization
+                ThermalIntegrator.ThermalLoad load = ThermalIntegrator.calculateThermalLoad(racks, assumedUtilization);
+                double totalITLoadWithFans_kW = load.totalITLoadKW + load.totalFanPowerKW;
                 EconomizerController controller = new EconomizerController();
-
+                
                 for (Scenario sc : scenarios) {
 
                         WeatherData oa = new WeatherData();

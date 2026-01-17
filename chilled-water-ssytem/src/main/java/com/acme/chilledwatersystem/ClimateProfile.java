@@ -13,11 +13,14 @@ import java.util.List;
  */
 public class ClimateProfile {
     private final String label;
-    private final double[] ambientHourly = new double[24];
-    private final double[] wetbulbHourly = new double[24];
+    private double[] ambientHourly;
+    private double[] wetbulbHourly;
 
     public ClimateProfile(String label) {
         this.label = label;
+        // default to a 24-hour profile; may be overridden by CSV or numeric profiles
+        this.ambientHourly = new double[24];
+        this.wetbulbHourly = new double[24];
         // built-in named profiles
         if (label != null && label.equalsIgnoreCase("hot-humid")) {
             createHotHumid();
@@ -77,7 +80,13 @@ public class ClimateProfile {
                     wb.add(Double.parseDouble(parts[2]));
                 }
             }
-            for (int h = 0; h < 24 && h < amb.size(); h++) {
+            int n = amb.size();
+            if (n == 0)
+                return false;
+
+            ambientHourly = new double[n];
+            wetbulbHourly = new double[n];
+            for (int h = 0; h < n; h++) {
                 ambientHourly[h] = amb.get(h);
                 wetbulbHourly[h] = wb.get(h);
             }
@@ -108,11 +117,17 @@ public class ClimateProfile {
     }
 
     public double getAmbientTemp(int hour) {
-        return ambientHourly[hour % 24];
+        int n = ambientHourly.length;
+        if (n == 0)
+            return 0.0;
+        return ambientHourly[hour % n];
     }
 
     public double getWetBulbTemp(int hour) {
-        return wetbulbHourly[hour % 24];
+        int n = wetbulbHourly.length;
+        if (n == 0)
+            return 0.0;
+        return wetbulbHourly[hour % n];
     }
 
     public String getLabel() {

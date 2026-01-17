@@ -16,9 +16,12 @@ public class ChilledWaterMain {
     public static void main(String[] args) {
         // --- Data-center side ---
         // CLI args: [0]=climateSource, [1]=configOverridePath, [2]=outCsv,
-        // [3]=scaleFactor, [4]=days
-        int scaleFactor = 100; // number of servers to create
+        // [3]=scaleFactor, [4]=days, [5]=rackCount, [6]=serversPerRack
+        int scaleFactor = 100; // number of servers to create (legacy mode)
         int days = 365;
+        int rackCount = 1; // number of racks
+        int serversPerRack = 6; // servers per rack (matches dc-core defaults)
+        
         if (args.length > 3) {
             try {
                 scaleFactor = Integer.parseInt(args[3]);
@@ -31,14 +34,48 @@ public class ChilledWaterMain {
             } catch (Exception e) {
             }
         }
-
-        java.util.List<Server> servers = new java.util.ArrayList<>();
-        for (int i = 0; i < scaleFactor; i++) {
-            // each server nominal 5 kW
-            servers.add(new Server("S" + i, 5));
+        if (args.length > 5) {
+            try {
+                rackCount = Integer.parseInt(args[5]);
+            } catch (Exception e) {
+            }
         }
-        Rack rack = new Rack("R1", servers, Math.max(1.0, scaleFactor / 10.0));
-        DataCenterModel dc = new DataCenterModel(List.of(rack), new ITLoadProfile());
+        if (args.length > 6) {
+            try {
+                serversPerRack = Integer.parseInt(args[6]);
+            } catch (Exception e) {
+            }
+        }
+
+        // Use dc-core rack specifications for realistic thermal modeling
+        java.util.List<com.acme.dccore.RackSpec> dcCoreRacks = buildRacksFromDcCore(rackCount, serversPerRack);
+        
+        // Convert to chilled-water datacenter model
+        java.util.List<Rack> racks = new java.util.ArrayList<>();
+        for (com.acme.dccore.RackSpec rackSpec : dcCoreRacks) {
+            java.util.List<Server> servers = new java.util.ArrayList<>();
+            for (int i = 0; i < rackSpec.getServers().size(); i++) {
+                com.acme.dccore.ServerSpec serverSpec = rackSpec.getServers().get(i);
+                // Use server's rated power in kW (converting from W)
+                double ratedPowerKW = serverSpec.getMaxPowerW() / 1000.0;
+                servers.add(new Server("S" + rackSpec.getRackId() + "-" + i, ratedPowerKW));
+            }
+            // Airflow from rack specs
+            double airflowRate = rackSpec.getTotalAirflowCFM() / 2118.88; // CFM to m³/s
+            racks.add(new Rack("R" + rackSpec.getRackId(), servers, airflowRate));
+        }
+        
+        DataCenterModel dc = new DataCenterModel(racks, new ITLoadProfile());
+        
+        // Print datacenter configuration
+        System.out.println("=== Datacenter Configuration ===");
+        System.out.printf("Racks: %d\n", rackCount);
+        System.out.printf("Servers per rack: %d\n", serversPerRack);
+        System.out.printf("Total servers: %d\n", rackCount * serversPerRack);
+        double totalDesignPowerKW = dcCoreRacks.stream()
+            .mapToDouble(com.acme.dccore.RackSpec::getTotalPowerKW).sum();
+        System.out.printf("Total design IT power: %.2f kW\n", totalDesignPowerKW);
+        System.out.println("================================\n");
 
         // --- Cooling side ---
         CRAHUnit crah = new CRAHUnit();
@@ -175,5 +212,50 @@ public class ChilledWaterMain {
         slog.infoWithTime(simTime, "DatacenterSimple", "Vm 0 destroyed on Host 0/DC 1.");
         slog.infoWithTime(simTime, "Simulation", "No more future events");
         slog.infoWithTime(simTime, "CloudInformationService0", "");
+    }
+
+    /**
+     * Build racks from dc-core specifications (matches DataCenterBuilder)
+     */
+    private static java.util.List<com.acme.dccore.RackSpec> buildRacksFromDcCore(int rackCount, int serversPerRack) {
+        java.util.List<com.acme.dccore.RackSpec> racks = new java.util.ArrayList<>();
+        
+        for (int r = 0; r < rackCount; r++) {
+            com.acme.dccore.RackSpec rack = new com.acme.dccore.RackSpec(r + 1);
+            
+            // Create server spec matching DataCenterBuilder.buildSmallDC
+            com.acme.dccore.ServerSpec serverSpec = new com.acme.dccore.ServerSpec(
+                4,       // cores
+                1000,    // MIPS per core
+                8192,    // RAM MB
+                100000L, // Storage MB
+                500.0,   // max power W (increased from 400W)
+                180.0,   // idle power W (reduced from 200W)
+                0.88,    // psuEfficiency (88% - improved efficiency)
+                true,    // dualPSU (redundant PSU for high-power server)
+                0.08,    // psuOverhead (8% - higher overhead)
+                450.0,   // maxAirflowCFM (increased from 350 CFM)
+                20.0,    // deltaT_C (temperature rise - increased from 15°C)
+                35.0,    // maxInletTemp_C (increased from 32°C)
+                16.0,    // minInletTemp_C (reduced from 18°C)
+                500.0,   // thermalDesignPower (matches max power)
+                0.18,    // fanPowerPercent (18% of server power - increased)
+                true,    // variableFanSpeed
+                0.4,     // minFanSpeed (40% minimum - increased from 30%)
+                2,       // uHeight (2U server - taller server)
+                "2U",    // formFactor
+                800.0,   // depth_mm (0.8m = 800mm - deeper server)
+                482.6    // width_mm (19" rack = 482.6mm)
+            );
+            
+            // Add servers to rack
+            for (int i = 0; i < serversPerRack; i++) {
+                rack.addServer(serverSpec);
+            }
+            
+            racks.add(rack);
+        }
+        
+        return racks;
     }
 }
