@@ -1,0 +1,230 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --color-primary: #fd5757;
+  --color-primary-dark: #e64a4a;
+  --color-secondary: #5ce1e5;
+  --color-secondary-dark: #3ec9d0;
+  --color-dark-gray: #1a1a2e;
+  --color-light-gray: #f5f7fa;
+  --color-white: #ffffff;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-light-gray text-dark-gray font-inter;
+}
+
+/* Typography */
+h1 {
+  @apply text-4xl font-bold text-dark-gray font-poppins;
+}
+
+h2 {
+  @apply text-3xl font-bold text-dark-gray font-poppins;
+}
+
+h3 {
+  @apply text-2xl font-semibold text-dark-gray font-poppins;
+}
+
+h4 {
+  @apply text-xl font-semibold text-dark-gray font-poppins;
+}
+
+p {
+  @apply text-text-light leading-relaxed;
+}
+
+/* Buttons */
+.btn {
+  @apply px-4 py-2 rounded-lg font-semibold transition-all duration-200 cursor-pointer;
+}
+
+.btn-primary {
+  @apply btn bg-primary text-white hover:bg-primary-dark shadow-md hover:shadow-lg active:animate-bounce-soft;
+}
+
+.btn-secondary {
+  @apply btn border-2 border-secondary text-secondary hover:bg-secondary hover:text-white transition-all;
+}
+
+.btn-outline {
+  @apply btn border-2 border-primary text-primary hover:bg-primary hover:text-white;
+}
+
+.btn-ghost {
+  @apply btn text-primary hover:bg-primary hover:bg-opacity-10;
+}
+
+/* Cards */
+.card {
+  @apply bg-white rounded-lg shadow-card hover:shadow-card-hover transition-shadow duration-200 p-6;
+}
+
+.card-cyan {
+  @apply card border-2 border-secondary;
+}
+
+.card-red {
+  @apply card border-2 border-primary;
+}
+
+/* Input Fields */
+.input-field {
+  @apply w-full px-4 py-2 border border-border-light rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent transition-all;
+}
+
+.input-field:focus {
+  box-shadow: 0 0 0 3px rgba(92, 225, 229, 0.1);
+}
+
+.input-field.error {
+  @apply border-primary focus:ring-primary;
+}
+
+.label {
+  @apply block text-sm font-semibold text-dark-gray font-poppins mb-2;
+}
+
+/* Animations */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes fadeInCheckmark {
+  0% {
+    opacity: 0;
+    transform: scale(0);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-slide-in-up {
+  animation: slideInUp 0.3s ease-out;
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+.animate-checkmark {
+  animation: fadeInCheckmark 0.4s ease-out;
+}
+
+/* Toast notifications */
+.toast {
+  @apply fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white z-50 animate-slide-in-up;
+}
+
+.toast-success {
+  @apply bg-secondary;
+}
+
+.toast-error {
+  @apply bg-primary;
+}
+
+.toast-info {
+  @apply bg-secondary;
+}
+
+/* Loading spinner */
+.spinner {
+  @apply border-4 border-light-gray border-t-secondary rounded-full animate-spin;
+}
+
+/* Gradient backgrounds */
+.gradient-primary-secondary {
+  @apply bg-gradient-to-br from-secondary via-secondary to-primary;
+}
+
+.gradient-dark-to-secondary {
+  @apply bg-gradient-to-br from-dark-gray to-secondary;
+}
+
+/* Glowing effects */
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(92, 225, 229, 0.3);
+}
+
+.glow-red {
+  box-shadow: 0 0 20px rgba(253, 87, 87, 0.2);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-light-gray;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-border-light rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-text-light;
+}
+
+/* Status indicators */
+.status-success {
+  @apply text-secondary font-semibold flex items-center gap-1;
+}
+
+.status-error {
+  @apply text-primary font-semibold flex items-center gap-1;
+}
+
+.status-warning {
+  @apply text-orange-500 font-semibold flex items-center gap-1;
+}
+
+/* Data/Values styling */
+.data-value {
+  @apply font-roboto-mono text-secondary font-bold;
+}
+
+.data-alert {
+  @apply font-roboto-mono text-primary font-bold;
+}
