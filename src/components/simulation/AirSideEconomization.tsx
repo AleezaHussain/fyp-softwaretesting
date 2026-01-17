@@ -111,10 +111,15 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       const serialized = JSON.stringify(payload)
       if (lastSentRef.current !== serialized) {
         lastSentRef.current = serialized
-        onConfigChange(payload)
+        // Use requestAnimationFrame to prevent layout thrashing
+        requestAnimationFrame(() => {
+          onConfigChange(payload)
+        })
       }
     } catch (e) {
-      onConfigChange(payload)
+      requestAnimationFrame(() => {
+        onConfigChange(payload)
+      })
     }
     
     return undefined
@@ -123,8 +128,6 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   return (
     <div className="space-y-6">
       <style>{`
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .animate-fade-in { animation: fadeIn 0.5s ease-out forwards; }
         .card-hover { transition: all 0.3s ease; }
         .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(92, 225, 229, 0.1); }
         .input-focus { transition: all 0.2s ease; }
@@ -132,7 +135,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       `}</style>
 
       {/* Section 1: Server Configuration */}
-      <div className="card-hover bg-white rounded-2xl p-6 border border-gray-200 shadow-sm animate-fade-in">
+      <div className="card-hover bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
           <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
             <Zap className="w-5 h-5 text-blue-600" />

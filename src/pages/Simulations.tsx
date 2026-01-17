@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { Sidebar } from '../components/shared/Sidebar'
-import { useAuthStore, useSimulationStore } from '../store/store'
+import { useSimulationStore } from '../store/store'
 import { useThemeStore } from '../hooks/useTheme'  
 import { useNavigate } from 'react-router-dom'
 import { 
@@ -10,80 +10,83 @@ import {
   Cloud, MapPin, Activity, CheckCircle, XCircle, AlertCircle
 } from 'lucide-react'
 
+// Helper functions for reuse
+const getTechniqueIcon = (technique: string) => {
+  switch (technique) {
+    case 'air':
+      return <Wind className="w-4 h-4" />
+    case 'water':
+      return <Droplet className="w-4 h-4" />
+    case 'evaporative':
+      return <Cloud className="w-4 h-4" />
+    default:
+      return <Thermometer className="w-4 h-4" />
+  }
+}
+
+const getStatusConfig = (status: string, isDark: boolean) => {
+  switch (status) {
+    case 'completed':
+      return {
+        color: isDark ? '#10b981' : '#10b981',
+        bgColor: isDark ? 'bg-green-500/20' : 'bg-green-500/20',
+        textColor: isDark ? 'text-green-400' : 'text-green-600',
+        icon: CheckCircle,
+        label: 'Completed'
+      }
+    case 'running':
+      return {
+        color: isDark ? '#3b82f6' : '#3b82f6',
+        bgColor: isDark ? 'bg-blue-500/20' : 'bg-blue-500/20',
+        textColor: isDark ? 'text-blue-400' : 'text-blue-600',
+        icon: Activity,
+        label: 'Running'
+      }
+    case 'pending':
+      return {
+        color: isDark ? '#f59e0b' : '#f59e0b',
+        bgColor: isDark ? 'bg-yellow-500/20' : 'bg-yellow-500/20',
+        textColor: isDark ? 'text-yellow-400' : 'text-yellow-600',
+        icon: Clock,
+        label: 'Pending'
+      }
+    default:
+      return {
+        color: isDark ? '#6b7280' : '#6b7280',
+        bgColor: isDark ? 'bg-gray-500/20' : 'bg-gray-200',
+        textColor: isDark ? 'text-gray-400' : 'text-gray-600',
+        icon: XCircle,
+        label: 'Failed'
+      }
+  }
+}
+
+const getTechniqueColor = (technique: string, isDark: boolean) => {
+  switch (technique) {
+    case 'air':
+      return isDark ? '#5ce1e5' : '#0ea5e9'
+    case 'water':
+      return isDark ? '#8b5cf6' : '#8b5cf6'
+    case 'evaporative':
+      return isDark ? '#10b981' : '#10b981'
+    default:
+      return isDark ? '#fd5757' : '#ef4444'
+  }
+}
+
 // Simulation Card Component
-const SimulationCard: React.FC<{
+interface SimulationCardProps {
   simulation: any
   index: number
-}> = ({ simulation, index }) => {
+}
+
+const SimulationCard: React.FC<SimulationCardProps> = ({ simulation, index }) => {
   const navigate = useNavigate()
   const isDark = useThemeStore((state) => state.isDark)
   
-  const getStatusConfig = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return {
-          color: isDark ? '#10b981' : '#10b981',
-          bgColor: isDark ? 'bg-green-500/20' : 'bg-green-500/20',
-          textColor: isDark ? 'text-green-400' : 'text-green-600',
-          icon: CheckCircle,
-          label: 'Completed'
-        }
-      case 'running':
-        return {
-          color: isDark ? '#3b82f6' : '#3b82f6',
-          bgColor: isDark ? 'bg-blue-500/20' : 'bg-blue-500/20',
-          textColor: isDark ? 'text-blue-400' : 'text-blue-600',
-          icon: Activity,
-          label: 'Running'
-        }
-      case 'pending':
-        return {
-          color: isDark ? '#f59e0b' : '#f59e0b',
-          bgColor: isDark ? 'bg-yellow-500/20' : 'bg-yellow-500/20',
-          textColor: isDark ? 'text-yellow-400' : 'text-yellow-600',
-          icon: Clock,
-          label: 'Pending'
-        }
-      default:
-        return {
-          color: isDark ? '#6b7280' : '#6b7280',
-          bgColor: isDark ? 'bg-gray-500/20' : 'bg-gray-200',
-          textColor: isDark ? 'text-gray-400' : 'text-gray-600',
-          icon: XCircle,
-          label: 'Failed'
-        }
-    }
-  }
-  
-  const getTechniqueIcon = (technique: string) => {
-    switch (technique) {
-      case 'air':
-        return <Wind className="w-4 h-4" />
-      case 'water':
-        return <Droplet className="w-4 h-4" />
-      case 'evaporative':
-        return <Cloud className="w-4 h-4" />
-      default:
-        return <Thermometer className="w-4 h-4" />
-    }
-  }
-  
-  const getTechniqueColor = (technique: string) => {
-    switch (technique) {
-      case 'air':
-        return isDark ? '#5ce1e5' : '#0ea5e9'
-      case 'water':
-        return isDark ? '#8b5cf6' : '#8b5cf6'
-      case 'evaporative':
-        return isDark ? '#10b981' : '#10b981'
-      default:
-        return isDark ? '#fd5757' : '#ef4444'
-    }
-  }
-  
-  const statusConfig = getStatusConfig(simulation.status)
+  const statusConfig = getStatusConfig(simulation.status, isDark)
   const StatusIcon = statusConfig.icon
-  const techniqueColor = getTechniqueColor(simulation.coolingTechnique)
+  const techniqueColor = getTechniqueColor(simulation.coolingTechnique, isDark)
 
   return (
     <div 
@@ -113,13 +116,13 @@ const SimulationCard: React.FC<{
               <span className={`text-sm ${
                 isDark ? 'text-gray-400' : 'text-gray-600'
               }`}>
-                {simulation.location}
+                {simulation.location || 'Unknown Location'}
               </span>
               <span className="w-1 h-1 rounded-full bg-gray-500" />
               <span className={`text-sm ${
                 isDark ? 'text-gray-400' : 'text-gray-600'
               }`}>
-                {new Date(simulation.createdAt).toLocaleDateString()}
+                {simulation.createdAt ? new Date(simulation.createdAt).toLocaleDateString() : 'No date'}
               </span>
             </div>
           </div>
@@ -145,7 +148,7 @@ const SimulationCard: React.FC<{
             <div className={`text-lg font-bold ${
               isDark ? 'text-white' : 'text-gray-900'
             }`}>
-              {simulation.itLoad} kW
+              {simulation.itLoad || 0} kW
             </div>
           </div>
           <div>
@@ -169,7 +172,7 @@ const SimulationCard: React.FC<{
             <div className={`text-lg font-bold capitalize ${
               isDark ? 'text-white' : 'text-gray-900'
             }`}>
-              {simulation.coolingTechnique}
+              {simulation.coolingTechnique || 'air'}
             </div>
           </div>
           <div>
@@ -181,7 +184,7 @@ const SimulationCard: React.FC<{
             <div className={`text-lg font-bold ${
               isDark ? 'text-green-400' : 'text-green-600'
             }`}>
-              {simulation.energySaved || '0'}%
+              {(simulation.energySaved || 0)}%
             </div>
           </div>
         </div>
@@ -241,8 +244,9 @@ export const Simulations: React.FC = () => {
 
   // Filter simulations
   const filteredSimulations = simulations.filter(sim => {
-    const matchesSearch = sim.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         sim.location.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = sim.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         sim.location?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         false
     const matchesStatus = statusFilter === 'all' || sim.status === statusFilter
     const matchesTechnique = techniqueFilter === 'all' || sim.coolingTechnique === techniqueFilter
     
@@ -254,13 +258,17 @@ export const Simulations: React.FC = () => {
   const completedSimulations = simulations.filter(s => s.status === 'completed').length
   const runningSimulations = simulations.filter(s => s.status === 'running').length
   const totalEnergySaved = simulations.reduce((acc, sim) => acc + (sim.energySaved || 0), 0)
+  const avgEnergySaved = totalSimulations > 0 ? Math.round(totalEnergySaved / totalSimulations) : 0
 
   return (
-    <div className={`min-h-screen transition-colors duration-500 ${
-      isDark 
-        ? 'bg-gradient-to-b from-[#0a0e27] via-[#1a1f3a] to-[#0a0e27]' 
-        : 'bg-gradient-to-b from-slate-50 via-white to-slate-50'
-    }`}>
+    <div className="min-h-screen">
+      {/* Background layer without transition - FIX FOR BLINKING */}
+      <div className={`fixed inset-0 ${
+        isDark 
+          ? 'bg-gradient-to-b from-[#0a0e27] via-[#1a1f3a] to-[#0a0e27]' 
+          : 'bg-gradient-to-b from-slate-50 via-white to-slate-50'
+      }`} />
+      
       <Sidebar />
 
       {/* Animated Background Elements */}
@@ -270,7 +278,7 @@ export const Simulations: React.FC = () => {
         }`} style={{ animation: 'float 8s ease-in-out infinite' }} />
       </div>
 
-      <main className="lg:ml-64 p-4 lg:p-8">
+      <main className="relative lg:ml-64 p-4 lg:p-8">
         {/* Header Section */}
         <div className="relative mb-8 lg:mb-12">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
@@ -409,7 +417,7 @@ export const Simulations: React.FC = () => {
                   <div className={`text-2xl font-bold ${
                     isDark ? 'text-white' : 'text-gray-900'
                   }`}>
-                    {totalEnergySaved}%
+                    {avgEnergySaved}%
                   </div>
                   <div className={`text-sm ${
                     isDark ? 'text-gray-400' : 'text-gray-600'
@@ -635,98 +643,101 @@ export const Simulations: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {filteredSimulations.map((sim, index) => (
-                  <div
-                    key={sim.id}
-                    className={`group rounded-xl p-6 transition-all duration-300 hover:scale-105 ${
-                      isDark
-                        ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68] hover:border-[#5ce1e5]/30'
-                        : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200 hover:border-[#0ea5e9]/30'
-                    }`}
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                      <div className="flex items-start gap-4">
-                        <div className={`p-3 rounded-xl ${
-                          isDark ? 'bg-black/30' : 'bg-gray-100'
-                        }`}>
-                          {getTechniqueIcon(sim.coolingTechnique)}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex flex-col lg:flex-row lg:items-center gap-4 mb-2">
-                            <h4 className={`font-bold text-lg ${
-                              isDark ? 'text-white' : 'text-gray-900'
-                            }`}>
-                              {sim.name}
-                            </h4>
-                            <div className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              getStatusConfig(sim.status).bgColor
-                            } ${getStatusConfig(sim.status).textColor}`}>
-                              {getStatusConfig(sim.status).label}
+                {filteredSimulations.map((sim, index) => {
+                  const statusConfig = getStatusConfig(sim.status, isDark)
+                  return (
+                    <div
+                      key={sim.id}
+                      className={`group rounded-xl p-6 transition-all duration-300 hover:scale-105 ${
+                        isDark
+                          ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68] hover:border-[#5ce1e5]/30'
+                          : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200 hover:border-[#0ea5e9]/30'
+                      }`}
+                    >
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        <div className="flex items-start gap-4">
+                          <div className={`p-3 rounded-xl ${
+                            isDark ? 'bg-black/30' : 'bg-gray-100'
+                          }`}>
+                            {getTechniqueIcon(sim.coolingTechnique || 'air')}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex flex-col lg:flex-row lg:items-center gap-4 mb-2">
+                              <h4 className={`font-bold text-lg ${
+                                isDark ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {sim.name}
+                              </h4>
+                              <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                statusConfig.bgColor
+                              } ${statusConfig.textColor}`}>
+                                {statusConfig.label}
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                              <div className="flex items-center gap-2">
+                                <MapPin className="w-4 h-4 text-gray-500" />
+                                <span className={`text-sm ${
+                                  isDark ? 'text-gray-400' : 'text-gray-600'
+                                }`}>
+                                  {sim.location || 'Unknown'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Server className="w-4 h-4 text-gray-500" />
+                                <span className={`text-sm ${
+                                  isDark ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                  {sim.itLoad || 0} kW
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Thermometer className="w-4 h-4 text-gray-500" />
+                                <span className={`text-sm ${
+                                  isDark ? 'text-white' : 'text-gray-900'
+                                }`}>
+                                  {sim.coolingTechnique || 'air'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Zap className="w-4 h-4 text-gray-500" />
+                                <span className={`text-sm ${
+                                  isDark ? 'text-green-400' : 'text-green-600'
+                                }`}>
+                                  {(sim.energySaved || 0)}% saved
+                                </span>
+                              </div>
                             </div>
                           </div>
-                          
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="flex items-center gap-2">
-                              <MapPin className="w-4 h-4 text-gray-500" />
-                              <span className={`text-sm ${
-                                isDark ? 'text-gray-400' : 'text-gray-600'
-                              }`}>
-                                {sim.location}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Server className="w-4 h-4 text-gray-500" />
-                              <span className={`text-sm ${
-                                isDark ? 'text-gray-400' : 'text-gray-600'
-                              }`}>
-                                {sim.itLoad} kW
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Thermometer className="w-4 h-4 text-gray-500" />
-                              <span className={`text-sm ${
-                                isDark ? 'text-gray-400' : 'text-gray-600'
-                              }`}>
-                                {sim.coolingTechnique}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Zap className="w-4 h-4 text-gray-500" />
-                              <span className={`text-sm ${
-                                isDark ? 'text-green-400' : 'text-green-600'
-                              }`}>
-                                {sim.energySaved || '0'}% saved
-                              </span>
-                            </div>
-                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => navigate(`/simulation/${sim.id}`)}
-                          className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
-                            isDark
-                              ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
-                              : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
-                          }`}
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => console.log('Download', sim.id)}
-                          className={`p-2 rounded-lg transition-all hover:scale-105 ${
-                            isDark 
-                              ? 'hover:bg-[#27304a] text-gray-400 hover:text-white' 
-                              : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'
-                          }`}
-                        >
-                          <Download className="w-4 h-4" />
-                        </button>
+                        
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => navigate(`/simulation/${sim.id}`)}
+                            className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
+                              isDark
+                                ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
+                                : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
+                            }`}
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => console.log('Download', sim.id)}
+                            className={`p-2 rounded-lg transition-all hover:scale-105 ${
+                              isDark 
+                                ? 'hover:bg-[#27304a] text-gray-400 hover:text-white' 
+                                : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'
+                            }`}
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             )
           ) : (

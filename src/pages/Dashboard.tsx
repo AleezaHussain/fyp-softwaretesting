@@ -456,7 +456,7 @@ export const Dashboard: React.FC = () => {
               <h1 className={`text-3xl lg:text-4xl font-bold mb-2 animate-in slide-in-from-left-8 ${
                 isDark ? 'text-white' : 'text-gray-900'
               }`}>
-                Welcome back, <span className={isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'}>{user?.name?.split(' ')[0] || 'User'}</span>!
+                Welcome back, <span className={isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'}>{user?.email?.split('@')[0] || 'User'}</span>!
               </h1>
               <p className={`text-lg ${
                 isDark ? 'text-gray-400' : 'text-gray-600'

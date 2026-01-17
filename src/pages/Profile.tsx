@@ -38,12 +38,13 @@ interface UserPreferences {
 }
 
 interface User {
+  id: string
   name: string
   email: string
+  profilePicture?: string
   organization?: string
   role?: string
-  avatar?: string
-  preferences?: UserPreferences
+  preferences: UserPreferences
 }
 
 // Setting Card Component
@@ -586,7 +587,7 @@ export const Profile: React.FC = () => {
       const imageUrl = URL.createObjectURL(file)
       
       // Update user with new avatar URL
-      updateUser({ avatar: imageUrl })
+      updateUser({ profilePicture: imageUrl })
       
       // In a real app, you would send the file to your server
       // and get back a URL from the server
@@ -603,7 +604,7 @@ export const Profile: React.FC = () => {
 
   const handleRemovePhoto = () => {
     if (confirm('Are you sure you want to remove your profile picture?')) {
-      updateUser({ avatar: undefined })
+      updateUser({ profilePicture: undefined })
     }
   }
 
@@ -670,7 +671,7 @@ export const Profile: React.FC = () => {
         onClose={() => setShowUploadModal(false)}
         onUpload={handleUploadPhoto}
         isDark={isDark}
-        currentAvatar={user?.avatar}
+        currentAvatar={user?.profilePicture}
       />
 
       {/* Animated Background Elements */}
@@ -759,11 +760,11 @@ export const Profile: React.FC = () => {
               <div className="relative inline-block mb-6 group">
                 {/* Avatar Container */}
                 <div className="relative">
-                  {user?.avatar ? (
+                  {user?.profilePicture ? (
                     <>
                       <img 
-                        src={user.avatar} 
-                        alt={user.name} 
+                        src={user.profilePicture} 
+                        alt={user.name || 'User'} 
                         className="w-24 h-24 rounded-full object-cover shadow-lg"
                       />
                       {/* Hover Overlay */}
@@ -846,13 +847,13 @@ export const Profile: React.FC = () => {
                     ) : (
                       <>
                         <Upload className="w-5 h-5" />
-                        {user?.avatar ? 'Change Photo' : 'Upload Photo'}
+                        {user?.profilePicture ? 'Change Photo' : 'Upload Photo'}
                       </>
                     )}
                   </div>
                 </button>
                 
-                {user?.avatar && (
+                {user?.profilePicture && (
                   <button
                     onClick={handleRemovePhoto}
                     disabled={uploading}
