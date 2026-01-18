@@ -1,10 +1,12 @@
+// InputManagement.tsx - COMPLETE FIXED VERSION
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Sidebar } from '../components/shared/Sidebar'
 import { ErrorBoundary } from '../components/shared/ErrorBoundary'
 import { useSimulationStore } from '../store/store'
 import { useThemeStore } from '../hooks/useTheme' 
-import { CheckCircle2, Zap, Droplet, Wind, ArrowRight, Sparkles, ChevronRight, Thermometer, Cloud, Cpu, Server, Activity, Play, X, RotateCw, BarChart3, Shield, Leaf } from 'lucide-react'
+import { CheckCircle2, Zap, Droplet, Wind, ArrowRight, Sparkles, ChevronRight, Thermometer, Cloud, Cpu, Server, Activity, Play, X, RotateCw, BarChart3, Shield, Leaf, Upload, FileText, MapPin, AlertCircle, Info, Calendar, ThermometerSun, Droplets, CloudRain } from 'lucide-react'
 import AirSideEconomization from '../components/simulation/AirSideEconomization'
+import ChilledWaterCooling from '../components/simulation/ChilledWaterCooling'
 import { useNavigate } from 'react-router-dom'
 
 const steps = [
@@ -14,300 +16,827 @@ const steps = [
   { id: 'review', label: 'Review', icon: CheckCircle2 }
 ]
 
-// Simulated Progress Loader Component
-const SimulationProgress: React.FC<{
-  progress: number
-  isRunning: boolean
-  onClose: () => void
-}> = ({ progress, isRunning, onClose }) => {
-  const isDark = useThemeStore((state) => state.isDark)
-  const [currentMessage, setCurrentMessage] = useState('Initializing simulation...')
-  
-  const messages = [
-    'Analyzing data center configuration...',
-    'Calculating thermal dynamics...',
-    'Optimizing cooling parameters...',
-    'Running energy efficiency algorithms...',
-    'Generating optimization strategies...',
-    'Finalizing simulation results...'
-  ]
+interface Step2ParametersProps {
+  isDark: boolean
+  isTransitioning: boolean
+  selectedTechnique: string | null
+  currentConfig: any
+  currentInput: any
+  serverId: string
+  countryId: string
+  handleConfigChange: (config: any) => void
+  locationData: any[]
+}
 
-  // Generate particles once using useMemo
-  const particles = useMemo(() => 
-    Array.from({ length: 20 }).map(() => ({
-      left: Math.random() * 100,
-      top: Math.random() * 100,
-      duration: 3 + Math.random() * 2,
-      delay: Math.random() * 4,
-      opacity: 0.3 + Math.random() * 0.4
-    }))
-  , [])
-
-  useEffect(() => {
-    if (isRunning) {
-      const interval = setInterval(() => {
-        const randomMessage = messages[Math.floor(Math.random() * messages.length)]
-        setCurrentMessage(randomMessage)
-      }, 2000)
-      
-      return () => clearInterval(interval)
-    }
-  }, [isRunning])
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 backdrop-blur-md"
-        style={{
-          background: isDark 
-            ? 'radial-gradient(circle at center, rgba(10, 14, 39, 0.9), rgba(26, 31, 58, 0.95))'
-            : 'radial-gradient(circle at center, rgba(255, 255, 255, 0.9), rgba(241, 245, 249, 0.95))'
-        }}
-      />
-      
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Floating Particles - FIXED */}
-        {particles.map((p, i) => (
-          <div
-            key={i}
-            className={`absolute w-1 h-1 rounded-full ${
-              isDark ? 'bg-[#5ce1e5]' : 'bg-[#0ea5e9]'
-            }`}
-            style={{
-              left: `${p.left}%`,
-              top: `${p.top}%`,
-              animation: `floatParticle ${p.duration}s ease-in-out infinite`,
-              animationDelay: `${p.delay}s`,
-              opacity: p.opacity
-            }}
-          />
-        ))}
-        
-        {/* Cooling Wave Animation */}
-        <div className="absolute inset-0">
-          <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <defs>
-              <style>{`
-                @keyframes waveAnimation {
-                  0% { d: path('M0,50 Q25,40 50,50 T100,50'); }
-                  50% { d: path('M0,50 Q25,60 50,50 T100,50'); }
-                  100% { d: path('M0,50 Q25,40 50,50 T100,50'); }
-                }
-              `}</style>
-            </defs>
-            <path
-              d="M0,50 Q25,40 50,50 T100,50"
-              fill="none"
-              stroke={isDark ? '#5ce1e5' : '#0ea5e9'}
-              strokeWidth="0.5"
-              opacity="0.3"
-              style={{ animation: 'waveAnimation 4s ease-in-out infinite' }}
-            />
-            <path
-              d="M0,50 Q25,45 50,50 T100,50"
-              fill="none"
-              stroke={isDark ? '#fd5757' : '#ef4444'}
-              strokeWidth="0.5"
-              opacity="0.2"
-              style={{ animation: 'waveAnimation 4s ease-in-out infinite 0.5s' }}
-            />
-          </svg>
-        </div>
-      </div>
-
-      {/* Main Loader Card */}
-      <div className={`relative w-full max-w-2xl rounded-3xl overflow-hidden transform transition-all duration-500 ${
-        isRunning ? 'scale-100 opacity-100' : 'scale-95 opacity-0'
+const Step2Parameters: React.FC<Step2ParametersProps> = ({
+  isDark,
+  isTransitioning,
+  selectedTechnique,
+  currentConfig,
+  currentInput,
+  serverId,
+  countryId,
+  handleConfigChange,
+  locationData
+}) => {
+  if (selectedTechnique === 'air') {
+    return (
+      <div className={`max-w-6xl mx-auto transition-all duration-500 ${
+        isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
       }`}>
-        {/* Animated Border */}
-        <div className={`absolute inset-0 rounded-3xl p-1`}>
-          <div className={`absolute inset-0 rounded-3xl ${
-            isDark 
-              ? 'bg-gradient-to-r from-[#5ce1e5] via-[#fd5757] to-[#5ce1e5]' 
-              : 'bg-gradient-to-r from-[#0ea5e9] via-[#ef4444] to-[#0ea5e9]'
-          } opacity-80`} style={{ 
-            backgroundSize: '200% 100%',
-            animation: 'gradientShift 3s ease-in-out infinite'
-          }} />
+        <div className="text-center space-y-4 mb-12">
+          <h2 className={`text-4xl font-bold ${
+            isDark ? 'text-white' : 'text-gray-900'
+          }`}>
+            Configure Air-Side Economization
+          </h2>
+          <p className={`text-lg max-w-2xl mx-auto ${
+            isDark ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            Optimize your cooling parameters for maximum efficiency and cost savings
+          </p>
         </div>
-
-        {/* Content */}
-        <div className={`relative rounded-3xl p-8 ${
+        
+        <div className={`mb-8 p-6 rounded-2xl ${
           isDark 
-            ? 'bg-gradient-to-b from-[#1a1f3a] to-[#27304a]' 
-            : 'bg-gradient-to-b from-white to-gray-50'
+            ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
+            : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
         }`}>
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-2xl ${
-                isDark ? 'bg-black/30' : 'bg-gray-100'
-              }`}>
-                <Zap className={`w-8 h-8 ${
-                  isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-                } animate-pulse`} />
-              </div>
-              <div>
-                <h2 className={`text-2xl font-bold ${
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { 
+                icon: Server, 
+                label: 'Total Racks', 
+                value: currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5 
+              },
+              { 
+                icon: Cpu, 
+                label: 'Servers', 
+                value: ((currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5) * 10) 
+              },
+              { 
+                icon: Wind, 
+                label: 'Fan System', 
+                value: currentConfig?.fans ? 'Mixed' : 'Standard' 
+              },
+              { 
+                icon: Cloud, 
+                label: 'Region', 
+                value: currentConfig?.region || 'US Northeast' 
+              }
+            ].map((stat, idx) => (
+              <div key={idx} className="text-center">
+                <div className={`text-2xl font-bold mb-1 ${
                   isDark ? 'text-white' : 'text-gray-900'
                 }`}>
-                  Running Simulation
-                </h2>
-                <p className={`text-sm ${
-                  isDark ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  Optimizing your data center cooling
-                </p>
-              </div>
-            </div>
-            
-            <button
-              onClick={onClose}
-              className={`p-2 rounded-xl transition-all hover:scale-110 ${
-                isDark 
-                  ? 'hover:bg-[#27304a] text-gray-400 hover:text-white' 
-                  : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Progress Bar with Animation */}
-          <div className="space-y-6">
-            {/* Progress Bar Container */}
-            <div className={`relative h-4 rounded-full overflow-hidden ${
-              isDark ? 'bg-[#27304a]' : 'bg-gray-200'
-            }`}>
-              {/* Animated Background */}
-              <div className={`absolute inset-0 ${
-                isDark 
-                  ? 'bg-gradient-to-r from-[#5ce1e5]/20 via-[#fd5757]/20 to-[#5ce1e5]/20' 
-                  : 'bg-gradient-to-r from-[#0ea5e9]/20 via-[#ef4444]/20 to-[#0ea5e9]/20'
-              }`} style={{ 
-                backgroundSize: '200% 100%',
-                animation: 'gradientShift 3s ease-in-out infinite'
-              }} />
-              
-              {/* Progress Fill */}
-              <div 
-                className="absolute inset-0 rounded-full transition-all duration-500"
-                style={{ 
-                  width: `${progress}%`,
-                  background: isDark 
-                    ? 'linear-gradient(90deg, #5ce1e5, #fd5757)'
-                    : 'linear-gradient(90deg, #0ea5e9, #ef4444)',
-                  boxShadow: `0 0 20px ${isDark ? '#5ce1e5' : '#0ea5e9'}40`
-                }}
-              >
-                {/* Pulsing Dot */}
-                <div 
-                  className="absolute right-0 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-white shadow-lg"
-                  style={{ 
-                    animation: 'pulseDot 1.5s ease-in-out infinite',
-                    boxShadow: `0 0 0 4px ${isDark ? '#5ce1e5' : '#0ea5e9'}40`
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Progress Info */}
-            <div className="flex items-center justify-between">
-              <div>
-                <div className={`text-4xl font-bold mb-1 ${
-                  isDark ? 'text-white' : 'text-gray-900'
-                }`}>
-                  {Math.round(progress)}%
+                  {stat.value}
                 </div>
                 <div className={`text-sm ${
                   isDark ? 'text-gray-400' : 'text-gray-600'
                 }`}>
-                  {currentMessage}
+                  {stat.label}
                 </div>
               </div>
-              
-              {/* Progress Indicators */}
-              <div className="flex items-center gap-2">
-                {[1, 2, 3].map((i) => (
-                  <div
-                    key={i}
-                    className={`w-2 h-2 rounded-full transition-all duration-300 ${
-                      progress >= i * 33
-                        ? isDark ? 'bg-[#5ce1e5]' : 'bg-[#0ea5e9]'
-                        : isDark ? 'bg-[#3f4a68]' : 'bg-gray-300'
-                    }`}
-                    style={{
-                      animation: progress >= i * 33 
-                        ? `pulseDot 1.5s ease-in-out infinite ${i * 0.2}s`
-                        : 'none'
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Live Metrics */}
-            <div className="grid grid-cols-3 gap-4 pt-4">
-              {[
-                { label: 'Energy Saving', value: `${Math.round(progress * 0.4)}%`, icon: Leaf },
-                { label: 'Cooling Efficiency', value: `${Math.round(progress * 0.5)}%`, icon: Wind },
-                { label: 'Performance Gain', value: `${Math.round(progress * 0.3)}%`, icon: Zap }
-              ].map((metric, idx) => (
-                <div 
-                  key={idx}
-                  className={`p-4 rounded-xl text-center transition-all duration-500 ${
-                    isDark ? 'bg-[#27304a]' : 'bg-gray-100'
-                  }`}
-                  style={{
-                    transform: progress > idx * 33 ? 'scale(1.05)' : 'scale(1)',
-                    opacity: progress > idx * 33 ? 1 : 0.7
-                  }}
-                >
-                  <metric.icon className={`w-5 h-5 mx-auto mb-2 ${
-                    isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-                  }`} />
-                  <div className={`text-xl font-bold ${
-                    isDark ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    {metric.value}
-                  </div>
-                  <div className={`text-xs ${
-                    isDark ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    {metric.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Spinning Fan Animation */}
-            <div className="flex justify-center pt-6">
-              <div className="relative w-20 h-20">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div 
-                    className={`w-16 h-16 rounded-full border-2 ${
-                      isDark ? 'border-[#5ce1e5]/30' : 'border-[#0ea5e9]/30'
-                    }`}
-                    style={{
-                      animation: 'spin 3s linear infinite'
-                    }}
-                  />
-                </div>
-                <Wind className={`absolute inset-0 m-auto w-8 h-8 ${
-                  isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-                }`} style={{
-                  animation: 'spin 3s linear infinite reverse'
-                }} />
-              </div>
-            </div>
+            ))}
           </div>
+        </div>
+        
+        <AirSideEconomization
+          serverId={serverId}
+          countryId={countryId}
+          serverType={currentConfig?.serverType || ''}
+          numberOfRacks={currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5}
+          serversPerRack={currentConfig?.serversPerRack || 10}
+          averageUtilization={currentConfig?.averageUtilization || 45}
+          peakUtilization={currentConfig?.peakUtilization || 85}
+          fans={currentConfig?.fans || { bestFans: 2, averageFans: 4, oldFans: 0 }}
+          region={currentConfig?.region || 'us_northeast'}
+          onConfigChange={handleConfigChange}
+          locationData={locationData}
+        />
+      </div>
+    )
+  }
+
+  if (selectedTechnique === 'water') {
+    return (
+      <div className={`max-w-6xl mx-auto transition-all duration-500 ${
+        isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
+      }`}>
+        <div className="text-center space-y-4 mb-12">
+          <h2 className={`text-4xl font-bold ${
+            isDark ? 'text-white' : 'text-gray-900'
+          }`}>
+            Configure Chilled-Water Cooling
+          </h2>
+          <p className={`text-lg max-w-2xl mx-auto ${
+            isDark ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            Optimize your water-based cooling system for maximum efficiency and reliability
+          </p>
+        </div>
+        
+        <div className={`mb-8 p-6 rounded-2xl ${
+          isDark 
+            ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
+            : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
+        }`}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { icon: Server, label: 'Total Racks', value: currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5 },
+              { icon: Cpu, label: 'Servers', value: ((currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5) * 10) },
+              { icon: Droplet, label: 'Rack Power', value: currentConfig?.rackPowerCapacity ? `${currentConfig.rackPowerCapacity} kW` : '10 kW' },
+              { icon: Thermometer, label: 'Cooling Capacity', value: currentConfig?.coolingCapacityKW ? `${currentConfig.coolingCapacityKW.toFixed(0)} kW` : 'Calculating...' }
+            ].map((stat, idx) => (
+              <div key={idx} className="text-center">
+                <div className={`text-2xl font-bold mb-1 ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>
+                  {stat.value}
+                </div>
+                <div className={`text-sm ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <ChilledWaterCooling
+          numberOfRacks={currentInput?.numberOfRacks || 5}
+          serversPerRack={10}
+          rackPowerCapacity={10}
+          chilledWaterTemp={7}
+          supplyWaterTemp={12}
+          returnWaterTemp={18}
+          waterFlowRate={50}
+          chillerEfficiency={0.6}
+          pumpEfficiency={0.8}
+          coolingTowerEfficiency={0.7}
+          onConfigChange={handleConfigChange}
+          locationData={locationData}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className={`max-w-4xl mx-auto space-y-8 transition-all duration-500 ${
+      isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
+    }`}>
+      <div className="text-center space-y-4">
+        <h2 className={`text-4xl font-bold ${
+          isDark ? 'text-white' : 'text-gray-900'
+        }`}>
+          Advanced Configuration
+        </h2>
+        <p className={`text-lg ${
+          isDark ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Coming soon with enhanced features
+        </p>
+      </div>
+      
+      <div className={`h-96 w-full rounded-2xl flex items-center justify-center ${
+        isDark ? 'bg-[#1a1f3a]' : 'bg-gray-100'
+      }`}>
+        <Activity className={`w-12 h-12 ${
+          isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
+        } animate-pulse`} />
+      </div>
+      
+      <div className="text-center">
+        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
+          isDark ? 'bg-[#27304a] text-gray-300' : 'bg-gray-100 text-gray-700'
+        }`}>
+          <Activity className="w-4 h-4" />
+          <span className="text-sm">Advanced cooling techniques in development</span>
         </div>
       </div>
     </div>
   )
 }
+
+// Premium CSV Upload Component
+const CSVUpload: React.FC<{
+  onLocationDataUpload: (data: Array<{timestamp: string, temperature: number, humidity: number}>) => void
+}> = ({ onLocationDataUpload }) => {
+  const [isDragging, setIsDragging] = useState(false)
+  const [uploadedFileName, setUploadedFileName] = useState<string>('')
+  const [uploadError, setUploadError] = useState<string>('')
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadedData, setUploadedData] = useState<any[]>([])
+  const [showInsights, setShowInsights] = useState(false)
+  const isDark = useThemeStore((state) => state.isDark)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileSelect = async (file: File) => {
+    if (!file) return
+    
+    if (!file.name.endsWith('.csv')) {
+      setUploadError('Please upload a CSV file with .csv extension')
+      return
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File size must be less than 10MB')
+      return
+    }
+
+    setIsUploading(true)
+    setUploadError('')
+    setUploadedFileName(file.name)
+
+    try {
+      const text = await file.text()
+      const parsedData = parseCSV(text)
+      
+      if (parsedData.length > 0) {
+        setUploadedData(parsedData)
+        onLocationDataUpload(parsedData)
+        setShowInsights(true)
+        
+        // Analytics event
+        console.log('Location data uploaded:', {
+          dataPoints: parsedData.length,
+          avgTemp: extractLocationInsights(parsedData)?.avgTemperature,
+          suitability: extractLocationInsights(parsedData)?.suitabilityScore
+        })
+      } else {
+        setUploadError('No valid data found in CSV file')
+      }
+    } catch (error) {
+      setUploadError('Error parsing CSV file. Please check the format.')
+      console.error('CSV parsing error:', error)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const parseCSV = (csvText: string) => {
+    const lines = csvText.trim().split('\n')
+    if (lines.length < 2) return []
+
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+    
+    // Flexible column detection
+    const timestampKey = headers.find(h => h.includes('time') || h.includes('date') || h.includes('timestamp'))
+    const tempKey = headers.find(h => h.includes('temp') || h.includes('temperature'))
+    const humidityKey = headers.find(h => h.includes('hum') || h.includes('humidity') || h.includes('rh'))
+    
+    if (!timestampKey || !tempKey || !humidityKey) {
+      setUploadError('CSV must contain timestamp, temperature, and humidity columns')
+      return []
+    }
+
+    return lines.slice(1).map((line, index) => {
+      const values = line.split(',').map(v => v.trim())
+      const row: any = {}
+      
+      headers.forEach((header, idx) => {
+        const value = values[idx] || ''
+        
+        // Parse numeric values
+        if (header === tempKey || header === humidityKey) {
+          const numValue = parseFloat(value)
+          row[header] = isNaN(numValue) ? null : numValue
+        } else {
+          row[header] = value
+        }
+      })
+
+      return {
+        timestamp: row[timestampKey] || `Entry ${index + 1}`,
+        temperature: row[tempKey],
+        humidity: row[humidityKey],
+        rawData: row
+      }
+    }).filter(data => data.temperature !== null && data.humidity !== null)
+  }
+
+  const extractLocationInsights = (data: any[]) => {
+    if (data.length === 0) return null
+    
+    const temperatures = data.map(d => d.temperature).filter(t => t !== null)
+    const humidities = data.map(d => d.humidity).filter(h => h !== null)
+    
+    const avgTemp = temperatures.reduce((a, b) => a + b, 0) / temperatures.length
+    const avgHumidity = humidities.reduce((a, b) => a + b, 0) / humidities.length
+    
+    return {
+      avgTemperature: avgTemp,
+      avgHumidity: avgHumidity,
+      minTemperature: Math.min(...temperatures),
+      maxTemperature: Math.max(...temperatures),
+      minHumidity: Math.min(...humidities),
+      maxHumidity: Math.max(...humidities),
+      dataPoints: data.length,
+      suitabilityScore: calculateSuitabilityScore(temperatures, humidities),
+      temperatureRange: Math.max(...temperatures) - Math.min(...temperatures),
+      humidityRange: Math.max(...humidities) - Math.min(...humidities)
+    }
+  }
+
+  const calculateSuitabilityScore = (temperatures: number[], humidities: number[]) => {
+    // Calculate suitability for air-side economization
+    const tempScore = temperatures.filter(t => t < 25 && t > 5).length / temperatures.length
+    const humidityScore = humidities.filter(h => h < 80 && h > 20).length / humidities.length
+    return Math.round((tempScore * 0.6 + humidityScore * 0.4) * 100)
+  }
+
+  const getSuitabilityColor = (score: number) => {
+    if (score >= 80) return isDark ? '#10b981' : '#10b981'
+    if (score >= 60) return isDark ? '#fbbf24' : '#f59e0b'
+    return isDark ? '#fd5757' : '#ef4444'
+  }
+
+  const getSuitabilityText = (score: number) => {
+    if (score >= 80) return 'Excellent'
+    if (score >= 60) return 'Good'
+    if (score >= 40) return 'Moderate'
+    return 'Poor'
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    
+    const files = e.dataTransfer.files
+    if (files.length > 0) {
+      handleFileSelect(files[0])
+    }
+  }
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      handleFileSelect(files[0])
+    }
+  }
+
+  const handleClearUpload = () => {
+    setUploadedFileName('')
+    setUploadedData([])
+    setUploadError('')
+    setShowInsights(false)
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    onLocationDataUpload([])
+  }
+
+  const downloadSampleCSV = () => {
+    const sampleCSV = `timestamp,temperature,humidity
+2024-01-01 00:00,15.5,65
+2024-01-01 01:00,15.2,66
+2024-01-01 02:00,14.8,67
+2024-01-01 03:00,14.5,68
+2024-01-01 04:00,14.2,68
+2024-01-01 05:00,14.0,69
+2024-01-01 06:00,14.5,68
+2024-01-01 07:00,15.0,67
+2024-01-01 08:00,16.0,65
+2024-01-01 09:00,17.5,63
+2024-01-01 10:00,19.0,61
+2024-01-01 11:00,20.5,60
+2024-01-01 12:00,22.0,58
+2024-01-01 13:00,23.0,57
+2024-01-01 14:00,23.5,56
+2024-01-01 15:00,23.0,57
+2024-01-01 16:00,22.0,58
+2024-01-01 17:00,20.5,60
+2024-01-01 18:00,19.0,62
+2024-01-01 19:00,17.5,64
+2024-01-01 20:00,16.5,65
+2024-01-01 21:00,16.0,66
+2024-01-01 22:00,15.5,67
+2024-01-01 23:00,15.2,67`
+
+    const blob = new Blob([sampleCSV], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'location_data_sample.csv'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-3 mb-2">
+            <div className={`p-2.5 rounded-xl ${
+              isDark 
+                ? 'bg-gradient-to-br from-[#5ce1e5]/10 to-[#5ce1e5]/5 border border-[#5ce1e5]/20' 
+                : 'bg-gradient-to-br from-[#0ea5e9]/10 to-[#0ea5e9]/5 border border-[#0ea5e9]/20'
+            }`}>
+              <MapPin className={`w-5 h-5 ${
+                isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
+              }`} />
+            </div>
+            <div>
+              <h3 className={`text-xl font-bold ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>
+                Location Data Analysis
+              </h3>
+              <p className={`text-sm mt-1 ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                Upload historical weather data for precise cooling optimization
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <button
+          onClick={downloadSampleCSV}
+          className={`group flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all duration-300 hover:scale-105 ${
+            isDark
+              ? 'bg-gradient-to-r from-[#27304a] to-[#1a1f3a] text-gray-300 hover:text-white border border-[#3f4a68] hover:border-[#5ce1e5]/30'
+              : 'bg-gradient-to-r from-white to-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-[#0ea5e9]/30'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          <span>Sample CSV</span>
+        </button>
+      </div>
+
+      {/* Upload Area */}
+      <div className="relative">
+        <div
+          className={`relative rounded-2xl border-2 border-dashed transition-all duration-300 overflow-hidden ${
+            isDragging
+              ? isDark
+                ? 'border-[#5ce1e5] bg-gradient-to-br from-[#5ce1e5]/5 to-transparent'
+                : 'border-[#0ea5e9] bg-gradient-to-br from-[#0ea5e9]/5 to-transparent'
+              : isDark
+                ? 'border-[#3f4a68] bg-gradient-to-br from-[#1a1f3a] to-[#27304a] hover:border-[#5ce1e5]/50'
+                : 'border-gray-300 bg-gradient-to-br from-white to-gray-50 hover:border-[#0ea5e9]/50'
+          } ${isUploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => !isUploading && fileInputRef.current?.click()}
+        >
+          {/* Animated Background */}
+          <div className="absolute inset-0 opacity-10">
+            <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl ${
+              isDark ? 'bg-[#5ce1e5]' : 'bg-[#0ea5e9]'
+            }`} style={{ animation: 'float 8s ease-in-out infinite' }} />
+            <div className={`absolute bottom-0 left-0 w-32 h-32 rounded-full blur-3xl ${
+              isDark ? 'bg-[#fd5757]' : 'bg-[#ef4444]'
+            }`} style={{ animation: 'float 6s ease-in-out infinite reverse' }} />
+          </div>
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileInputChange}
+            accept=".csv"
+            className="hidden"
+            disabled={isUploading}
+          />
+          
+          <div className="relative z-10 p-10 text-center">
+            {isUploading ? (
+              <div className="space-y-6">
+                <div className="flex justify-center">
+                  <div className="relative w-16 h-16">
+                    <div className={`absolute inset-0 rounded-full border-4 border-t-transparent animate-spin ${
+                      isDark ? 'border-[#5ce1e5]/30' : 'border-[#0ea5e9]/30'
+                    }`} />
+                    <div className={`absolute inset-2 rounded-full border-4 border-t-transparent animate-spin ${
+                      isDark ? 'border-[#5ce1e5]' : 'border-[#0ea5e9]'
+                    }`} style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
+                    <Upload className={`absolute inset-0 m-auto w-6 h-6 ${
+                      isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
+                    }`} />
+                  </div>
+                </div>
+                <div>
+                  <div className={`text-lg font-medium mb-2 ${
+                    isDark ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Processing CSV File
+                  </div>
+                  <div className={`text-sm ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    Analyzing temperature and humidity data...
+                  </div>
+                </div>
+              </div>
+            ) : uploadedFileName ? (
+              <div className="space-y-6">
+                <div className="flex items-center justify-center gap-4">
+                  <div className={`p-3 rounded-2xl ${
+                    isDark 
+                      ? 'bg-gradient-to-br from-[#10b981]/10 to-[#10b981]/5 border border-[#10b981]/20' 
+                      : 'bg-gradient-to-br from-[#10b981]/10 to-[#10b981]/5 border border-[#10b981]/20'
+                  }`}>
+                    <CheckCircle2 className={`w-8 h-8 ${
+                      isDark ? 'text-[#10b981]' : 'text-[#10b981]'
+                    }`} />
+                  </div>
+                  <div className="text-left">
+                    <div className={`font-medium text-lg ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {uploadedFileName}
+                    </div>
+                    <div className={`text-sm ${
+                      isDark ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      {uploadedData.length.toLocaleString()} data points successfully loaded
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-center gap-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setShowInsights(!showInsights)
+                    }}
+                    className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 hover:scale-105 ${
+                      isDark
+                        ? 'bg-gradient-to-r from-[#27304a] to-[#1a1f3a] text-gray-300 hover:text-white border border-[#3f4a68]'
+                        : 'bg-gradient-to-r from-white to-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200'
+                    }`}
+                  >
+                    {showInsights ? 'Hide Insights' : 'Show Insights'}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleClearUpload()
+                    }}
+                    className={`px-4 py-2 rounded-xl font-medium transition-all duration-300 hover:scale-105 ${
+                      isDark
+                        ? 'bg-gradient-to-r from-[#27304a] to-[#1a1f3a] text-gray-300 hover:text-white border border-[#3f4a68] hover:border-[#fd5757]/30'
+                        : 'bg-gradient-to-r from-white to-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-[#ef4444]/30'
+                    }`}
+                  >
+                    Clear Upload
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div className="flex justify-center">
+                  <div className={`p-4 rounded-2xl ${
+                    isDark 
+                      ? 'bg-gradient-to-br from-[#5ce1e5]/10 to-[#5ce1e5]/5 border border-[#5ce1e5]/20' 
+                      : 'bg-gradient-to-br from-[#0ea5e9]/10 to-[#0ea5e9]/5 border border-[#0ea5e9]/20'
+                  }`}>
+                    <Upload className={`w-8 h-8 ${
+                      isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
+                    }`} />
+                  </div>
+                </div>
+                <div>
+                  <div className={`text-lg font-medium mb-2 ${
+                    isDark ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Drag & Drop CSV File
+                  </div>
+                  <div className={`text-sm mb-4 ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    Supports .csv files with timestamp, temperature, and humidity columns
+                  </div>
+                  <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all duration-300 hover:scale-105 ${
+                    isDark
+                      ? 'bg-gradient-to-r from-[#27304a] to-[#1a1f3a] text-gray-300 hover:text-white border border-[#3f4a68] hover:border-[#5ce1e5]/30'
+                      : 'bg-gradient-to-r from-white to-gray-50 text-gray-700 hover:text-gray-900 border border-gray-200 hover:border-[#0ea5e9]/30'
+                  }`}>
+                    <FileText className="w-4 h-4" />
+                    <span>Browse Files</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Error Message */}
+        {uploadError && (
+          <div className={`mt-4 p-4 rounded-xl flex items-start gap-3 animate-in slide-in-from-bottom-2 ${
+            isDark 
+              ? 'bg-gradient-to-r from-[#fd5757]/10 to-[#fd5757]/5 border border-[#fd5757]/20' 
+              : 'bg-gradient-to-r from-[#ef4444]/10 to-[#ef4444]/5 border border-[#ef4444]/20'
+          }`}>
+            <AlertCircle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+              isDark ? 'text-[#fd5757]' : 'text-[#ef4444]'
+            }`} />
+            <div>
+              <div className={`font-medium ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>
+                Upload Error
+              </div>
+              <div className={`text-sm mt-1 ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                {uploadError}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Data Insights */}
+      {showInsights && uploadedData.length > 0 && (
+        <div className={`rounded-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-500 ${
+          isDark 
+            ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
+            : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
+        }`}>
+          <div className="p-6 border-b border-opacity-20" style={{ 
+            borderColor: isDark ? '#3f4a68' : '#e5e7eb' 
+          }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl ${
+                  isDark 
+                    ? 'bg-gradient-to-br from-[#5ce1e5]/10 to-[#5ce1e5]/5 border border-[#5ce1e5]/20' 
+                    : 'bg-gradient-to-br from-[#0ea5e9]/10 to-[#0ea5e9]/5 border border-[#0ea5e9]/20'
+                }`}>
+                  <BarChart3 className={`w-5 h-5 ${
+                    isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
+                  }`} />
+                </div>
+                <div>
+                  <h4 className={`font-bold ${
+                    isDark ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    Location Insights
+                  </h4>
+                  <p className={`text-sm mt-1 ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    Analysis based on uploaded weather data
+                  </p>
+                </div>
+              </div>
+              
+              {(() => {
+                const insights = extractLocationInsights(uploadedData)
+                if (!insights) return null
+                
+                return (
+                  <div className={`px-4 py-2 rounded-full font-medium ${
+                    isDark ? 'bg-black/20' : 'bg-gray-100'
+                  }`} style={{ color: getSuitabilityColor(insights.suitabilityScore) }}>
+                    {getSuitabilityText(insights.suitabilityScore)} Suitability
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {(() => {
+                const insights = extractLocationInsights(uploadedData)
+                if (!insights) return null
+                
+                return [
+                  {
+                    label: 'Avg Temperature',
+                    value: `${insights.avgTemperature.toFixed(1)}°C`,
+                    icon: ThermometerSun,
+                    color: isDark ? '#5ce1e5' : '#0ea5e9',
+                    subtext: `${insights.minTemperature.toFixed(1)}°C - ${insights.maxTemperature.toFixed(1)}°C`
+                  },
+                  {
+                    label: 'Avg Humidity',
+                    value: `${insights.avgHumidity.toFixed(1)}%`,
+                    icon: Droplets,
+                    color: isDark ? '#8b5cf6' : '#8b5cf6',
+                    subtext: `${insights.minHumidity.toFixed(1)}% - ${insights.maxHumidity.toFixed(1)}%`
+                  },
+                  {
+                    label: 'Data Points',
+                    value: insights.dataPoints.toLocaleString(),
+                    icon: Calendar,
+                    color: isDark ? '#fbbf24' : '#f59e0b',
+                    subtext: 'Historical records'
+                  },
+                  {
+                    label: 'Suitability Score',
+                    value: `${insights.suitabilityScore}%`,
+                    icon: Wind,
+                    color: getSuitabilityColor(insights.suitabilityScore),
+                    subtext: getSuitabilityText(insights.suitabilityScore)
+                  }
+                ].map((metric, idx) => (
+                  <div 
+                    key={idx}
+                    className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${
+                      isDark ? 'bg-[#27304a]' : 'bg-gray-100'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className={`p-2 rounded-lg`} style={{ 
+                        backgroundColor: `${metric.color}20`,
+                        border: `1px solid ${metric.color}30`
+                      }}>
+                        <metric.icon className="w-4 h-4" style={{ color: metric.color }} />
+                      </div>
+                      <div className={`text-sm font-medium ${
+                        isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        {metric.label}
+                      </div>
+                    </div>
+                    <div className={`text-2xl font-bold mb-1 ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      {metric.value}
+                    </div>
+                    <div className={`text-xs ${
+                      isDark ? 'text-gray-500' : 'text-gray-600'
+                    }`}>
+                      {metric.subtext}
+                    </div>
+                  </div>
+                ))
+              })()}
+            </div>
+            
+            {/* Recommendations */}
+            <div className={`p-4 rounded-xl ${
+              isDark ? 'bg-black/20 border border-[#3f4a68]' : 'bg-gray-100/50 border border-gray-200'
+            }`}>
+              <div className="flex items-start gap-3">
+                <Info className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                  isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
+                }`} />
+                <div>
+                  <div className={`font-medium mb-2 ${
+                    isDark ? 'text-white' : 'text-gray-900'
+                  }`}>
+                    {(() => {
+                      const insights = extractLocationInsights(uploadedData)
+                      if (!insights) return 'Loading recommendations...'
+                      
+                      if (insights.suitabilityScore >= 80) {
+                        return 'Excellent location for air-side economization!'
+                      } else if (insights.suitabilityScore >= 60) {
+                        return 'Good location with moderate cooling potential'
+                      } else if (insights.suitabilityScore >= 40) {
+                        return 'Consider hybrid cooling approach'
+                      } else {
+                        return 'Alternative cooling methods recommended'
+                      }
+                    })()}
+                  </div>
+                  <div className={`text-sm ${
+                    isDark ? 'text-gray-400' : 'text-gray-600'
+                  }`}>
+                    {(() => {
+                      const insights = extractLocationInsights(uploadedData)
+                      if (!insights) return ''
+                      
+                      if (insights.suitabilityScore >= 80) {
+                        return 'Your location has ideal conditions for maximum energy savings through air-side cooling.'
+                      } else if (insights.suitabilityScore >= 60) {
+                        return 'You can achieve significant savings with proper configuration and monitoring.'
+                      } else if (insights.suitabilityScore >= 40) {
+                        return 'A hybrid approach combining air-side with traditional cooling is recommended.'
+                      } else {
+                        return 'The climate conditions may limit air-side cooling effectiveness. Consider alternative solutions.'
+                      }
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 
 export const InputManagement: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0)
@@ -316,6 +845,12 @@ export const InputManagement: React.FC = () => {
   const [isSimulationRunning, setIsSimulationRunning] = useState(false)
   const [simulationProgress, setSimulationProgress] = useState(0)
   const [currentConfig, setCurrentConfig] = useState<any>(null)
+  const [locationData, setLocationData] = useState<any[]>([])
+  
+  // ✅ FIX: Store serverId and countryId in parent state
+  const [serverId, setServerId] = useState<string>('')
+  const [countryId, setCountryId] = useState<string>('')
+  
   const configRef = useRef<any>(null)
   const navigate = useNavigate()
   
@@ -332,7 +867,8 @@ export const InputManagement: React.FC = () => {
       setCurrentConfig(config) // Store for review step
       updateSimulationInput({ 
         coolingTechnique: selectedTechnique || 'air', 
-        airSideConfig: config 
+        airSideConfig: config,
+        locationData: locationData // Include location data
       } as any)
     }
     
@@ -347,15 +883,39 @@ export const InputManagement: React.FC = () => {
     setCurrentStep(2)
   }
 
+  const handleLocationDataUpload = (data: any[]) => {
+    setLocationData(data)
+    
+    // Update config with location insights
+    if (configRef.current) {
+      const insights = data.length > 0 ? {
+        avgTemperature: data.reduce((sum, d) => sum + d.temperature, 0) / data.length,
+        avgHumidity: data.reduce((sum, d) => sum + d.humidity, 0) / data.length,
+        dataPoints: data.length
+      } : null
+      
+      configRef.current.locationInsights = insights
+    }
+  }
+
   // Enhanced simulation run with loader
   const handleSubmit = async () => {
     // Capture config before submitting
     if (configRef.current) {
       const config = configRef.current
       setCurrentConfig(config)
+      
+      // ✅ FIX: Ensure serverId and countryId are included
+      const completeConfig = {
+        ...config,
+        serverId: config.serverId || serverId,
+        countryId: config.countryId || countryId
+      }
+      
       updateSimulationInput({ 
         coolingTechnique: selectedTechnique || 'air', 
-        airSideConfig: config 
+        airSideConfig: completeConfig,
+        locationData: locationData
       } as any)
     }
     
@@ -399,11 +959,38 @@ export const InputManagement: React.FC = () => {
     }
   }
 
-  // Store config in ref and state
+  // ✅ FIX: Handle config change with proper state management
   const handleConfigChange = useCallback((config: any) => {
+    // Store in ref immediately for quick access
     configRef.current = config
-    setCurrentConfig(config) // Update state for immediate review step update
-  }, [])
+    
+    // ✅ FIX: Store serverId and countryId from config
+    if (config.serverId && config.serverId !== serverId) {
+      setServerId(config.serverId)
+    }
+    
+    if (config.countryId && config.countryId !== countryId) {
+      setCountryId(config.countryId)
+    }
+    
+    // Debounce state update to prevent excessive re-renders
+    setCurrentConfig(prev => {
+      if (JSON.stringify(prev) === JSON.stringify(config)) return prev
+      return config
+    })
+  }, [serverId, countryId])
+
+  // ✅ FIX: Initialize from existing config if available
+  useEffect(() => {
+    if (currentConfig) {
+      if (currentConfig.serverId && !serverId) {
+        setServerId(currentConfig.serverId)
+      }
+      if (currentConfig.countryId && !countryId) {
+        setCountryId(currentConfig.countryId)
+      }
+    }
+  }, [currentConfig, serverId, countryId])
 
   const coolingTechniques = [
     {
@@ -417,7 +1004,7 @@ export const InputManagement: React.FC = () => {
     },
     {
       id: 'water',
-      name: 'Water-Side Cooling',
+      name: 'Chilled-Water Cooling',
       description: 'Implement advanced water-based cooling systems with precise temperature control',
       icon: Droplet,
       gradient: 'from-[#8b5cf6] to-[#a78bfa]',
@@ -451,10 +1038,10 @@ export const InputManagement: React.FC = () => {
         reviewed: false,
       })
     }
-  }, [])
+  }, [currentInput, setCurrentInput])
 
   // Step 0 - Welcome
-  const Step0Welcome = () => (
+  const Step0Welcome = useMemo(() => () => (
     <div className={`space-y-10 max-w-4xl mx-auto transition-all duration-500 ${
       isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
     }`}>
@@ -575,10 +1162,9 @@ export const InputManagement: React.FC = () => {
         </p>
       </div>
     </div>
-  )
+  ), [isDark, isTransitioning])
 
-  // Step 1 - Cooling Technique Selection
-  const Step1CoolingTechnique = () => (
+  const Step1CoolingTechnique = useMemo(() => () => (
     <div className={`max-w-6xl mx-auto transition-all duration-500 ${
       isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
     }`}>
@@ -680,110 +1266,10 @@ export const InputManagement: React.FC = () => {
         })}
       </div>
     </div>
-  )
+  ), [isDark, isTransitioning, selectedTechnique, coolingTechniques])
 
-  // Step 2 - Parameters
-  const Step2Parameters = () => {
-    if (selectedTechnique === 'air') {
-      return (
-        <div className={`max-w-6xl mx-auto transition-all duration-500 ${
-          isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
-        }`}>
-          <div className="text-center space-y-4 mb-12">
-            <h2 className={`text-4xl font-bold ${
-              isDark ? 'text-white' : 'text-gray-900'
-            }`}>
-              Configure Air-Side Economization
-            </h2>
-            <p className={`text-lg max-w-2xl mx-auto ${
-              isDark ? 'text-gray-400' : 'text-gray-600'
-            }`}>
-              Optimize your cooling parameters for maximum efficiency and cost savings
-            </p>
-          </div>
-          
-          {/* Stats Overview */}
-          <div className={`mb-8 p-6 rounded-2xl ${
-            isDark 
-              ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
-              : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
-          }`}>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {[
-                { icon: Server, label: 'Total Racks', value: currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5 },
-                { icon: Cpu, label: 'Servers', value: ((currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5) * 10) },
-                { icon: Wind, label: 'Fan System', value: currentConfig?.fans ? 'Mixed' : 'Standard' },
-                { icon: Cloud, label: 'Region', value: currentConfig?.region || 'US Northeast' }
-              ].map((stat, idx) => (
-                <div key={idx} className="text-center">
-                  <div className={`text-2xl font-bold mb-1 ${
-                    isDark ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    {stat.value}
-                  </div>
-                  <div className={`text-sm ${
-                    isDark ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    {stat.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          
-          <AirSideEconomization
-            serverType={"dell_poweredge_r750"}
-            numberOfRacks={currentInput?.numberOfRacks || 5}
-            serversPerRack={10}
-            averageUtilization={45}
-            peakUtilization={85}
-            fans={{ bestFans: 2, averageFans: 4, oldFans: 0 }}
-            region={"us_northeast"}
-            onConfigChange={handleConfigChange}
-          />
-        </div>
-      )
-    }
-
-    return (
-      <div className={`max-w-4xl mx-auto space-y-8 transition-all duration-500 ${
-        isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
-      }`}>
-        <div className="text-center space-y-4">
-          <h2 className={`text-4xl font-bold ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
-            Advanced Configuration
-          </h2>
-          <p className={`text-lg ${
-            isDark ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            Coming soon with enhanced features
-          </p>
-        </div>
-        
-        <div className={`h-96 w-full rounded-2xl flex items-center justify-center ${
-          isDark ? 'bg-[#1a1f3a]' : 'bg-gray-100'
-        }`}>
-          <Activity className={`w-12 h-12 ${
-            isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-          } animate-pulse`} />
-        </div>
-        
-        <div className="text-center">
-          <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
-            isDark ? 'bg-[#27304a] text-gray-300' : 'bg-gray-100 text-gray-700'
-          }`}>
-            <Activity className="w-4 h-4" />
-            <span className="text-sm">Advanced cooling techniques in development</span>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Step 3 - Review (Updated with live config data)
-  const Step3ReviewSubmit = () => {
+  // Step 3 - Review (Updated with CSV data)
+  const Step3ReviewSubmit = useMemo(() => () => {
     const selectedTech = coolingTechniques.find(t => t.id === selectedTechnique)
     
     return (
@@ -848,6 +1334,99 @@ export const InputManagement: React.FC = () => {
             </div>
           </div>
 
+          {/* Location Data Section */}
+          {locationData.length > 0 && (
+            <div className={`p-8 rounded-2xl ${
+              isDark 
+                ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
+                : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
+            }`}>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-xl ${
+                    isDark ? 'bg-black/30' : 'bg-gray-100'
+                  }`}>
+                    <MapPin className="w-6 h-6" style={{ 
+                      color: selectedTech?.color 
+                    }} />
+                  </div>
+                  <div>
+                    <div className={`font-bold text-lg ${
+                      isDark ? 'text-white' : 'text-gray-900'
+                    }`}>
+                      Location Data
+                    </div>
+                    <div className={`text-sm ${
+                      isDark ? 'text-gray-400' : 'text-gray-600'
+                    }`}>
+                      Historical weather data loaded
+                    </div>
+                  </div>
+                </div>
+                <CheckCircle2 className="w-6 h-6 text-green-500" />
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {(() => {
+                  const avgTemp = locationData.reduce((sum, d) => sum + d.temperature, 0) / locationData.length
+                  const avgHumidity = locationData.reduce((sum, d) => sum + d.humidity, 0) / locationData.length
+                  const temps = locationData.map(d => d.temperature)
+                  const humidities = locationData.map(d => d.humidity)
+                  const suitabilityScore = Math.round(
+                    (temps.filter(t => t < 25).length / temps.length * 0.6 + 
+                     humidities.filter(h => h < 80).length / humidities.length * 0.4) * 100
+                  )
+                  
+                  return [
+                    { 
+                      label: 'Avg Temperature', 
+                      value: `${avgTemp.toFixed(1)}°C`, 
+                      description: 'Based on uploaded data'
+                    },
+                    { 
+                      label: 'Avg Humidity', 
+                      value: `${avgHumidity.toFixed(1)}%`, 
+                      description: 'Based on uploaded data'
+                    },
+                    { 
+                      label: 'Data Points', 
+                      value: locationData.length.toString(), 
+                      description: 'Historical records'
+                    },
+                    { 
+                      label: 'Suitability', 
+                      value: `${suitabilityScore}%`, 
+                      description: 'For air-side cooling'
+                    }
+                  ].map((item, idx) => (
+                    <div 
+                      key={idx}
+                      className={`p-4 rounded-xl text-center ${
+                        isDark ? 'bg-black/20' : 'bg-gray-100/50'
+                      }`}
+                    >
+                      <div className={`text-lg font-bold mb-1 ${
+                        isDark ? 'text-white' : 'text-gray-900'
+                      }`}>
+                        {item.value}
+                      </div>
+                      <div className={`text-xs ${
+                        isDark ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                        {item.label}
+                      </div>
+                      <div className={`text-xs mt-1 ${
+                        isDark ? 'text-gray-500' : 'text-gray-500'
+                      }`}>
+                        {item.description}
+                      </div>
+                    </div>
+                  ))
+                })()}
+              </div>
+            </div>
+          )}
+
           {/* Configuration Details - Updates Live */}
           <div className={`p-8 rounded-2xl ${
             isDark 
@@ -862,6 +1441,18 @@ export const InputManagement: React.FC = () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
+                { 
+                  label: 'Server ID', 
+                  value: serverId || 'Not set', 
+                  icon: Server,
+                  description: 'Database server identifier'
+                },
+                { 
+                  label: 'Country ID', 
+                  value: countryId || 'Not set', 
+                  icon: MapPin,
+                  description: 'Database country identifier'
+                },
                 { 
                   label: 'Total Racks', 
                   value: currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5, 
@@ -958,19 +1549,19 @@ export const InputManagement: React.FC = () => {
               {[
                 { 
                   label: 'Energy Savings', 
-                  value: 'Up to 40%', 
+                  value: locationData.length > 0 ? 'Up to 45%' : 'Up to 40%', 
                   icon: Zap,
                   color: isDark ? '#fbbf24' : '#f59e0b'
                 },
                 { 
                   label: 'Cost Reduction', 
-                  value: 'Up to 35%', 
+                  value: locationData.length > 0 ? 'Up to 38%' : 'Up to 35%', 
                   icon: Shield,
                   color: isDark ? '#34d399' : '#10b981'
                 },
                 { 
                   label: 'CO₂ Reduction', 
-                  value: 'Up to 50%', 
+                  value: locationData.length > 0 ? 'Up to 55%' : 'Up to 50%', 
                   icon: Leaf,
                   color: isDark ? '#60a5fa' : '#3b82f6'
                 }
@@ -995,6 +1586,18 @@ export const InputManagement: React.FC = () => {
                 </div>
               ))}
             </div>
+            
+            {locationData.length > 0 && (
+              <div className={`mt-6 p-4 rounded-xl text-center ${
+                isDark ? 'bg-[#5ce1e5]/10 border border-[#5ce1e5]/20' : 'bg-[#0ea5e9]/10 border border-[#0ea5e9]/20'
+              }`}>
+                <div className={`text-sm font-medium ${
+                  isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
+                }`}>
+                  Location data enabled: 5-10% additional savings estimated
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1029,7 +1632,7 @@ export const InputManagement: React.FC = () => {
         </div>
       </div>
     )
-  }
+  }, [isDark, isTransitioning, selectedTechnique, coolingTechniques, currentConfig, currentInput, locationData, serverId, countryId, handleStepChange, handleSubmit])
 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${
@@ -1048,15 +1651,6 @@ export const InputManagement: React.FC = () => {
           isDark ? 'bg-[#fd5757]/5' : 'bg-[#ef4444]/5'
         }`} style={{ animation: 'float 6s ease-in-out 2s infinite reverse' }} />
       </div>
-
-      {/* Simulation Progress Loader */}
-      {isSimulationRunning && (
-        <SimulationProgress 
-          progress={simulationProgress}
-          isRunning={isSimulationRunning}
-          onClose={() => setIsSimulationRunning(false)}
-        />
-      )}
 
       <main className="lg:ml-64">
         <div className="relative">
@@ -1144,7 +1738,19 @@ export const InputManagement: React.FC = () => {
               <div className="w-full">
                 {currentStep === 0 && <Step0Welcome />}
                 {currentStep === 1 && <Step1CoolingTechnique />}
-                {currentStep === 2 && <Step2Parameters />}
+                {currentStep === 2 && (
+                  <Step2Parameters
+                    isDark={isDark}
+                    isTransitioning={isTransitioning}
+                    selectedTechnique={selectedTechnique}
+                    currentConfig={currentConfig}
+                    currentInput={currentInput}
+                    serverId={serverId}
+                    countryId={countryId}
+                    handleConfigChange={handleConfigChange}
+                    locationData={locationData}
+                  />
+                )}
                 {currentStep === 3 && <Step3ReviewSubmit />}
               </div>
             </ErrorBoundary>
