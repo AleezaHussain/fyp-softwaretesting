@@ -1,3 +1,4 @@
+// InputManagement.tsx - COMPLETE FIXED VERSION
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Sidebar } from '../components/shared/Sidebar'
 import { ErrorBoundary } from '../components/shared/ErrorBoundary'
@@ -14,6 +15,209 @@ const steps = [
   { id: 'parameters', label: 'Configuration', icon: Thermometer },
   { id: 'review', label: 'Review', icon: CheckCircle2 }
 ]
+
+interface Step2ParametersProps {
+  isDark: boolean
+  isTransitioning: boolean
+  selectedTechnique: string | null
+  currentConfig: any
+  currentInput: any
+  serverId: string
+  countryId: string
+  handleConfigChange: (config: any) => void
+  locationData: any[]
+}
+
+const Step2Parameters: React.FC<Step2ParametersProps> = ({
+  isDark,
+  isTransitioning,
+  selectedTechnique,
+  currentConfig,
+  currentInput,
+  serverId,
+  countryId,
+  handleConfigChange,
+  locationData
+}) => {
+  if (selectedTechnique === 'air') {
+    return (
+      <div className={`max-w-6xl mx-auto transition-all duration-500 ${
+        isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
+      }`}>
+        <div className="text-center space-y-4 mb-12">
+          <h2 className={`text-4xl font-bold ${
+            isDark ? 'text-white' : 'text-gray-900'
+          }`}>
+            Configure Air-Side Economization
+          </h2>
+          <p className={`text-lg max-w-2xl mx-auto ${
+            isDark ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            Optimize your cooling parameters for maximum efficiency and cost savings
+          </p>
+        </div>
+        
+        <div className={`mb-8 p-6 rounded-2xl ${
+          isDark 
+            ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
+            : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
+        }`}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { 
+                icon: Server, 
+                label: 'Total Racks', 
+                value: currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5 
+              },
+              { 
+                icon: Cpu, 
+                label: 'Servers', 
+                value: ((currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5) * 10) 
+              },
+              { 
+                icon: Wind, 
+                label: 'Fan System', 
+                value: currentConfig?.fans ? 'Mixed' : 'Standard' 
+              },
+              { 
+                icon: Cloud, 
+                label: 'Region', 
+                value: currentConfig?.region || 'US Northeast' 
+              }
+            ].map((stat, idx) => (
+              <div key={idx} className="text-center">
+                <div className={`text-2xl font-bold mb-1 ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>
+                  {stat.value}
+                </div>
+                <div className={`text-sm ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <AirSideEconomization
+          serverId={serverId}
+          countryId={countryId}
+          serverType={currentConfig?.serverType || ''}
+          numberOfRacks={currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5}
+          serversPerRack={currentConfig?.serversPerRack || 10}
+          averageUtilization={currentConfig?.averageUtilization || 45}
+          peakUtilization={currentConfig?.peakUtilization || 85}
+          fans={currentConfig?.fans || { bestFans: 2, averageFans: 4, oldFans: 0 }}
+          region={currentConfig?.region || 'us_northeast'}
+          onConfigChange={handleConfigChange}
+          locationData={locationData}
+        />
+      </div>
+    )
+  }
+
+  if (selectedTechnique === 'water') {
+    return (
+      <div className={`max-w-6xl mx-auto transition-all duration-500 ${
+        isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
+      }`}>
+        <div className="text-center space-y-4 mb-12">
+          <h2 className={`text-4xl font-bold ${
+            isDark ? 'text-white' : 'text-gray-900'
+          }`}>
+            Configure Chilled-Water Cooling
+          </h2>
+          <p className={`text-lg max-w-2xl mx-auto ${
+            isDark ? 'text-gray-400' : 'text-gray-600'
+          }`}>
+            Optimize your water-based cooling system for maximum efficiency and reliability
+          </p>
+        </div>
+        
+        <div className={`mb-8 p-6 rounded-2xl ${
+          isDark 
+            ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
+            : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
+        }`}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { icon: Server, label: 'Total Racks', value: currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5 },
+              { icon: Cpu, label: 'Servers', value: ((currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5) * 10) },
+              { icon: Droplet, label: 'Rack Power', value: currentConfig?.rackPowerCapacity ? `${currentConfig.rackPowerCapacity} kW` : '10 kW' },
+              { icon: Thermometer, label: 'Cooling Capacity', value: currentConfig?.coolingCapacityKW ? `${currentConfig.coolingCapacityKW.toFixed(0)} kW` : 'Calculating...' }
+            ].map((stat, idx) => (
+              <div key={idx} className="text-center">
+                <div className={`text-2xl font-bold mb-1 ${
+                  isDark ? 'text-white' : 'text-gray-900'
+                }`}>
+                  {stat.value}
+                </div>
+                <div className={`text-sm ${
+                  isDark ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <ChilledWaterCooling
+          numberOfRacks={currentInput?.numberOfRacks || 5}
+          serversPerRack={10}
+          rackPowerCapacity={10}
+          chilledWaterTemp={7}
+          supplyWaterTemp={12}
+          returnWaterTemp={18}
+          waterFlowRate={50}
+          chillerEfficiency={0.6}
+          pumpEfficiency={0.8}
+          coolingTowerEfficiency={0.7}
+          onConfigChange={handleConfigChange}
+          locationData={locationData}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <div className={`max-w-4xl mx-auto space-y-8 transition-all duration-500 ${
+      isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
+    }`}>
+      <div className="text-center space-y-4">
+        <h2 className={`text-4xl font-bold ${
+          isDark ? 'text-white' : 'text-gray-900'
+        }`}>
+          Advanced Configuration
+        </h2>
+        <p className={`text-lg ${
+          isDark ? 'text-gray-400' : 'text-gray-600'
+        }`}>
+          Coming soon with enhanced features
+        </p>
+      </div>
+      
+      <div className={`h-96 w-full rounded-2xl flex items-center justify-center ${
+        isDark ? 'bg-[#1a1f3a]' : 'bg-gray-100'
+      }`}>
+        <Activity className={`w-12 h-12 ${
+          isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
+        } animate-pulse`} />
+      </div>
+      
+      <div className="text-center">
+        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
+          isDark ? 'bg-[#27304a] text-gray-300' : 'bg-gray-100 text-gray-700'
+        }`}>
+          <Activity className="w-4 h-4" />
+          <span className="text-sm">Advanced cooling techniques in development</span>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // Premium CSV Upload Component
 const CSVUpload: React.FC<{
@@ -642,6 +846,11 @@ export const InputManagement: React.FC = () => {
   const [simulationProgress, setSimulationProgress] = useState(0)
   const [currentConfig, setCurrentConfig] = useState<any>(null)
   const [locationData, setLocationData] = useState<any[]>([])
+  
+  // ✅ FIX: Store serverId and countryId in parent state
+  const [serverId, setServerId] = useState<string>('')
+  const [countryId, setCountryId] = useState<string>('')
+  
   const configRef = useRef<any>(null)
   const navigate = useNavigate()
   
@@ -695,9 +904,17 @@ export const InputManagement: React.FC = () => {
     if (configRef.current) {
       const config = configRef.current
       setCurrentConfig(config)
+      
+      // ✅ FIX: Ensure serverId and countryId are included
+      const completeConfig = {
+        ...config,
+        serverId: config.serverId || serverId,
+        countryId: config.countryId || countryId
+      }
+      
       updateSimulationInput({ 
         coolingTechnique: selectedTechnique || 'air', 
-        airSideConfig: config,
+        airSideConfig: completeConfig,
         locationData: locationData
       } as any)
     }
@@ -742,17 +959,38 @@ export const InputManagement: React.FC = () => {
     }
   }
 
-  // FIXED: Handle config change with debounce logic
+  // ✅ FIX: Handle config change with proper state management
   const handleConfigChange = useCallback((config: any) => {
     // Store in ref immediately for quick access
     configRef.current = config
+    
+    // ✅ FIX: Store serverId and countryId from config
+    if (config.serverId && config.serverId !== serverId) {
+      setServerId(config.serverId)
+    }
+    
+    if (config.countryId && config.countryId !== countryId) {
+      setCountryId(config.countryId)
+    }
     
     // Debounce state update to prevent excessive re-renders
     setCurrentConfig(prev => {
       if (JSON.stringify(prev) === JSON.stringify(config)) return prev
       return config
     })
-  }, [])
+  }, [serverId, countryId])
+
+  // ✅ FIX: Initialize from existing config if available
+  useEffect(() => {
+    if (currentConfig) {
+      if (currentConfig.serverId && !serverId) {
+        setServerId(currentConfig.serverId)
+      }
+      if (currentConfig.countryId && !countryId) {
+        setCountryId(currentConfig.countryId)
+      }
+    }
+  }, [currentConfig, serverId, countryId])
 
   const coolingTechniques = [
     {
@@ -926,7 +1164,6 @@ export const InputManagement: React.FC = () => {
     </div>
   ), [isDark, isTransitioning])
 
-  // Step 1 - Cooling Technique Selection
   const Step1CoolingTechnique = useMemo(() => () => (
     <div className={`max-w-6xl mx-auto transition-all duration-500 ${
       isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
@@ -1030,177 +1267,6 @@ export const InputManagement: React.FC = () => {
       </div>
     </div>
   ), [isDark, isTransitioning, selectedTechnique, coolingTechniques])
-
-
-// Step 2 - Parameters
-// Update the Step2Parameters function in InputManagement.tsx
-const Step2Parameters = useMemo(() => () => {
-  if (selectedTechnique === 'air') {
-    return (
-      <div className={`max-w-6xl mx-auto transition-all duration-500 ${
-        isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
-      }`}>
-        <div className="text-center space-y-4 mb-12">
-          <h2 className={`text-4xl font-bold ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
-            Configure Air-Side Economization
-          </h2>
-          <p className={`text-lg max-w-2xl mx-auto ${
-            isDark ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            Optimize your cooling parameters for maximum efficiency and cost savings
-          </p>
-        </div>
-        
-        {/* Stats Overview */}
-        <div className={`mb-8 p-6 rounded-2xl ${
-          isDark 
-            ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
-            : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
-        }`}>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { icon: Server, label: 'Total Racks', value: currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5 },
-              { icon: Cpu, label: 'Servers', value: ((currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5) * 10) },
-              { icon: Wind, label: 'Fan System', value: currentConfig?.fans ? 'Mixed' : 'Standard' },
-              { icon: Cloud, label: 'Region', value: currentConfig?.region || 'US Northeast' }
-            ].map((stat, idx) => (
-              <div key={idx} className="text-center">
-                <div className={`text-2xl font-bold mb-1 ${
-                  isDark ? 'text-white' : 'text-gray-900'
-                }`}>
-                  {stat.value}
-                </div>
-                <div className={`text-sm ${
-                  isDark ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  {stat.label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <AirSideEconomization
-          initialConfig={{
-            serverType: "dell_poweredge_r750",
-            numberOfRacks: currentInput?.numberOfRacks || 5,
-            serversPerRack: 10,
-            averageUtilization: 45,
-            peakUtilization: 85,
-            fans: { bestFans: 2, averageFans: 4, oldFans: 0 },
-            region: "us_northeast"
-          }}
-          onConfigChange={handleConfigChange}
-          locationData={locationData}
-        />
-      </div>
-    )
-  }
-
-  if (selectedTechnique === 'water') {
-    return (
-      <div className={`max-w-6xl mx-auto transition-all duration-500 ${
-        isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
-      }`}>
-        <div className="text-center space-y-4 mb-12">
-          <h2 className={`text-4xl font-bold ${
-            isDark ? 'text-white' : 'text-gray-900'
-          }`}>
-            Configure Chilled-Water Cooling
-          </h2>
-          <p className={`text-lg max-w-2xl mx-auto ${
-            isDark ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            Optimize your water-based cooling system for maximum efficiency and reliability
-          </p>
-        </div>
-        
-        {/* Stats Overview */}
-        <div className={`mb-8 p-6 rounded-2xl ${
-          isDark 
-            ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
-            : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200'
-        }`}>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              { icon: Server, label: 'Total Racks', value: currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5 },
-              { icon: Cpu, label: 'Servers', value: ((currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5) * 10) },
-              { icon: Droplet, label: 'Rack Power', value: currentConfig?.rackPowerCapacity ? `${currentConfig.rackPowerCapacity} kW` : '10 kW' },
-              { icon: Thermometer, label: 'Cooling Capacity', value: currentConfig?.coolingCapacityKW ? `${currentConfig.coolingCapacityKW.toFixed(0)} kW` : 'Calculating...' }
-            ].map((stat, idx) => (
-              <div key={idx} className="text-center">
-                <div className={`text-2xl font-bold mb-1 ${
-                  isDark ? 'text-white' : 'text-gray-900'
-                }`}>
-                  {stat.value}
-                </div>
-                <div className={`text-sm ${
-                  isDark ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  {stat.label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-        
-        <ChilledWaterCooling
-          numberOfRacks={currentInput?.numberOfRacks || 5}
-          serversPerRack={10}
-          rackPowerCapacity={10}
-          chilledWaterTemp={7}
-          supplyWaterTemp={12}
-          returnWaterTemp={18}
-          waterFlowRate={50}
-          chillerEfficiency={0.6}
-          pumpEfficiency={0.8}
-          coolingTowerEfficiency={0.7}
-          onConfigChange={handleConfigChange}
-          locationData={locationData}
-        />
-      </div>
-    )
-  }
-
-  return (
-    <div className={`max-w-4xl mx-auto space-y-8 transition-all duration-500 ${
-      isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
-    }`}>
-      <div className="text-center space-y-4">
-        <h2 className={`text-4xl font-bold ${
-          isDark ? 'text-white' : 'text-gray-900'
-        }`}>
-          Advanced Configuration
-        </h2>
-        <p className={`text-lg ${
-          isDark ? 'text-gray-400' : 'text-gray-600'
-        }`}>
-          Coming soon with enhanced features
-        </p>
-      </div>
-      
-      <div className={`h-96 w-full rounded-2xl flex items-center justify-center ${
-        isDark ? 'bg-[#1a1f3a]' : 'bg-gray-100'
-      }`}>
-        <Activity className={`w-12 h-12 ${
-          isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-        } animate-pulse`} />
-      </div>
-      
-      <div className="text-center">
-        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full ${
-          isDark ? 'bg-[#27304a] text-gray-300' : 'bg-gray-100 text-gray-700'
-        }`}>
-          <Activity className="w-4 h-4" />
-          <span className="text-sm">Advanced cooling techniques in development</span>
-        </div>
-      </div>
-    </div>
-  )
-}, [isDark, isTransitioning, selectedTechnique, currentConfig, currentInput, handleConfigChange, locationData])
-
 
   // Step 3 - Review (Updated with CSV data)
   const Step3ReviewSubmit = useMemo(() => () => {
@@ -1375,6 +1441,18 @@ const Step2Parameters = useMemo(() => () => {
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {[
+                { 
+                  label: 'Server ID', 
+                  value: serverId || 'Not set', 
+                  icon: Server,
+                  description: 'Database server identifier'
+                },
+                { 
+                  label: 'Country ID', 
+                  value: countryId || 'Not set', 
+                  icon: MapPin,
+                  description: 'Database country identifier'
+                },
                 { 
                   label: 'Total Racks', 
                   value: currentConfig?.numberOfRacks || currentInput?.numberOfRacks || 5, 
@@ -1554,7 +1632,7 @@ const Step2Parameters = useMemo(() => () => {
         </div>
       </div>
     )
-  }, [isDark, isTransitioning, selectedTechnique, coolingTechniques, currentConfig, currentInput, locationData, handleStepChange, handleSubmit])
+  }, [isDark, isTransitioning, selectedTechnique, coolingTechniques, currentConfig, currentInput, locationData, serverId, countryId, handleStepChange, handleSubmit])
 
   return (
     <div className={`min-h-screen transition-colors duration-500 ${
@@ -1573,15 +1651,6 @@ const Step2Parameters = useMemo(() => () => {
           isDark ? 'bg-[#fd5757]/5' : 'bg-[#ef4444]/5'
         }`} style={{ animation: 'float 6s ease-in-out 2s infinite reverse' }} />
       </div>
-
-      {/* Simulation Progress Loader */}
-      {isSimulationRunning && (
-        <SimulationProgress 
-          progress={simulationProgress}
-          isRunning={isSimulationRunning}
-          onClose={() => setIsSimulationRunning(false)}
-        />
-      )}
 
       <main className="lg:ml-64">
         <div className="relative">
@@ -1669,7 +1738,19 @@ const Step2Parameters = useMemo(() => () => {
               <div className="w-full">
                 {currentStep === 0 && <Step0Welcome />}
                 {currentStep === 1 && <Step1CoolingTechnique />}
-                {currentStep === 2 && <Step2Parameters />}
+                {currentStep === 2 && (
+                  <Step2Parameters
+                    isDark={isDark}
+                    isTransitioning={isTransitioning}
+                    selectedTechnique={selectedTechnique}
+                    currentConfig={currentConfig}
+                    currentInput={currentInput}
+                    serverId={serverId}
+                    countryId={countryId}
+                    handleConfigChange={handleConfigChange}
+                    locationData={locationData}
+                  />
+                )}
                 {currentStep === 3 && <Step3ReviewSubmit />}
               </div>
             </ErrorBoundary>

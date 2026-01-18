@@ -1,10 +1,8 @@
-
-
-// AirSideEconomization.tsx - CORRECTED VERSION
+// AirSideEconomization.tsx - COMPLETE CORRECTED VERSION
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import { 
   Zap, Wind, DollarSign, TrendingDown, MapPin, AlertCircle, 
-  BarChart3, CheckCircle2, Loader2, Server as ServerIcon,
+  BarChart3, CheckCircle2, Server as ServerIcon,
   Cpu, HardDrive, Upload, MemoryStick
 } from 'lucide-react'
 
@@ -41,13 +39,14 @@ interface CountryTariff {
 
 interface FanParameter {
   id: string
-  parameter_name: string
+  param_group: string
+  param_key: string
+  display_name: string
   min_value: number
   max_value: number
-  default_value: number
   unit: string
+  status_label: string
   description: string
-  category: string
 }
 
 interface AirSideEconomizationProps {
@@ -60,6 +59,8 @@ interface AirSideEconomizationProps {
   region?: string
   onConfigChange?: (config: any) => void
   locationData?: Array<{timestamp: string, temperature: number, humidity: number}>
+  countryId?: string
+  serverId?: string
 }
 
 const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
@@ -72,25 +73,22 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   region = '',
   onConfigChange,
   locationData,
+  countryId = '',
+  serverId = '',
 }) => {
-  // State for fetched data
   const [servers, setServers] = useState<Server[]>([])
   const [countries, setCountries] = useState<CountryTariff[]>([])
   const [fanParameters, setFanParameters] = useState<FanParameter[]>([])
-  const [loading, setLoading] = useState({
-    servers: true,
-    countries: true,
-    parameters: true
-  })
+  const [isLoading, setIsLoading] = useState(true)
   const [selectedServer, setSelectedServer] = useState<Server | null>(null)
   
-  // ✅ STEP 1: Simple state - only store ID
-  const [selectedCountryId, setSelectedCountryId] = useState<string>('')
+  // Initialize from props
+  const [selectedCountryId, setSelectedCountryId] = useState<string>(countryId || '')
   
   const [error, setError] = useState<string>('')
 
   // Local state
-  const [localServerType, setLocalServerType] = useState<string>('')
+  const [localServerType, setLocalServerType] = useState<string>(serverId || serverType || '')
   const [localNumberOfRacks, setLocalNumberOfRacks] = useState(numberOfRacks)
   const [localServersPerRack, setLocalServersPerRack] = useState(serversPerRack)
   const [localAvgUtil, setLocalAvgUtil] = useState(averageUtilization)
@@ -107,33 +105,49 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   const lastSentRef = useRef<string>('')
   const updateTimeoutRef = useRef<NodeJS.Timeout>()
 
-  // Fetch data from Supabase on component mount
   useEffect(() => {
     fetchAllData()
   }, [])
 
-  // Handle incoming serverType prop
+  // Update selectedCountryId when countryId prop changes
+  useEffect(() => {
+    if (countryId && countryId !== selectedCountryId) {
+      setSelectedCountryId(countryId)
+    }
+  }, [countryId])
+
+  // Update server selection when serverId prop changes
+  useEffect(() => {
+    if (serverId && serverId !== localServerType) {
+      setLocalServerType(serverId)
+    }
+  }, [serverId])
+
+  // Handle incoming serverType prop (for backward compatibility)
   useEffect(() => {
     if (!serverType || !servers.length) return
 
-    let match = servers.find(s => String(s.id) === String(serverType))
-    
-    if (!match) {
-      match = servers.find(s => s.name === serverType)
+    // Only process if we don't already have a serverId prop
+    if (!serverId) {
+      let match = servers.find(s => String(s.id) === String(serverType))
+      
+      if (!match) {
+        match = servers.find(s => s.name === serverType)
+      }
+      
+      if (!match) {
+        match = servers.find(s => 
+          `${s.manufacturer} - ${s.name} (${s.model || 'Standard'})` === serverType
+        )
+      }
+      
+      if (match) {
+        setLocalServerType(match.id)
+      } else {
+        setLocalServerType('')
+      }
     }
-    
-    if (!match) {
-      match = servers.find(s => 
-        `${s.manufacturer} - ${s.name} (${s.model || 'Standard'})` === serverType
-      )
-    }
-    
-    if (match) {
-      setLocalServerType(match.id)
-    } else {
-      setLocalServerType('')
-    }
-  }, [serverType, servers])
+  }, [serverType, servers, serverId])
 
   // Server selection
   useEffect(() => {
@@ -148,12 +162,12 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       setSelectedServer(server)
     } else {
       setSelectedServer(null)
-      setLocalServerType('')
     }
   }, [localServerType, servers])
 
   const fetchAllData = async () => {
     try {
+      setIsLoading(true)
       setError('')
       await Promise.all([
         fetchServers(),
@@ -163,12 +177,13 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     } catch (error) {
       setError('Failed to load configuration data. Please refresh the page.')
       console.error('Error fetching data:', error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
   const fetchServers = async () => {
     try {
-      setLoading(prev => ({ ...prev, servers: true }))
       const { data, error } = await supabase
         .from('servers')
         .select('*')
@@ -183,21 +198,25 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       if (data && data.length > 0) {
         console.log(`✅ Loaded ${data.length} servers from database`)
         setServers(data)
+        
+        // If we have a serverId prop, try to select it
+        if (serverId) {
+          const server = data.find(s => String(s.id) === String(serverId))
+          if (server) {
+            setSelectedServer(server)
+          }
+        }
       } else {
         setError('No server configurations found in database')
       }
     } catch (error) {
       console.error('Error fetching servers:', error)
       setError('Unable to load server configurations')
-    } finally {
-      setLoading(prev => ({ ...prev, servers: false }))
     }
   }
 
-  // ✅ STEP 2: Fetch countries (NO auto-select, NO side effects)
   const fetchCountries = async () => {
     try {
-      setLoading(prev => ({ ...prev, countries: true }))
       const { data, error } = await supabase
         .from('tariff_carbon')
         .select('id, country_name, electricity_tariff, co2_grid_factor')
@@ -215,24 +234,29 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         
         console.log(`✅ Loaded ${normalized.length} countries from database`)
         setCountries(normalized)
+        
+        // If we have a countryId prop, verify it exists
+        if (countryId) {
+          const country = normalized.find(c => String(c.id) === String(countryId))
+          if (!country) {
+            console.warn(`Country with ID ${countryId} not found in database`)
+          }
+        }
       } else {
         console.warn('⚠️ No countries found in tariff_carbon table')
       }
     } catch (error) {
       console.error('Error fetching countries:', error)
-    } finally {
-      setLoading(prev => ({ ...prev, countries: false }))
     }
   }
 
   const fetchFanParameters = async () => {
     try {
-      setLoading(prev => ({ ...prev, parameters: true }))
       const { data, error } = await supabase
-        .from('parameters')
-        .select('*')
-        .eq('category', 'fan_efficiency')
-        .order('parameter_name')
+        .from('parameter')
+        .select('id, param_group, param_key, display_name, min_value, max_value, unit, status_label, description')
+        .eq('param_group', 'fan_efficiency')
+        .order('id')
 
       if (error) {
         console.error('Supabase error:', error)
@@ -240,35 +264,59 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       }
 
       if (data && data.length > 0) {
-        setFanParameters(data)
+        const normalized: FanParameter[] = data.map(row => ({
+          id: String(row.id),
+          param_group: row.param_group,
+          param_key: row.param_key,
+          display_name: row.display_name,
+          min_value: Number(row.min_value ?? 0),
+          max_value: Number(row.max_value ?? 0),
+          unit: row.unit,
+          status_label: row.status_label,
+          description: row.description
+        }))
 
-        // Set default fan efficiencies
-        data.forEach(param => {
-          const name = param.parameter_name.toLowerCase()
-          if (name.includes('best')) {
-            setBestFanEfficiency(param.default_value)
-          } else if (name.includes('average')) {
-            setAvgFanEfficiency(param.default_value)
-          } else if (name.includes('legacy') || name.includes('old')) {
-            setOldFanEfficiency(param.default_value)
+        setFanParameters(normalized)
+
+        normalized.forEach(param => {
+          const key = (param.param_key || param.display_name || '').toLowerCase()
+          const defaultValue = (param.min_value + param.max_value) / 2 || param.max_value || param.min_value
+
+          if (key.includes('best')) {
+            setBestFanEfficiency(defaultValue)
+          } else if (key.includes('average') || key.includes('vfd')) {
+            setAvgFanEfficiency(defaultValue)
+          } else if (key.includes('legacy') || key.includes('old')) {
+            setOldFanEfficiency(defaultValue)
           }
         })
       }
     } catch (error) {
       console.error('Error fetching fan parameters:', error)
-    } finally {
-      setLoading(prev => ({ ...prev, parameters: false }))
     }
   }
 
-  // ✅ STEP 4: DERIVE selectedCountry (DO NOT store in state)
   const selectedCountry = useMemo(() => {
     return countries.find(c => String(c.id) === selectedCountryId)
   }, [countries, selectedCountryId])
 
-  // Handle country selection change - SIMPLE
+  // Handle country selection change
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedCountryId(e.target.value)
+    const newCountryId = e.target.value
+    setSelectedCountryId(newCountryId)
+    
+    // Notify parent component of change
+    if (onConfigChange && newCountryId) {
+      const country = countries.find(c => String(c.id) === newCountryId)
+      if (country) {
+        onConfigChange({
+          countryId: newCountryId,
+          country: country.country_name,
+          electricityTariff: country.electricity_tariff,
+          carbonIntensity: country.co2_grid_factor
+        })
+      }
+    }
   }
 
   // Handle server selection change
@@ -277,10 +325,25 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     
     if (!serverId) {
       setLocalServerType('')
+      setSelectedServer(null)
       return
     }
 
     setLocalServerType(serverId)
+    const server = servers.find(s => String(s.id) === serverId)
+    if (server) {
+      setSelectedServer(server)
+      
+      // Notify parent component of change
+      if (onConfigChange) {
+        onConfigChange({
+          serverId: serverId,
+          serverType: server.name,
+          manufacturer: server.manufacturer,
+          model: server.model
+        })
+      }
+    }
   }
 
   // Handle location data upload
@@ -317,17 +380,18 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   // Get fan parameter ranges
   const getFanParameter = (type: 'best' | 'average' | 'old') => {
     const param = fanParameters.find(p => {
-      const name = p.parameter_name.toLowerCase()
-      if (type === 'best') return name.includes('best')
-      if (type === 'average') return name.includes('average')
-      return name.includes('legacy') || name.includes('old')
+      const key = (p.param_key || p.display_name || '').toLowerCase()
+      if (type === 'best') return key.includes('best')
+      if (type === 'average') return key.includes('average') || key.includes('vfd')
+      return key.includes('legacy') || key.includes('old')
     })
     
     if (param) {
+      const defaultValue = (param.min_value + param.max_value) / 2 || param.max_value || param.min_value
       return {
         min: param.min_value,
         max: param.max_value,
-        default: param.default_value,
+        default: defaultValue,
         description: param.description,
         unit: param.unit
       }
@@ -406,6 +470,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     const payload = {
       numberOfServers,
       serverType: localServerType,
+      serverId: localServerType,
       serverName: selectedServer.name,
       manufacturer: selectedServer.manufacturer,
       model: selectedServer.model,
@@ -628,17 +693,22 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     )
   }
 
-  // Loading state
-  if (loading.servers || loading.countries || loading.parameters) {
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <div className="text-center space-y-4">
-          <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto" />
-          <div className="space-y-2">
-            <div className="text-gray-700 font-medium">Loading configuration data...</div>
-            <div className="text-sm text-gray-500">
-              Fetching servers, countries, and parameters from database
-            </div>
+      <div className="space-y-8 animate-pulse">
+        <div className="bg-gray-100 rounded-2xl p-6">
+          <div className="h-6 bg-gray-300 rounded w-1/3 mb-6"></div>
+          <div className="space-y-4">
+            <div className="h-10 bg-gray-300 rounded"></div>
+            <div className="h-40 bg-gray-300 rounded"></div>
+          </div>
+        </div>
+
+        <div className="bg-gray-100 rounded-2xl p-6">
+          <div className="h-6 bg-gray-300 rounded w-1/3 mb-6"></div>
+          <div className="space-y-4">
+            <div className="h-4 bg-gray-300 rounded w-full"></div>
+            <div className="h-4 bg-gray-300 rounded w-2/3"></div>
           </div>
         </div>
       </div>
@@ -674,6 +744,86 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         }
         .animate-fade-in {
           animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fanSpinFast {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes fanSpinMedium {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes fanWobble {
+          0% { transform: rotate(0deg); }
+          25% { transform: rotate(-10deg); }
+          50% { transform: rotate(8deg); }
+          75% { transform: rotate(-6deg); }
+          100% { transform: rotate(0deg); }
+        }
+        .fan-shell {
+          width: 2.75rem;
+          height: 2.75rem;
+          border-radius: 9999px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 10px rgba(15, 23, 42, 0.15);
+        }
+        .fan-shell-best {
+          background: radial-gradient(circle at 30% 30%, #bbf7d0, #22c55e);
+        }
+        .fan-shell-average {
+          background: radial-gradient(circle at 30% 30%, #fef9c3, #facc15);
+        }
+        .fan-shell-legacy {
+          background: radial-gradient(circle at 30% 30%, #fecaca, #ef4444);
+        }
+        .fan-rotor {
+          width: 70%;
+          height: 70%;
+          border-radius: 9999px;
+          position: relative;
+          background: radial-gradient(circle at 30% 30%, rgba(248, 250, 252, 0.95), rgba(148, 163, 184, 0.9));
+        }
+        .fan-rotor-best {
+          animation: fanSpinFast 1.1s linear infinite;
+        }
+        .fan-rotor-average {
+          animation: fanSpinMedium 2.1s linear infinite;
+        }
+        .fan-rotor-legacy {
+          animation: fanWobble 1.2s ease-in-out infinite;
+        }
+        .fan-blade {
+          position: absolute;
+          width: 80%;
+          height: 20%;
+          background-color: rgba(15, 23, 42, 0.08);
+          border-radius: 9999px;
+          left: 50%;
+          top: 50%;
+          transform-origin: 50% 50%;
+          transform: translate(-50%, -50%);
+        }
+        .fan-blade-1 {
+          transform: translate(-50%, -50%) rotate(0deg);
+        }
+        .fan-blade-2 {
+          transform: translate(-50%, -50%) rotate(120deg);
+        }
+        .fan-blade-3 {
+          transform: translate(-50%, -50%) rotate(240deg);
+        }
+        .fan-hub {
+          position: absolute;
+          width: 22%;
+          height: 22%;
+          border-radius: 9999px;
+          background-color: rgba(15, 23, 42, 0.75);
+          box-shadow: 0 0 0 2px rgba(248, 250, 252, 0.6);
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
         }
       `}</style>
 
@@ -879,8 +1029,9 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 setEfficiency: (v: number) => handleEfficiencyChange('best', v),
                 count: localFans.bestFans,
                 setCount: (v: number) => handleFanChange('bestFans', v),
-                color: 'green',
-                bg: 'bg-green-50'
+                bg: 'bg-green-50',
+                shellClass: 'fan-shell fan-shell-best',
+                rotorClass: 'fan-rotor fan-rotor-best'
               },
               { 
                 label: 'Average VFD Fans', 
@@ -889,8 +1040,9 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 setEfficiency: (v: number) => handleEfficiencyChange('average', v),
                 count: localFans.averageFans,
                 setCount: (v: number) => handleFanChange('averageFans', v),
-                color: 'yellow',
-                bg: 'bg-yellow-50'
+                bg: 'bg-yellow-50',
+                shellClass: 'fan-shell fan-shell-average',
+                rotorClass: 'fan-rotor fan-rotor-average'
               },
               { 
                 label: 'Legacy Fans', 
@@ -899,8 +1051,9 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 setEfficiency: (v: number) => handleEfficiencyChange('old', v),
                 count: localFans.oldFans,
                 setCount: (v: number) => handleFanChange('oldFans', v),
-                color: 'red',
-                bg: 'bg-red-50'
+                bg: 'bg-red-50',
+                shellClass: 'fan-shell fan-shell-legacy',
+                rotorClass: 'fan-rotor fan-rotor-legacy'
               },
             ].map((fan, idx) => {
               const param = getFanParameter(fan.type)
@@ -908,7 +1061,17 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
               return (
                 <div key={idx} className={`border rounded-lg p-4 ${fan.bg}`}>
                   <div className="flex items-center justify-between mb-3">
-                    <div className="font-medium text-gray-900">{fan.label}</div>
+                    <div className="flex items-center gap-3">
+                      <div className={fan.shellClass}>
+                        <div className={fan.rotorClass}>
+                          <span className="fan-blade fan-blade-1" />
+                          <span className="fan-blade fan-blade-2" />
+                          <span className="fan-blade fan-blade-3" />
+                          <span className="fan-hub" />
+                        </div>
+                      </div>
+                      <div className="font-medium text-gray-900">{fan.label}</div>
+                    </div>
                     <div className="text-sm text-gray-600">
                       {fan.count} {fan.count === 1 ? 'fan' : 'fans'}
                     </div>
@@ -952,7 +1115,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         </div>
       </div>
 
-      {/* Country Tariff Section - CORRECTED */}
+      {/* Country Tariff Section */}
       <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
           <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -965,7 +1128,6 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         </div>
 
         <div className="space-y-6">
-          {/* ✅ STEP 3: Simple dropdown */}
           <div>
             <label className="block text-sm font-semibold text-gray-900 mb-2">
               Country <span className="text-red-500">*</span>
@@ -985,7 +1147,6 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             </select>
           </div>
 
-          {/* ✅ STEP 5: Display tariff + carbon ONLY if selected */}
           {selectedCountry && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
               <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
@@ -1187,4 +1348,4 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   )
 }
 
-export default AirSideEconomization;
+export default AirSideEconomization
