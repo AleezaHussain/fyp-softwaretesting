@@ -11,8 +11,9 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@react-three/drei": "^9.88.17",
-    "@react-three/fiber": "^8.15.19",
+    "@react-three/drei": "^9.122.0",
+    "@react-three/fiber": "^8.18.0",
+    "@supabase/supabase-js": "^2.90.1",
     "@types/react-router-dom": "^5.3.3",
     "axios": "^1.6.2",
     "chart.js": "^4.4.0",
@@ -26,7 +27,7 @@
     "react-draggable": "^4.5.0",
     "react-router-dom": "^6.20.0",
     "recharts": "^2.15.4",
-    "three": "^0.160.0",
+    "three": "^0.160.1",
     "zustand": "^4.5.7"
   },
   "devDependencies": {
