@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { DataCenterComponent } from '../../types/simulation'
 
@@ -31,7 +31,6 @@ export const ThreeJSVisualization: React.FC<ThreeJSVisualizationProps> = ({
   const componentMeshesRef = useRef<Map<string, ComponentMesh>>(new Map())
   const raycasterRef = useRef(new THREE.Raycaster())
   const mouseRef = useRef(new THREE.Vector2())
-  const [hoveredComponent, setHoveredComponent] = useState<string | null>(null)
   const animationFrameRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -56,7 +55,7 @@ export const ThreeJSVisualization: React.FC<ThreeJSVisualizationProps> = ({
     renderer.setSize(width, height)
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
     renderer.shadowMap.enabled = true
-    renderer.shadowMap.type = THREE.PCFShadowShadowMap
+    renderer.shadowMap.type = THREE.PCFShadowMap
     containerRef.current.appendChild(renderer.domElement)
     rendererRef.current = renderer
 
@@ -220,11 +219,11 @@ export const ThreeJSVisualization: React.FC<ThreeJSVisualizationProps> = ({
           Array.from(componentMeshes.values()).map((c) => c.mesh)
         )
 
-        setHoveredComponent(intersects.length > 0 ? intersects[0].object.uuid : null)
+        const hoveredUuid = intersects.length > 0 ? intersects[0].object.uuid : null
 
         // Update hover labels
         componentMeshes.forEach((componentMesh, id) => {
-          if (hoveredComponent === componentMesh.mesh.uuid) {
+          if (hoveredUuid === componentMesh.mesh.uuid) {
             if (!componentMesh.hoverLabel) {
               const label = document.createElement('div')
               label.style.position = 'fixed'
@@ -348,7 +347,7 @@ export const ThreeJSVisualization: React.FC<ThreeJSVisualizationProps> = ({
       }
       renderer.dispose()
     }
-  }, [components, showThermal, thermalData, hoveredComponent])
+  }, [components, showThermal, thermalData])
 
   return (
     <div ref={containerRef} style={{ width, height }} className="rounded-lg overflow-hidden relative">

@@ -17,6 +17,7 @@ import { Profile } from './pages/Profile'
 import { Simulations } from './pages/Simulations'
 import { NewSimulation } from './pages/NewSimulation'
 import { DataCenterBuilder } from './pages/DataCenterBuilder'
+import Homepage from './pages/Homepage'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -36,7 +37,15 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Public Homepage */}
+        <Route path="/" element={<Homepage />} />
+        
         {/* Auth Routes */}
+        <Route path="/auth/signup" element={<SignUp />} />
+        <Route path="/auth/login" element={<Login />} />
+        <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+        
+        {/* Backward compatibility */}
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -58,6 +67,8 @@ function App() {
             </ProtectedRoute>
           }
         />
+        {/* Unprotected debug route for Input Management (use during local testing) */}
+        <Route path="/input-management-debug" element={<InputManagement />} />
         <Route
           path="/results"
           element={
@@ -116,8 +127,8 @@ function App() {
         />
 
         {/* Default Route */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard-redirect" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   )

@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { Wind, Droplets, Cloud } from 'lucide-react'
 import { CoolingTechnique, CoolingTechniqueConfig } from '../../types/simulation'
 import { CoolingEfficiencyPreview } from './CoolingEfficiencyPreview'
+import AirSideEconomization from './AirSideEconomization'
 
 interface CoolingSelectionProps {
   onSelect: (config: CoolingTechniqueConfig) => void
@@ -48,8 +49,8 @@ export const CoolingSelection: React.FC<CoolingSelectionProps> = ({ onSelect, on
         efficiency: 0.68,
         pue: 2.2,
         wue: 1.8,
-        cost: 45000,
-        costPerYear: 125000,
+        totalEnergy: 125000,
+        estimatedCost: 45000,
       },
       {
         technique: 'water' as CoolingTechnique,
@@ -57,8 +58,8 @@ export const CoolingSelection: React.FC<CoolingSelectionProps> = ({ onSelect, on
         efficiency: 0.85,
         pue: 1.4,
         wue: 0.8,
-        cost: 120000,
-        costPerYear: 85000,
+        totalEnergy: 85000,
+        estimatedCost: 120000,
       },
       {
         technique: 'evaporative' as CoolingTechnique,
@@ -66,8 +67,8 @@ export const CoolingSelection: React.FC<CoolingSelectionProps> = ({ onSelect, on
         efficiency: 0.75,
         pue: 1.7,
         wue: 2.5,
-        cost: 65000,
-        costPerYear: 95000,
+        totalEnergy: 95000,
+        estimatedCost: 65000,
       },
     ]
   }, [])
@@ -101,6 +102,14 @@ export const CoolingSelection: React.FC<CoolingSelectionProps> = ({ onSelect, on
   }
 
   const selectedTechniqueData = TECHNIQUES.find((t) => t.id === selectedTechnique)
+  const paramsRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (selectedTechnique && paramsRef.current) {
+      // scroll the parameter/form area into view when a technique is chosen
+      paramsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [selectedTechnique])
 
   return (
     <div className="space-y-6">
@@ -157,134 +166,120 @@ export const CoolingSelection: React.FC<CoolingSelectionProps> = ({ onSelect, on
 
       {/* Parameter Form */}
       {selectedTechnique && selectedTechniqueData && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h3 className="text-lg font-bold text-[#1a1a2e] mb-4">
-            {selectedTechniqueData.name} Parameters
-          </h3>
+        <div ref={paramsRef}>
+        <>
+          {selectedTechnique === 'air' ? (
+            <AirSideEconomization
+              serverType="dell_poweredge_r750"
+              numberOfRacks={5}
+              serversPerRack={10}
+              averageUtilization={45}
+              peakUtilization={85}
+              fans={{ bestFans: 2, averageFans: 4, oldFans: 0 }}
+              region="us_northeast"
+              onConfigChange={(config: any) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  airSideConfig: config,
+                }))
+              }}
+            />
+          ) : (
+            <div className="bg-white rounded-lg border border-gray-200 p-6">
+              <h3 className="text-lg font-bold text-[#1a1a2e] mb-4">
+                {selectedTechniqueData.name} Parameters
+              </h3>
 
-          <div className="space-y-4">
-            {selectedTechnique === 'air' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Supply Air Temperature (°C)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.supplyTemp || 18}
-                    onChange={(e) => handleInputChange('supplyTemp', parseFloat(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Airflow Rate (CFM)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.airflowRate || 5000}
-                    onChange={(e) => handleInputChange('airflowRate', parseFloat(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                  />
-                </div>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.economizer || false}
-                    onChange={(e) => handleInputChange('economizer', e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Enable Economizer Mode</span>
-                </label>
-              </>
-            )}
+              <div className="space-y-4">
+                {selectedTechnique === 'water' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Coolant Type
+                      </label>
+                      <select
+                        value={formData.coolantType || 'water'}
+                        onChange={(e) => handleInputChange('coolantType', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
+                      >
+                        <option value="water">Water</option>
+                        <option value="glycol">Glycol Mix</option>
+                        <option value="dielectric">Dielectric Fluid</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Flow Rate (GPM)
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.flowRate || 50}
+                        onChange={(e) => handleInputChange('flowRate', parseFloat(e.target.value))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Heat Exchanger Efficiency (%)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={formData.hxEfficiency || 85}
+                        onChange={(e) => handleInputChange('hxEfficiency', parseFloat(e.target.value))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
+                      />
+                    </div>
+                  </>
+                )}
 
-            {selectedTechnique === 'water' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Coolant Type
-                  </label>
-                  <select
-                    value={formData.coolantType || 'water'}
-                    onChange={(e) => handleInputChange('coolantType', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                  >
-                    <option value="water">Water</option>
-                    <option value="glycol">Glycol Mix</option>
-                    <option value="dielectric">Dielectric Fluid</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Flow Rate (GPM)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.flowRate || 50}
-                    onChange={(e) => handleInputChange('flowRate', parseFloat(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Heat Exchanger Efficiency (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.hxEfficiency || 85}
-                    onChange={(e) => handleInputChange('hxEfficiency', parseFloat(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                  />
-                </div>
-              </>
-            )}
-
-            {selectedTechnique === 'evaporative' && (
-              <>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Water Source
-                  </label>
-                  <select
-                    value={formData.waterSource || 'mains'}
-                    onChange={(e) => handleInputChange('waterSource', e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                  >
-                    <option value="mains">Mains Water</option>
-                    <option value="recycled">Recycled Water</option>
-                    <option value="rainwater">Rainwater Harvesting</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Evaporation Rate (kg/s)
-                  </label>
-                  <input
-                    type="number"
-                    value={formData.evaporationRate || 5}
-                    onChange={(e) => handleInputChange('evaporationRate', parseFloat(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Humidity Limit (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.humidityLimit || 60}
-                    onChange={(e) => handleInputChange('humidityLimit', parseFloat(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                  />
-                </div>
-              </>
-            )}
-          </div>
+                {selectedTechnique === 'evaporative' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Water Source
+                      </label>
+                      <select
+                        value={formData.waterSource || 'mains'}
+                        onChange={(e) => handleInputChange('waterSource', e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
+                      >
+                        <option value="mains">Mains Water</option>
+                        <option value="recycled">Recycled Water</option>
+                        <option value="rainwater">Rainwater Harvesting</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Evaporation Rate (kg/s)
+                      </label>
+                      <input
+                        type="number"
+                        value={formData.evaporationRate || 5}
+                        onChange={(e) => handleInputChange('evaporationRate', parseFloat(e.target.value))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Humidity Limit (%)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={formData.humidityLimit || 60}
+                        onChange={(e) => handleInputChange('humidityLimit', parseFloat(e.target.value))}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </>
         </div>
       )}
 

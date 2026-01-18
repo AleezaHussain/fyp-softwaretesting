@@ -5,6 +5,8 @@ export interface User {
   name: string
   email: string
   profilePicture?: string
+  organization?: string
+  role?: string
   preferences: {
     theme: 'light' | 'dark'
     units: 'metric' | 'imperial'
@@ -20,6 +22,8 @@ export interface Simulation {
   coolingTechnique: 'air' | 'water' | 'evaporative' | 'hybrid'
   createdAt: string
   status: 'pending' | 'running' | 'completed' | 'failed'
+  energySaved?: number
+  numberOfRacks?: number
 }
 
 export interface SimulationInput {

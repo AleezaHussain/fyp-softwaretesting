@@ -41,9 +41,14 @@ export const Sidebar: React.FC = () => {
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="p-6 border-b border-opacity-20 border-secondary">
-          <h1 className="text-2xl font-bold font-poppins">COOLience</h1>
-          <p className="text-sm text-gray-400">Cooling Intelligence</p>
+        <div className="p-6 border-b border-opacity-20 border-secondary space-y-3">
+          <div className="flex items-center gap-3">
+            <img src="/logo.svg" alt="COOLIENCE" className="w-10 h-10" />
+            <div>
+              <h1 className="text-2xl font-bold font-poppins">COOLience</h1>
+              <p className="text-sm text-gray-400">Cooling Intelligence</p>
+            </div>
+          </div>
         </div>
 
         <nav className="flex-1 p-4">
