@@ -1,27 +1,53 @@
-import React, { useState, useRef, useMemo } from 'react'
-import { Zap, Wind, DollarSign, TrendingDown } from 'lucide-react'
 
-const SERVER_LIBRARY = {
-  dell_poweredge_r750: { name: 'Dell PowerEdge R750', maxPower: 650, idlePower: 180, manufacturer: 'Dell' },
-  hp_proliant_dl380: { name: 'HP ProLiant DL380 Gen10', maxPower: 600, idlePower: 170, manufacturer: 'HP' },
-  lenovo_thinksystem_sr550: { name: 'Lenovo ThinkSystem SR550', maxPower: 700, idlePower: 200, manufacturer: 'Lenovo' },
-  ibm_power_system_e1050: { name: 'IBM Power System E1050', maxPower: 750, idlePower: 220, manufacturer: 'IBM' },
-  supermicro_sys_1124us_tnrt: { name: 'Supermicro SYS-1124US-TNRT', maxPower: 580, idlePower: 160, manufacturer: 'Supermicro' },
-  cisco_ucs_c480_m5: { name: 'Cisco UCS C480 M5', maxPower: 800, idlePower: 240, manufacturer: 'Cisco' },
+
+// AirSideEconomization.tsx - CORRECTED VERSION
+import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react'
+import { 
+  Zap, Wind, DollarSign, TrendingDown, MapPin, AlertCircle, 
+  BarChart3, CheckCircle2, Loader2, Server as ServerIcon,
+  Cpu, HardDrive, Upload, MemoryStick
+} from 'lucide-react'
+
+// Import Supabase
+import { supabase } from '../../lib/supabase'
+
+// Define interfaces for fetched data
+interface Server {
+  id: string
+  name: string
+  manufacturer: string
+  model: string
+  max_power_w: number
+  idle_power_w: number
+  typical_power_w: number
+  form_factor: string
+  cooling_type: string
+  typical_utilization: number
+  cpu_type: string
+  memory_gb: number
+  storage_tb: number
+  release_year: number
+  efficiency_rating: string
+  weight_kg?: number
+  dimensions?: string
 }
 
-const FAN_EFFICIENCY = {
-  best: { min: 0.3, max: 0.4 },
-  average: { min: 0.5, max: 0.7 },
-  old: { min: 0.8, max: 1.2 },
+interface CountryTariff {
+  id: string
+  country_name: string
+  electricity_tariff: number
+  co2_grid_factor: number
 }
 
-const TARIFF_RANGES: any = {
-  us_northeast: { min: 0.13, max: 0.18, typical: 0.155 },
-  us_midwest: { min: 0.1, max: 0.14, typical: 0.12 },
-  us_south: { min: 0.1, max: 0.13, typical: 0.115 },
-  us_west: { min: 0.12, max: 0.16, typical: 0.14 },
-  california: { min: 0.14, max: 0.22, typical: 0.18 },
+interface FanParameter {
+  id: string
+  parameter_name: string
+  min_value: number
+  max_value: number
+  default_value: number
+  unit: string
+  description: string
+  category: string
 }
 
 interface AirSideEconomizationProps {
@@ -33,281 +59,1132 @@ interface AirSideEconomizationProps {
   fans?: { bestFans: number; averageFans: number; oldFans: number }
   region?: string
   onConfigChange?: (config: any) => void
+  locationData?: Array<{timestamp: string, temperature: number, humidity: number}>
 }
 
 const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
-  serverType = 'dell_poweredge_r750',
+  serverType = '',
   numberOfRacks = 5,
   serversPerRack = 10,
   averageUtilization = 45,
   peakUtilization = 85,
   fans: initialFans = { bestFans: 2, averageFans: 4, oldFans: 0 },
-  region = 'us_northeast',
+  region = '',
   onConfigChange,
+  locationData,
 }) => {
-  const [localServerType, setLocalServerType] = useState<keyof typeof SERVER_LIBRARY>(serverType as any)
+  // State for fetched data
+  const [servers, setServers] = useState<Server[]>([])
+  const [countries, setCountries] = useState<CountryTariff[]>([])
+  const [fanParameters, setFanParameters] = useState<FanParameter[]>([])
+  const [loading, setLoading] = useState({
+    servers: true,
+    countries: true,
+    parameters: true
+  })
+  const [selectedServer, setSelectedServer] = useState<Server | null>(null)
+  
+  // ✅ STEP 1: Simple state - only store ID
+  const [selectedCountryId, setSelectedCountryId] = useState<string>('')
+  
+  const [error, setError] = useState<string>('')
+
+  // Local state
+  const [localServerType, setLocalServerType] = useState<string>('')
   const [localNumberOfRacks, setLocalNumberOfRacks] = useState(numberOfRacks)
   const [localServersPerRack, setLocalServersPerRack] = useState(serversPerRack)
   const [localAvgUtil, setLocalAvgUtil] = useState(averageUtilization)
   const [localPeakUtil, setLocalPeakUtil] = useState(peakUtilization)
   const [localFans, setLocalFans] = useState(initialFans)
-  const [localRegion, setLocalRegion] = useState(region)
+
+  // Fan efficiency from database parameters
   const [bestFanEfficiency, setBestFanEfficiency] = useState(0.35)
   const [avgFanEfficiency, setAvgFanEfficiency] = useState(0.6)
   const [oldFanEfficiency, setOldFanEfficiency] = useState(1.0)
 
-  const lastSentRef = useRef<string>('')
+  const [localLocationData, setLocalLocationData] = useState<any[]>([])
 
-  // Memoize all calculations to prevent unnecessary recalculations
+  const lastSentRef = useRef<string>('')
+  const updateTimeoutRef = useRef<NodeJS.Timeout>()
+
+  // Fetch data from Supabase on component mount
+  useEffect(() => {
+    fetchAllData()
+  }, [])
+
+  // Handle incoming serverType prop
+  useEffect(() => {
+    if (!serverType || !servers.length) return
+
+    let match = servers.find(s => String(s.id) === String(serverType))
+    
+    if (!match) {
+      match = servers.find(s => s.name === serverType)
+    }
+    
+    if (!match) {
+      match = servers.find(s => 
+        `${s.manufacturer} - ${s.name} (${s.model || 'Standard'})` === serverType
+      )
+    }
+    
+    if (match) {
+      setLocalServerType(match.id)
+    } else {
+      setLocalServerType('')
+    }
+  }, [serverType, servers])
+
+  // Server selection
+  useEffect(() => {
+    if (!localServerType) {
+      setSelectedServer(null)
+      return
+    }
+
+    const server = servers.find(s => String(s.id) === String(localServerType))
+    
+    if (server) {
+      setSelectedServer(server)
+    } else {
+      setSelectedServer(null)
+      setLocalServerType('')
+    }
+  }, [localServerType, servers])
+
+  const fetchAllData = async () => {
+    try {
+      setError('')
+      await Promise.all([
+        fetchServers(),
+        fetchCountries(),
+        fetchFanParameters()
+      ])
+    } catch (error) {
+      setError('Failed to load configuration data. Please refresh the page.')
+      console.error('Error fetching data:', error)
+    }
+  }
+
+  const fetchServers = async () => {
+    try {
+      setLoading(prev => ({ ...prev, servers: true }))
+      const { data, error } = await supabase
+        .from('servers')
+        .select('*')
+        .order('manufacturer')
+        .order('name')
+
+      if (error) {
+        console.error('Supabase error:', error)
+        throw new Error(`Failed to fetch servers: ${error.message}`)
+      }
+
+      if (data && data.length > 0) {
+        console.log(`✅ Loaded ${data.length} servers from database`)
+        setServers(data)
+      } else {
+        setError('No server configurations found in database')
+      }
+    } catch (error) {
+      console.error('Error fetching servers:', error)
+      setError('Unable to load server configurations')
+    } finally {
+      setLoading(prev => ({ ...prev, servers: false }))
+    }
+  }
+
+  // ✅ STEP 2: Fetch countries (NO auto-select, NO side effects)
+  const fetchCountries = async () => {
+    try {
+      setLoading(prev => ({ ...prev, countries: true }))
+      const { data, error } = await supabase
+        .from('tariff_carbon')
+        .select('id, country_name, electricity_tariff, co2_grid_factor')
+        .order('country_name')
+
+      if (error) throw error
+
+      if (data) {
+        const normalized: CountryTariff[] = data.map(row => ({
+          id: String(row.id),
+          country_name: row.country_name,
+          electricity_tariff: Number(row.electricity_tariff ?? 0),
+          co2_grid_factor: Number(row.co2_grid_factor ?? 0),
+        }))
+        
+        console.log(`✅ Loaded ${normalized.length} countries from database`)
+        setCountries(normalized)
+      } else {
+        console.warn('⚠️ No countries found in tariff_carbon table')
+      }
+    } catch (error) {
+      console.error('Error fetching countries:', error)
+    } finally {
+      setLoading(prev => ({ ...prev, countries: false }))
+    }
+  }
+
+  const fetchFanParameters = async () => {
+    try {
+      setLoading(prev => ({ ...prev, parameters: true }))
+      const { data, error } = await supabase
+        .from('parameters')
+        .select('*')
+        .eq('category', 'fan_efficiency')
+        .order('parameter_name')
+
+      if (error) {
+        console.error('Supabase error:', error)
+        throw new Error(`Failed to fetch fan parameters: ${error.message}`)
+      }
+
+      if (data && data.length > 0) {
+        setFanParameters(data)
+
+        // Set default fan efficiencies
+        data.forEach(param => {
+          const name = param.parameter_name.toLowerCase()
+          if (name.includes('best')) {
+            setBestFanEfficiency(param.default_value)
+          } else if (name.includes('average')) {
+            setAvgFanEfficiency(param.default_value)
+          } else if (name.includes('legacy') || name.includes('old')) {
+            setOldFanEfficiency(param.default_value)
+          }
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching fan parameters:', error)
+    } finally {
+      setLoading(prev => ({ ...prev, parameters: false }))
+    }
+  }
+
+  // ✅ STEP 4: DERIVE selectedCountry (DO NOT store in state)
+  const selectedCountry = useMemo(() => {
+    return countries.find(c => String(c.id) === selectedCountryId)
+  }, [countries, selectedCountryId])
+
+  // Handle country selection change - SIMPLE
+  const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedCountryId(e.target.value)
+  }
+
+  // Handle server selection change
+  const handleServerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const serverId = e.target.value
+    
+    if (!serverId) {
+      setLocalServerType('')
+      return
+    }
+
+    setLocalServerType(serverId)
+  }
+
+  // Handle location data upload
+  const handleLocationDataUpload = (data: any[]) => {
+    setLocalLocationData(data)
+  }
+
+  // Handle fan count changes
+  const handleFanChange = useCallback((type: 'bestFans' | 'averageFans' | 'oldFans', value: number) => {
+    setLocalFans(prev => ({
+      ...prev,
+      [type]: Math.max(0, Math.min(50, value))
+    }))
+  }, [])
+
+  // Handle efficiency changes
+  const handleEfficiencyChange = useCallback((type: 'best' | 'average' | 'old', value: number) => {
+    const param = getFanParameter(type)
+    const clampedValue = Math.max(param.min, Math.min(param.max, value))
+    
+    switch (type) {
+      case 'best':
+        setBestFanEfficiency(clampedValue)
+        break
+      case 'average':
+        setAvgFanEfficiency(clampedValue)
+        break
+      case 'old':
+        setOldFanEfficiency(clampedValue)
+        break
+    }
+  }, [fanParameters])
+
+  // Get fan parameter ranges
+  const getFanParameter = (type: 'best' | 'average' | 'old') => {
+    const param = fanParameters.find(p => {
+      const name = p.parameter_name.toLowerCase()
+      if (type === 'best') return name.includes('best')
+      if (type === 'average') return name.includes('average')
+      return name.includes('legacy') || name.includes('old')
+    })
+    
+    if (param) {
+      return {
+        min: param.min_value,
+        max: param.max_value,
+        default: param.default_value,
+        description: param.description,
+        unit: param.unit
+      }
+    }
+    
+    // Fallback defaults
+    return {
+      min: type === 'best' ? 0.3 : type === 'average' ? 0.5 : 0.8,
+      max: type === 'best' ? 0.4 : type === 'average' ? 0.7 : 1.2,
+      default: type === 'best' ? 0.35 : type === 'average' ? 0.6 : 1.0,
+      description: '',
+      unit: 'W/CFM'
+    }
+  }
+
+  // Memoize all calculations
   const calculations = useMemo(() => {
-    const serverSpec = SERVER_LIBRARY[localServerType]
+    if (!selectedServer || !selectedCountry) {
+      return {
+        numberOfServers: 0,
+        totalITPowerKW: 0,
+        totalFanPowerKW: 0,
+        totalCoolingPowerKW: 0,
+        annualCostUSD: 0,
+        tariff: 0.15,
+        carbonIntensity: 0,
+        perServerPower: 0
+      }
+    }
+
     const numberOfServers = localNumberOfRacks * localServersPerRack
-    const avgPowerPerServer = (serverSpec.maxPower + serverSpec.idlePower) / 2
+    const avgPowerPerServer = selectedServer.typical_power_w || (selectedServer.max_power_w + selectedServer.idle_power_w) / 2
     const totalITPowerKW = (numberOfServers * avgPowerPerServer * localAvgUtil) / 100 / 1000
     const estimatedCFM = numberOfServers * 20
     const totalFans = localFans.bestFans + localFans.averageFans + localFans.oldFans
+
     const bestFanPower = totalFans > 0 ? (localFans.bestFans / totalFans) * estimatedCFM * bestFanEfficiency : 0
     const avgFanPower = totalFans > 0 ? (localFans.averageFans / totalFans) * estimatedCFM * avgFanEfficiency : 0
     const oldFanPower = totalFans > 0 ? (localFans.oldFans / totalFans) * estimatedCFM * oldFanEfficiency : 0
+
     const totalFanPowerKW = (bestFanPower + avgFanPower + oldFanPower) / 1000
     const totalCoolingPowerKW = totalITPowerKW + totalFanPowerKW
-    const tariff = TARIFF_RANGES[localRegion]?.typical || 0.15
-    const annualCostUSD = totalCoolingPowerKW * 8760 * tariff
     
+    const tariff = selectedCountry?.electricity_tariff ?? 0.15
+    const carbonIntensity = selectedCountry?.co2_grid_factor ?? 0
+    const annualCostUSD = totalCoolingPowerKW * 8760 * tariff
+
     return {
-      serverSpec,
       numberOfServers,
       totalITPowerKW,
       totalFanPowerKW,
       totalCoolingPowerKW,
       annualCostUSD,
       tariff,
+      carbonIntensity,
+      perServerPower: Math.round(avgPowerPerServer)
     }
-  }, [localServerType, localNumberOfRacks, localServersPerRack, localAvgUtil, localFans, bestFanEfficiency, avgFanEfficiency, oldFanEfficiency, localRegion])
+  }, [
+    selectedServer,
+    selectedCountry,
+    localNumberOfRacks,
+    localServersPerRack,
+    localAvgUtil,
+    localFans,
+    bestFanEfficiency,
+    avgFanEfficiency,
+    oldFanEfficiency
+  ])
 
-  const { serverSpec, numberOfServers, totalITPowerKW, totalFanPowerKW, totalCoolingPowerKW, annualCostUSD, tariff } = calculations
+  const { numberOfServers, totalITPowerKW, totalFanPowerKW, totalCoolingPowerKW, annualCostUSD, tariff, carbonIntensity, perServerPower } = calculations
 
-  // Call the callback whenever calculations change
-  React.useEffect(() => {
-    if (!onConfigChange) return undefined
+  // Debounced config update
+  useEffect(() => {
+    if (!onConfigChange || !selectedServer || !selectedCountry) return
 
     const payload = {
       numberOfServers,
       serverType: localServerType,
+      serverName: selectedServer.name,
+      manufacturer: selectedServer.manufacturer,
+      model: selectedServer.model,
       numberOfRacks: localNumberOfRacks,
       serversPerRack: localServersPerRack,
       avgUtilization: localAvgUtil,
       peakUtilization: localPeakUtil,
       fans: localFans,
-      region: localRegion,
+      country: selectedCountry?.country_name || '',
+      countryId: selectedCountry?.id || '',
+      regionName: '',
+      electricityTariff: selectedCountry?.electricity_tariff || 0.15,
+      carbonIntensity: selectedCountry?.co2_grid_factor || 0,
+      currency: '',
       itPowerKW: totalITPowerKW,
       fanPowerKW: totalFanPowerKW,
       totalCoolingPowerKW,
       annualCostUSD,
-      fanEfficiency: { best: bestFanEfficiency, average: avgFanEfficiency, old: oldFanEfficiency },
+      fanEfficiency: { 
+        best: bestFanEfficiency, 
+        average: avgFanEfficiency, 
+        old: oldFanEfficiency 
+      },
+      locationData: localLocationData,
+      timestamp: new Date().toISOString()
     }
 
     try {
       const serialized = JSON.stringify(payload)
       if (lastSentRef.current !== serialized) {
         lastSentRef.current = serialized
-        // Use requestAnimationFrame to prevent layout thrashing
-        requestAnimationFrame(() => {
+        if (updateTimeoutRef.current) {
+          clearTimeout(updateTimeoutRef.current)
+        }
+        
+        updateTimeoutRef.current = setTimeout(() => {
           onConfigChange(payload)
-        })
+        }, 150)
       }
     } catch (e) {
-      requestAnimationFrame(() => {
+      console.error('Error serializing config:', e)
+      setTimeout(() => {
         onConfigChange(payload)
-      })
+      }, 150)
     }
-    
-    return undefined
-  }, [numberOfServers, totalITPowerKW, totalFanPowerKW, totalCoolingPowerKW, annualCostUSD, localServerType, localNumberOfRacks, localServersPerRack, localAvgUtil, localPeakUtil, localFans, localRegion, bestFanEfficiency, avgFanEfficiency, oldFanEfficiency, onConfigChange])
+  }, [
+    onConfigChange,
+    selectedServer,
+    selectedCountry,
+    localServerType,
+    localNumberOfRacks,
+    localServersPerRack,
+    localAvgUtil,
+    localPeakUtil,
+    localFans,
+    bestFanEfficiency,
+    avgFanEfficiency,
+    oldFanEfficiency,
+    numberOfServers,
+    totalITPowerKW,
+    totalFanPowerKW,
+    totalCoolingPowerKW,
+    annualCostUSD,
+    localLocationData
+  ])
 
-  return (
-    <div className="space-y-6">
-      <style>{`
-        .card-hover { transition: all 0.3s ease; }
-        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(92, 225, 229, 0.1); }
-        .input-focus { transition: all 0.2s ease; }
-        .input-focus:focus { box-shadow: 0 0 0 3px rgba(92, 225, 229, 0.1); }
-      `}</style>
+  // Initialize location data from props
+  useEffect(() => {
+    if (locationData && locationData.length > 0) {
+      setLocalLocationData(locationData)
+    }
+  }, [locationData])
 
-      {/* Section 1: Server Configuration */}
-      <div className="card-hover bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
-          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-            <Zap className="w-5 h-5 text-blue-600" />
+  // Server details section
+  const renderServerDetails = () => {
+    if (!selectedServer) {
+      return (
+        <div className="mt-6 p-6 bg-yellow-50 rounded-xl border border-yellow-200">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-600" />
+            <p className="text-yellow-700">Please select a server type to view details</p>
           </div>
+        </div>
+      )
+    }
+
+    return (
+      <div key={selectedServer.id} className="mt-6 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200 animate-fade-in">
+        <div className="flex items-start justify-between mb-4">
           <div>
-            <h4 className="font-bold text-lg text-[#1a1a2e]">Server Configuration</h4>
-            <p className="text-xs text-gray-500">Select and configure your server infrastructure</p>
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">
+              {selectedServer.name}
+            </h3>
+            <p className="text-sm text-gray-600">
+              {selectedServer.manufacturer} • {selectedServer.model || 'Standard Model'}
+              {selectedServer.release_year && ` • Released: ${selectedServer.release_year}`}
+            </p>
+          </div>
+          {selectedServer.efficiency_rating && (
+            <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+              {selectedServer.efficiency_rating} Efficiency
+            </span>
+          )}
+        </div>
+
+        {/* Power Specifications */}
+        <div className="mb-4">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Power Specifications</h4>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="bg-white p-3 rounded-lg border border-gray-200">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="w-4 h-4 text-amber-500" />
+                <span className="text-xs font-medium text-gray-600">Max Power</span>
+              </div>
+              <div className="text-lg font-bold text-gray-900">
+                {selectedServer.max_power_w.toLocaleString()} W
+              </div>
+            </div>
+
+            <div className="bg-white p-3 rounded-lg border border-gray-200">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="w-4 h-4 text-gray-500" />
+                <span className="text-xs font-medium text-gray-600">Idle Power</span>
+              </div>
+              <div className="text-lg font-bold text-gray-900">
+                {selectedServer.idle_power_w.toLocaleString()} W
+              </div>
+            </div>
+
+            <div className="bg-white p-3 rounded-lg border border-gray-200">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap className="w-4 h-4 text-blue-500" />
+                <span className="text-xs font-medium text-gray-600">Typical Power</span>
+              </div>
+              <div className="text-lg font-bold text-gray-900">
+                {selectedServer.typical_power_w?.toLocaleString() || Math.round((selectedServer.max_power_w + selectedServer.idle_power_w) / 2).toLocaleString()} W
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-[#1a1a2e] mb-3">Server Type</label>
-            <select
-              value={localServerType}
-              onChange={(e) => setLocalServerType(e.target.value as any)}
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none input-focus focus:border-[#5ce1e5] bg-white text-[#1a1a2e] font-medium"
+        {/* Hardware Specifications */}
+        <div className="mb-4">
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Hardware Specifications</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-white p-3 rounded-lg border border-gray-200">
+              <div className="flex items-center gap-2 mb-1">
+                <ServerIcon className="w-4 h-4 text-purple-500" />
+                <span className="text-xs font-medium text-gray-600">Form Factor</span>
+              </div>
+              <div className="text-sm font-semibold text-gray-900">
+                {selectedServer.form_factor}
+              </div>
+            </div>
+
+            {selectedServer.cpu_type && (
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <Cpu className="w-4 h-4 text-gray-500" />
+                  <span className="text-xs font-medium text-gray-600">CPU</span>
+                </div>
+                <div className="text-sm font-semibold text-gray-900">
+                  {selectedServer.cpu_type}
+                </div>
+              </div>
+            )}
+
+            {selectedServer.memory_gb > 0 && (
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <MemoryStick className="w-4 h-4 text-gray-500" />
+                  <span className="text-xs font-medium text-gray-600">Memory</span>
+                </div>
+                <div className="text-sm font-semibold text-gray-900">
+                  {selectedServer.memory_gb} GB
+                </div>
+              </div>
+            )}
+
+            {selectedServer.storage_tb > 0 && (
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <HardDrive className="w-4 h-4 text-gray-500" />
+                  <span className="text-xs font-medium text-gray-600">Storage</span>
+                </div>
+                <div className="text-sm font-semibold text-gray-900">
+                  {selectedServer.storage_tb} TB
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Cooling Information */}
+        <div>
+          <h4 className="text-sm font-medium text-gray-700 mb-2">Cooling Information</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="bg-white p-3 rounded-lg border border-gray-200">
+              <div className="flex items-center gap-2 mb-1">
+                <Wind className="w-4 h-4 text-cyan-500" />
+                <span className="text-xs font-medium text-gray-600">Cooling Type</span>
+              </div>
+              <div className="text-sm font-semibold text-gray-900">
+                {selectedServer.cooling_type}
+              </div>
+            </div>
+
+            <div className="bg-white p-3 rounded-lg border border-gray-200">
+              <div className="flex items-center gap-2 mb-1">
+                <BarChart3 className="w-4 h-4 text-green-500" />
+                <span className="text-xs font-medium text-gray-600">Typical Utilization</span>
+              </div>
+              <div className="text-sm font-semibold text-gray-900">
+                {selectedServer.typical_utilization || 45}%
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Loading state
+  if (loading.servers || loading.countries || loading.parameters) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center space-y-4">
+          <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto" />
+          <div className="space-y-2">
+            <div className="text-gray-700 font-medium">Loading configuration data...</div>
+            <div className="text-sm text-gray-500">
+              Fetching servers, countries, and parameters from database
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center space-y-4">
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
+          <div className="space-y-2">
+            <div className="text-red-600 font-medium">Error loading data</div>
+            <div className="text-sm text-gray-600">{error}</div>
+            <button
+              onClick={fetchAllData}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              {Object.entries(SERVER_LIBRARY).map(([key, spec]) => (
-                <option key={key} value={key}>
-                  {spec.name}
-                </option>
-              ))}
-            </select>
+              Retry Loading Data
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-8">
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+          animation: fadeIn 0.3s ease-out;
+        }
+      `}</style>
+
+      {/* Server Configuration Section */}
+      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
+          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+            <ServerIcon className="w-5 h-5 text-blue-600" />
+          </div>
+          <div>
+            <h4 className="font-bold text-lg text-gray-900">Server Configuration</h4>
+            <p className="text-sm text-gray-500">
+              Select server hardware from {servers.length} available configurations
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          {/* Server Selection */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-3">
+              Server Type <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <select
+                value={localServerType}
+                onChange={handleServerChange}
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3.5 focus:outline-none focus:border-blue-500 bg-white text-gray-900 font-medium appearance-none"
+                required
+              >
+                <option value="">Select a server type...</option>
+                {servers.map((server) => (
+                  <option key={server.id} value={server.id}>
+                    {server.manufacturer} - {server.name} ({server.model || 'Standard'})
+                  </option>
+                ))}
+              </select>
+              <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Select from {servers.length} available server configurations
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-4 rounded-xl bg-gradient-to-br from-blue-50 to-cyan-50 border border-blue-200">
-              <div className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">Max Power</div>
-              <div className="text-2xl font-bold text-blue-900">{serverSpec.maxPower}</div>
-              <div className="text-xs text-blue-600">Watts</div>
-            </div>
-            <div className="p-4 rounded-xl bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200">
-              <div className="text-xs font-semibold text-purple-600 uppercase tracking-wide mb-2">Idle</div>
-              <div className="text-2xl font-bold text-purple-900">{serverSpec.idlePower}</div>
-              <div className="text-xs text-purple-600">Watts</div>
-            </div>
-          </div>
+          {/* Server Details Display */}
+          {renderServerDetails()}
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* Rack and Server Configuration */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-semibold text-[#1a1a2e] mb-2">Racks</label>
-              <input type="number" value={localNumberOfRacks} onChange={(e) => setLocalNumberOfRacks(Number(e.target.value))} min={1} max={100} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2 input-focus focus:border-[#5ce1e5]" />
+              <label className="block text-sm font-semibold text-gray-900 mb-3">
+                Number of Racks <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-center gap-4">
+                <input 
+                  type="range" 
+                  value={localNumberOfRacks} 
+                  onChange={(e) => setLocalNumberOfRacks(Number(e.target.value))} 
+                  min={1} 
+                  max={100} 
+                  className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <div className="w-20">
+                  <input 
+                    type="number" 
+                    value={localNumberOfRacks} 
+                    onChange={(e) => setLocalNumberOfRacks(Number(e.target.value))} 
+                    min={1} 
+                    max={100} 
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-center"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">Range: 1-100 racks</p>
             </div>
+
             <div>
-              <label className="block text-sm font-semibold text-[#1a1a2e] mb-2">Servers/Rack</label>
-              <input type="number" value={localServersPerRack} onChange={(e) => setLocalServersPerRack(Number(e.target.value))} min={1} max={50} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2 input-focus focus:border-[#5ce1e5]" />
+              <label className="block text-sm font-semibold text-gray-900 mb-3">
+                Servers per Rack <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-center gap-4">
+                <input 
+                  type="range" 
+                  value={localServersPerRack} 
+                  onChange={(e) => setLocalServersPerRack(Number(e.target.value))} 
+                  min={1} 
+                  max={50} 
+                  className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <div className="w-20">
+                  <input 
+                    type="number" 
+                    value={localServersPerRack} 
+                    onChange={(e) => setLocalServersPerRack(Number(e.target.value))} 
+                    min={1} 
+                    max={50} 
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-center"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">Range: 1-50 servers per rack</p>
             </div>
           </div>
 
-          <div className="p-4 rounded-xl bg-gradient-to-r from-[#5ce1e5]/10 to-blue-400/10 border-l-4 border-[#5ce1e5]">
-            <div className="text-sm text-gray-600">Total Servers</div>
-            <div className="text-3xl font-bold text-[#1a1a2e]">{numberOfServers}</div>
+          {/* Quick Summary */}
+          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-l-4 border-blue-500">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Servers</div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {numberOfServers.toLocaleString()}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Power</div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {totalITPowerKW.toFixed(1)} kW
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Per Server Power</div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {perServerPower.toLocaleString()} W
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Utilization</div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {localAvgUtil}%
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Section 2: Utilization & Fans */}
-      <div className="card-hover bg-white rounded-2xl p-6 border border-gray-200 shadow-sm animate-fade-in" style={{ animationDelay: '0.1s' }}>
+      {/* Utilization & Fans Section */}
+      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
           <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
             <Wind className="w-5 h-5 text-green-600" />
           </div>
           <div>
-            <h4 className="font-bold text-lg text-[#1a1a2e]">Utilization & Cooling</h4>
-            <p className="text-xs text-gray-500">Set operational parameters and fan efficiency</p>
+            <h4 className="font-bold text-lg text-gray-900">Utilization & Cooling</h4>
+            <p className="text-sm text-gray-500">Set operational parameters and fan efficiency</p>
           </div>
         </div>
 
-        <div className="space-y-5 mb-6">
+        {/* Utilization sliders */}
+        <div className="space-y-6 mb-8">
           <div>
             <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-semibold text-[#1a1a2e]">Average Utilization</label>
+              <label className="text-sm font-semibold text-gray-900">Average Server Utilization</label>
               <span className="text-xl font-bold text-green-600">{localAvgUtil}%</span>
             </div>
-            <input type="range" value={localAvgUtil} onChange={(e) => setLocalAvgUtil(Number(e.target.value))} min={0} max={100} className="w-full h-3 bg-gradient-to-r from-green-200 to-green-500 rounded-lg appearance-none cursor-pointer" />
+            <input 
+              type="range" 
+              value={localAvgUtil} 
+              onChange={(e) => setLocalAvgUtil(Number(e.target.value))} 
+              min={0} 
+              max={100} 
+              className="w-full h-2 bg-gradient-to-r from-green-200 to-green-500 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>0%</span>
+              <span>100%</span>
+            </div>
           </div>
+
           <div>
             <div className="flex justify-between items-center mb-2">
-              <label className="text-sm font-semibold text-[#1a1a2e]">Peak Utilization</label>
+              <label className="text-sm font-semibold text-gray-900">Peak Server Utilization</label>
               <span className="text-xl font-bold text-red-600">{localPeakUtil}%</span>
             </div>
-            <input type="range" value={localPeakUtil} onChange={(e) => setLocalPeakUtil(Number(e.target.value))} min={0} max={100} className="w-full h-3 bg-gradient-to-r from-orange-200 to-red-500 rounded-lg appearance-none cursor-pointer" />
+            <input 
+              type="range" 
+              value={localPeakUtil} 
+              onChange={(e) => setLocalPeakUtil(Number(e.target.value))} 
+              min={0} 
+              max={100} 
+              className="w-full h-2 bg-gradient-to-r from-orange-200 to-red-500 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>0%</span>
+              <span>100%</span>
+            </div>
           </div>
         </div>
 
-        <h5 className="font-semibold text-[#1a1a2e] text-sm mb-4">Fan Efficiency</h5>
-        <div className="space-y-3">
-          {[
-            { label: 'Best-in-class', state: bestFanEfficiency, setState: setBestFanEfficiency, min: FAN_EFFICIENCY.best.min, max: FAN_EFFICIENCY.best.max, count: localFans.bestFans, setCount: (v: number) => setLocalFans({ ...localFans, bestFans: v }), color: 'green', bg: 'bg-green-50' },
-            { label: 'Average VFD', state: avgFanEfficiency, setState: setAvgFanEfficiency, min: FAN_EFFICIENCY.average.min, max: FAN_EFFICIENCY.average.max, count: localFans.averageFans, setCount: (v: number) => setLocalFans({ ...localFans, averageFans: v }), color: 'yellow', bg: 'bg-yellow-50' },
-            { label: 'Legacy', state: oldFanEfficiency, setState: setOldFanEfficiency, min: FAN_EFFICIENCY.old.min, max: FAN_EFFICIENCY.old.max, count: localFans.oldFans, setCount: (v: number) => setLocalFans({ ...localFans, oldFans: v }), color: 'red', bg: 'bg-red-50' },
-          ].map((fan, idx) => (
-            <div key={idx} className={`border rounded-lg p-4 ${fan.bg}`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="font-medium text-[#1a1a2e]">{fan.label}</div>
-                  <div className="text-xs text-gray-600">Range: {fan.min}–{fan.max} W/CFM</div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-600">Efficiency:</label>
-                    <input type="number" value={fan.state} onChange={(e) => { const v = Number(e.target.value); if (v >= fan.min && v <= fan.max) fan.setState(v); }} min={fan.min} max={fan.max} step={0.01} className={`w-16 border border-gray-300 rounded px-2 py-1`} />
+        {/* Fan Configuration */}
+        <div>
+          <h5 className="font-semibold text-gray-900 text-sm mb-4">Fan Configuration</h5>
+          <div className="space-y-4">
+            {[
+              { 
+                label: 'Best-in-class Fans', 
+                type: 'best' as const,
+                efficiency: bestFanEfficiency,
+                setEfficiency: (v: number) => handleEfficiencyChange('best', v),
+                count: localFans.bestFans,
+                setCount: (v: number) => handleFanChange('bestFans', v),
+                color: 'green',
+                bg: 'bg-green-50'
+              },
+              { 
+                label: 'Average VFD Fans', 
+                type: 'average' as const,
+                efficiency: avgFanEfficiency,
+                setEfficiency: (v: number) => handleEfficiencyChange('average', v),
+                count: localFans.averageFans,
+                setCount: (v: number) => handleFanChange('averageFans', v),
+                color: 'yellow',
+                bg: 'bg-yellow-50'
+              },
+              { 
+                label: 'Legacy Fans', 
+                type: 'old' as const,
+                efficiency: oldFanEfficiency,
+                setEfficiency: (v: number) => handleEfficiencyChange('old', v),
+                count: localFans.oldFans,
+                setCount: (v: number) => handleFanChange('oldFans', v),
+                color: 'red',
+                bg: 'bg-red-50'
+              },
+            ].map((fan, idx) => {
+              const param = getFanParameter(fan.type)
+              
+              return (
+                <div key={idx} className={`border rounded-lg p-4 ${fan.bg}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="font-medium text-gray-900">{fan.label}</div>
+                    <div className="text-sm text-gray-600">
+                      {fan.count} {fan.count === 1 ? 'fan' : 'fans'}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-gray-600">Quantity:</label>
-                    <input type="number" value={fan.count} onChange={(e) => fan.setCount(Number(e.target.value))} min={0} max={50} className="w-16 border border-gray-300 rounded px-2 py-1" />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-2">Efficiency ({param.unit})</label>
+                      <input 
+                        type="number" 
+                        value={fan.efficiency} 
+                        onChange={(e) => { 
+                          const v = Number(e.target.value); 
+                          if (v >= param.min && v <= param.max) fan.setEfficiency(v); 
+                        }} 
+                        min={param.min} 
+                        max={param.max} 
+                        step={0.01} 
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" 
+                      />
+                      <div className="text-xs text-gray-500 mt-1">
+                        Range: {param.min.toFixed(2)} - {param.max.toFixed(2)}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-2">Quantity</label>
+                      <input 
+                        type="number" 
+                        value={fan.count} 
+                        onChange={(e) => fan.setCount(Number(e.target.value))} 
+                        min={0} 
+                        max={50} 
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" 
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          ))}
+              )
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Section 3: Regional Tariff */}
-      <div className="card-hover bg-white rounded-2xl p-6 border border-gray-200 shadow-sm animate-fade-in" style={{ animationDelay: '0.2s' }}>
+      {/* Country Tariff Section - CORRECTED */}
+      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
           <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
             <DollarSign className="w-5 h-5 text-amber-600" />
           </div>
           <div>
-            <h4 className="font-bold text-lg text-[#1a1a2e]">Regional Tariff</h4>
-            <p className="text-xs text-gray-500">Select your electricity pricing region</p>
+            <h4 className="font-bold text-lg text-gray-900">Country Tariff</h4>
+            <p className="text-sm text-gray-500">Select your country for electricity pricing</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-6">
+          {/* ✅ STEP 3: Simple dropdown */}
           <div>
-            <label className="block text-sm font-semibold text-[#1a1a2e] mb-3">Region</label>
-            <select value={localRegion} onChange={(e) => setLocalRegion(e.target.value)} className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:outline-none input-focus focus:border-[#5ce1e5]">
-              <option value="us_northeast">US Northeast</option>
-              <option value="us_midwest">US Midwest</option>
-              <option value="us_south">US South</option>
-              <option value="us_west">US West</option>
-              <option value="california">California</option>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Country <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={selectedCountryId}
+              onChange={handleCountryChange}
+              className="w-full border-2 border-gray-300 rounded-xl px-4 py-3.5 focus:outline-none focus:border-blue-500 bg-white text-gray-900 font-medium"
+              required
+            >
+              <option value="">Select a country...</option>
+              {countries.map(country => (
+                <option key={country.id} value={String(country.id)}>
+                  {country.country_name}
+                </option>
+              ))}
             </select>
           </div>
-          <div className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200">
-            <div className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">Tariff</div>
-            <div className="text-2xl font-bold text-amber-900">${tariff.toFixed(3)}</div>
-            <div className="text-xs text-amber-600">/kWh</div>
+
+          {/* ✅ STEP 5: Display tariff + carbon ONLY if selected */}
+          {selectedCountry && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+              <div className="p-4 bg-amber-50 rounded-xl border border-amber-200">
+                <div className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-2">
+                  Electricity Tariff
+                </div>
+                <div className="text-2xl font-bold text-amber-900">
+                  ${selectedCountry.electricity_tariff.toFixed(3)}
+                </div>
+                <div className="text-xs text-amber-600">/ kWh</div>
+              </div>
+              
+              <div className="p-4 bg-green-50 rounded-xl border border-green-200">
+                <div className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">
+                  Carbon Intensity
+                </div>
+                <div className="text-2xl font-bold text-green-800">
+                  {selectedCountry.co2_grid_factor.toFixed(0)}
+                </div>
+                <div className="text-xs text-green-600">gCO₂ / kWh</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Location Data Section */}
+      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
+          <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+            <MapPin className="w-5 h-5 text-blue-600" />
           </div>
+          <div>
+            <h4 className="font-bold text-lg text-gray-900">Location Weather Data</h4>
+            <p className="text-sm text-gray-500">Upload historical weather data for precise cooling analysis</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="p-6 border-2 border-dashed border-gray-300 rounded-xl text-center bg-gray-50">
+            <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-sm text-gray-600 mb-2">
+              Drag & drop a CSV file here, or click to browse
+            </p>
+            <p className="text-xs text-gray-500">
+              CSV should contain timestamp, temperature, and humidity columns
+            </p>
+            <button 
+              onClick={() => {
+                const input = document.createElement('input')
+                input.type = 'file'
+                input.accept = '.csv'
+                input.onchange = (e: any) => {
+                  const file = e.target.files[0]
+                  if (file) {
+                    const reader = new FileReader()
+                    reader.onload = (e) => {
+                      try {
+                        const text = e.target?.result as string
+                        const lines = text.trim().split('\n')
+                        if (lines.length < 2) return
+                        
+                        const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+                        const hasTimestamp = headers.some(h => h.includes('time') || h.includes('date') || h.includes('timestamp'))
+                        const hasTemperature = headers.some(h => h.includes('temp') || h.includes('temperature'))
+                        const hasHumidity = headers.some(h => h.includes('hum') || h.includes('humidity') || h.includes('rh'))
+                        
+                        if (!hasTimestamp || !hasTemperature || !hasHumidity) {
+                          alert('CSV must contain timestamp, temperature, and humidity columns')
+                          return
+                        }
+
+                        const data = lines.slice(1).map(line => {
+                          const values = line.split(',').map(v => v.trim())
+                          const entry: any = {}
+                          headers.forEach((header, i) => {
+                            if (header.includes('temp') || header.includes('hum') || header.includes('rh')) {
+                              const num = parseFloat(values[i] || '0')
+                              entry[header] = isNaN(num) ? 0 : num
+                            } else {
+                              entry[header] = values[i] || ''
+                            }
+                          })
+                          return entry
+                        }).filter(entry => entry.timestamp && entry.temperature !== undefined && entry.humidity !== undefined)
+                        
+                        handleLocationDataUpload(data)
+                      } catch (err) {
+                        console.error('Error parsing CSV:', err)
+                        alert('Error parsing CSV file')
+                      }
+                    }
+                    reader.readAsText(file)
+                  }
+                }
+                input.click()
+              }}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Browse Files
+            </button>
+          </div>
+          
+          {localLocationData.length > 0 && (
+            <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+              <div className="flex items-center gap-3">
+                <CheckCircle2 className="w-5 h-5 text-green-600" />
+                <div>
+                  <p className="text-sm font-medium text-green-800">
+                    {localLocationData.length} data points loaded
+                  </p>
+                  <p className="text-xs text-green-600">
+                    Historical weather data ready for analysis
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* Summary Section */}
-      <div className="card-hover bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200 animate-fade-in" style={{ animationDelay: '0.3s' }}>
+      <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-blue-300">
           <div className="w-10 h-10 rounded-lg bg-blue-200 flex items-center justify-center">
             <TrendingDown className="w-5 h-5 text-blue-700" />
           </div>
-          <h4 className="font-bold text-lg text-[#1a1a2e]">Annual Power & Cost Summary</h4>
+          <div>
+            <h4 className="font-bold text-lg text-gray-900">Annual Power & Cost Summary</h4>
+            <p className="text-sm text-blue-600">Based on current configuration</p>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {[
-            { icon: Zap, label: 'IT Power', value: totalITPowerKW.toFixed(1), unit: 'kW', color: 'blue' },
-            { icon: Wind, label: 'Fan Power', value: totalFanPowerKW.toFixed(1), unit: 'kW', color: 'green' },
-            { icon: Zap, label: 'Total Power', value: totalCoolingPowerKW.toFixed(1), unit: 'kW', color: 'purple' },
-            { icon: DollarSign, label: 'Annual Cost', value: `$${(annualCostUSD / 1000).toFixed(1)}k`, unit: '/year', color: 'red' },
-          ].map((stat, idx) => (
-            <div key={idx} className="p-4 bg-white rounded-xl border border-gray-200">
-              <div className="text-xs text-gray-600 uppercase tracking-wide mb-2">{stat.label}</div>
-              <div className="text-2xl font-bold text-[#1a1a2e]">{stat.value}</div>
-              <div className="text-xs text-gray-500">{stat.unit}</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white p-4 rounded-xl border border-gray-200">
+            <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+              IT Power Consumption
             </div>
-          ))}
+            <div className="text-2xl font-bold text-gray-900">
+              {totalITPowerKW.toFixed(1)} kW
+            </div>
+            <div className="text-xs text-gray-500">Total server power</div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-200">
+            <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+              Cooling Power
+            </div>
+            <div className="text-2xl font-bold text-gray-900">
+              {totalFanPowerKW.toFixed(1)} kW
+            </div>
+            <div className="text-xs text-gray-500">Fan power consumption</div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-200">
+            <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+              Total Cooling Power
+            </div>
+            <div className="text-2xl font-bold text-gray-900">
+              {totalCoolingPowerKW.toFixed(1)} kW
+            </div>
+            <div className="text-xs text-gray-500">IT + Cooling power</div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-gray-200">
+            <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+              Annual Cost
+            </div>
+            <div className="text-2xl font-bold text-gray-900">
+              ${(annualCostUSD / 1000).toFixed(1)}k
+            </div>
+            <div className="text-xs text-gray-500">
+              Based on {tariff.toFixed(3)}/kWh
+            </div>
+          </div>
         </div>
+
+        {selectedServer && (
+          <div className="p-4 bg-blue-100 rounded-lg">
+            <p className="text-sm text-blue-800">
+              Currently configured: {selectedServer.manufacturer} {selectedServer.name} • 
+              {selectedServer.max_power_w.toLocaleString()}W max power • 
+              {selectedServer.cooling_type} cooling
+            </p>
+          </div>
+        )}
+
+        {selectedCountry && (
+          <div className="p-4 bg-gray-100 rounded-lg mt-4">
+            <p className="text-sm text-gray-800">
+              Based on {selectedCountry.country_name} • 
+              ${selectedCountry.electricity_tariff.toFixed(3)}/kWh • 
+              {Math.round(selectedCountry.co2_grid_factor)} gCO₂/kWh
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-export default AirSideEconomization
+export default AirSideEconomization;

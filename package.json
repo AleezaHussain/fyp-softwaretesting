@@ -13,6 +13,7 @@
   "dependencies": {
     "@react-three/drei": "^9.88.17",
     "@react-three/fiber": "^8.15.19",
+    "@supabase/supabase-js": "^2.90.1",
     "@types/react-router-dom": "^5.3.3",
     "axios": "^1.6.2",
     "chart.js": "^4.4.0",
