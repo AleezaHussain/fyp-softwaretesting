@@ -1,3 +1,10 @@
+<<<<<<< HEAD
+import React, { useState, useRef, useMemo, useEffect } from 'react'
+import { supabase } from '../../utils/supabaseClient'
+import { Zap, Wind, DollarSign, TrendingDown } from 'lucide-react'
+
+// SERVER_LIBRARY removed. Now using Supabase for server options.
+=======
 // AirSideEconomization.tsx - COMPLETE CORRECTED VERSION
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import { 
@@ -29,6 +36,7 @@ interface Server {
   weight_kg?: number
   dimensions?: string
 }
+>>>>>>> 17f02fb9
 
 interface CountryTariff {
   id: string
@@ -76,6 +84,11 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   countryId = '',
   serverId = '',
 }) => {
+<<<<<<< HEAD
+  const [serverOptions, setServerOptions] = useState<any[]>([])
+  const [serverDetails, setServerDetails] = useState<any | null>(null)
+  const [localServerType, setLocalServerType] = useState<string>("")
+=======
   const [servers, setServers] = useState<Server[]>([])
   const [countries, setCountries] = useState<CountryTariff[]>([])
   const [fanParameters, setFanParameters] = useState<FanParameter[]>([])
@@ -89,6 +102,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
 
   // Local state
   const [localServerType, setLocalServerType] = useState<string>(serverId || serverType || '')
+>>>>>>> 17f02fb9
   const [localNumberOfRacks, setLocalNumberOfRacks] = useState(numberOfRacks)
   const [localServersPerRack, setLocalServersPerRack] = useState(serversPerRack)
   const [localAvgUtil, setLocalAvgUtil] = useState(averageUtilization)
@@ -102,6 +116,46 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
 
   const [localLocationData, setLocalLocationData] = useState<any[]>([])
 
+<<<<<<< HEAD
+  // Memoize all calculations to prevent unnecessary recalculations
+
+  // Fetch server types from Supabase
+  useEffect(() => {
+    const fetchServers = async () => {
+      const { data, error } = await supabase
+        .from('servers')
+        .select('*')
+        .order('name', { ascending: true })
+      if (!error && data) {
+        setServerOptions(data)
+      }
+    }
+    fetchServers()
+  }, [])
+
+  // Ensure localServerType is always a valid value after options load
+  useEffect(() => {
+    if (serverOptions.length > 0) {
+      // If current value is not in options, set to first option
+      if (!localServerType || !serverOptions.some(s => s.id.toString() === localServerType)) {
+        setLocalServerType(serverOptions[0].id.toString())
+      }
+    }
+  }, [serverOptions])
+
+  // Update server details when selection changes
+  useEffect(() => {
+    if (!localServerType || serverOptions.length === 0) return
+    const found = serverOptions.find((s) => s.id.toString() === localServerType)
+    setServerDetails(found || null)
+  }, [localServerType, serverOptions])
+
+  const calculations = useMemo(() => {
+    if (!serverDetails) return { serverSpec: {}, numberOfServers: 0, totalITPowerKW: 0, totalFanPowerKW: 0, totalCoolingPowerKW: 0, annualCostUSD: 0, tariff: 0 }
+    const serverSpec = serverDetails
+    const numberOfServers = localNumberOfRacks * localServersPerRack
+    const avgPowerPerServer = (Number(serverSpec.max_power_w) + Number(serverSpec.idle_power_w)) / 2
+=======
   const lastSentRef = useRef<string>('')
   const updateTimeoutRef = useRef<NodeJS.Timeout>()
 
@@ -424,6 +478,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
 
     const numberOfServers = localNumberOfRacks * localServersPerRack
     const avgPowerPerServer = selectedServer.typical_power_w || (selectedServer.max_power_w + selectedServer.idle_power_w) / 2
+>>>>>>> 17f02fb9
     const totalITPowerKW = (numberOfServers * avgPowerPerServer * localAvgUtil) / 100 / 1000
     const estimatedCFM = numberOfServers * 20
     const totalFans = localFans.bestFans + localFans.averageFans + localFans.oldFans
@@ -434,11 +489,16 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
 
     const totalFanPowerKW = (bestFanPower + avgFanPower + oldFanPower) / 1000
     const totalCoolingPowerKW = totalITPowerKW + totalFanPowerKW
+<<<<<<< HEAD
+    const tariff = TARIFF_RANGES[localRegion]?.typical || 0.15
+    const annualCostUSD = totalCoolingPowerKW * 8760 * tariff
+=======
     
     const tariff = selectedCountry?.electricity_tariff ?? 0.15
     const carbonIntensity = selectedCountry?.co2_grid_factor ?? 0
     const annualCostUSD = totalCoolingPowerKW * 8760 * tariff
 
+>>>>>>> 17f02fb9
     return {
       numberOfServers,
       totalITPowerKW,
@@ -449,6 +509,9 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       carbonIntensity,
       perServerPower: Math.round(avgPowerPerServer)
     }
+<<<<<<< HEAD
+  }, [serverDetails, localNumberOfRacks, localServersPerRack, localAvgUtil, localFans, bestFanEfficiency, avgFanEfficiency, oldFanEfficiency, localRegion])
+=======
   }, [
     selectedServer,
     selectedCountry,
@@ -460,6 +523,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     avgFanEfficiency,
     oldFanEfficiency
   ])
+>>>>>>> 17f02fb9
 
   const { numberOfServers, totalITPowerKW, totalFanPowerKW, totalCoolingPowerKW, annualCostUSD, tariff, carbonIntensity, perServerPower } = calculations
 
@@ -537,12 +601,37 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     localLocationData
   ])
 
+<<<<<<< HEAD
+
+  // Dropdown state and effect (move to top-level)
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  useEffect(() => {
+    if (!dropdownOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.relative')) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [dropdownOpen]);
+
+  return (
+    <div className="space-y-6">
+      <style>{`
+        .card-hover { transition: all 0.3s ease; }
+        .card-hover:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(92, 225, 229, 0.1); }
+        .input-focus { transition: all 0.2s ease; }
+        .input-focus:focus { box-shadow: 0 0 0 3px rgba(92, 225, 229, 0.1); }
+      `}</style>
+=======
   // Initialize location data from props
   useEffect(() => {
     if (locationData && locationData.length > 0) {
       setLocalLocationData(locationData)
     }
   }, [locationData])
+>>>>>>> 17f02fb9
 
   // Server details section
   const renderServerDetails = () => {
@@ -612,6 +701,35 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
           </div>
         </div>
 
+<<<<<<< HEAD
+        <div className="space-y-4">
+          <div className="relative">
+            <label className="block text-sm font-semibold text-[#1a1a2e] mb-3">Server Type</label>
+            <button
+              type="button"
+              className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 bg-white text-[#1a1a2e] font-medium text-left flex justify-between items-center focus:outline-none input-focus focus:border-[#5ce1e5]"
+              onClick={() => setDropdownOpen((open) => !open)}
+            >
+              {serverOptions.find((s) => s.id.toString() === localServerType)?.name || 'Select a server type'}
+              <span className="ml-2">▼</span>
+            </button>
+            {dropdownOpen && (
+              <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-lg max-h-60 overflow-auto">
+                {serverOptions.map((server) => (
+                  <li
+                    key={server.id}
+                    className={`px-4 py-2 cursor-pointer hover:bg-blue-100 ${localServerType === server.id.toString() ? 'bg-blue-50 font-semibold' : ''}`}
+                    onClick={() => {
+                      setLocalServerType(server.id.toString());
+                      setDropdownOpen(false);
+                    }}
+                  >
+                    {server.name}
+                  </li>
+                ))}
+              </ul>
+            )}
+=======
         {/* Hardware Specifications */}
         <div className="mb-4">
           <h4 className="text-sm font-medium text-gray-700 mb-2">Hardware Specifications</h4>
@@ -870,6 +988,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             <p className="text-xs text-gray-500 mt-2">
               Select from {servers.length} available server configurations
             </p>
+>>>>>>> 17f02fb9
           </div>
 
           {/* Server Details Display */}
@@ -1348,4 +1467,4 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   )
 }
 
-export default AirSideEconomization
+export default AirSideEconomization;
