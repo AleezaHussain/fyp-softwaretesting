@@ -25,8 +25,8 @@ export const Navbar: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6">
         <div className="flex items-center justify-between h-20">
           {/* Logo */}
-          <div className={`flex items-center gap-3 cursor-pointer hover:scale-105 transition-transform`} onClick={() => navigate('/')}>
-            <img src="/logo.svg" alt="COOLIENCE" className="w-10 h-10" />
+          <div className={`flex items-center gap-1 cursor-pointer hover:scale-105 transition-transform`} onClick={() => navigate('/')}>
+            <img src="/logo.svg" alt="COOLIENCE" className="w-24 h-24" />
             <span className={`text-2xl font-bold ${
               isDark ? 'text-[#fd5757]' : 'text-[#5ce1e5]'
             }`}>
