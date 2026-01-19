@@ -11,16 +11,11 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-<<<<<<< HEAD
-    "@react-three/drei": "^9.122.0",
-    "@react-three/fiber": "^8.18.0",
-=======
     "@react-three/drei": "^9.88.17",
     "@react-three/fiber": "^8.15.19",
->>>>>>> 17f02fb9
     "@supabase/supabase-js": "^2.90.1",
     "@types/react-router-dom": "^5.3.3",
-    "axios": "^1.6.2",
+    "axios": "^1.13.2",
     "chart.js": "^4.4.0",
     "date-fns": "^2.30.0",
     "framer-motion": "^12.26.2",

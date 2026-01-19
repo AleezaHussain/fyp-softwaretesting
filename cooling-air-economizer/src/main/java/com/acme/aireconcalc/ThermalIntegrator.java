@@ -38,8 +38,12 @@ public class ThermalIntegrator {
         }
 
         // Calculate PUE components
+        // Use dynamic COP calculation
+        double evapTempC = 7.0; // Example: chilled water temp (can be made dynamic)
+        double condTempC = 35.0; // Example: condenser/ambient temp (can be made dynamic)
+        double cop = (evapTempC + 273) / (condTempC - evapTempC);
         load.totalCoolingLoadKW = load.totalITLoadKW; // Heat to be removed
-        load.estimatedCoolingPowerKW = load.totalCoolingLoadKW / 3.5; // Assume 3.5 COP
+        load.estimatedCoolingPowerKW = load.totalCoolingLoadKW / cop;
         load.pue = (load.totalITLoadKW + load.totalFanPowerKW + load.estimatedCoolingPowerKW) / load.totalITLoadKW;
 
         return load;
