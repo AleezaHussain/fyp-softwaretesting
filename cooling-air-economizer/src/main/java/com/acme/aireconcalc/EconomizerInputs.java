@@ -80,4 +80,18 @@ public class EconomizerInputs {
     // Baseline fan power for comparison (optional): leave 0 to auto-compute from
     // cfmPerKW
     public double baselineFan_W_per_CFM; // older system e.g., 1.0 W/CFM (if 0, we’ll use fan_W_per_CFM as same)
+
+    // --- Dynamic Simulation Constants ---
+    public int numServers = 50;
+    public double serverMaxPowerW = 507.0; // Updated to Fujitsu TX1330 M6 (AI-ready)
+    public double serverIdlePowerW = 100.0; // approx 20% of max
+    public double fanWeightedEfficiency = 0.516; // W/CFM (weighted average)
+    public double maxAirflowCFM = 2000.0; // Limit from UI
+    public double carbonIntensity_kg_per_kWh = 0.055; // 55g = 0.055kg per kWh
+
+    // --- Future-Proofing / AI Inputs ---
+    public double computeIntensityFactor = 1.0; // 1.0 = Standard, >1.0 = AI/HPC
+    public int forecastYears = 5; // Forecast horizon
+    public double energyEscalationRate = 0.035; // 3.5%
+    public double carbonTaxProjected = 126.0; // Euro per ton 2030 target
 }

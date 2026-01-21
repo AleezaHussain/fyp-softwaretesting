@@ -1,5 +1,7 @@
+// ...existing code...
 // AirSideEconomization.tsx - COMPLETE CORRECTED VERSION
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom';
 import { 
   Zap, Wind, DollarSign, TrendingDown, MapPin, AlertCircle, 
   BarChart3, CheckCircle2, Server as ServerIcon,
@@ -78,6 +80,12 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   countryId = '',
   serverId = '',
 }) => {
+  const navigate = useNavigate();
+  // New physical fields state
+  const [supplyAirTemp, setSupplyAirTemp] = useState(18.0); // °C, default
+  const [returnAirTemp, setReturnAirTemp] = useState(30.0); // °C, default
+  const [airflowCFM, setAirflowCFM] = useState(2000); // CFM, default
+  const [deltaT, setDeltaT] = useState(12.0); // °C, default (return - supply)
   const [servers, setServers] = useState<Server[]>([])
   const [countries, setCountries] = useState<CountryTariff[]>([])
   const [fanParameters, setFanParameters] = useState<FanParameter[]>([])
@@ -112,6 +120,18 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   const [oldFanEfficiency, setOldFanEfficiency] = useState(1.0)
 
   const [localLocationData, setLocalLocationData] = useState<any[]>([])
+
+  // Advanced Economizer Controls (Optional)
+  const [economizerMaxOutdoorTemp, setEconomizerMaxOutdoorTemp] = useState(24); // °C, default 24
+  const [economizerMaxHumidity, setEconomizerMaxHumidity] = useState(60); // %, default 60
+  const [minOutdoorAirFraction, setMinOutdoorAirFraction] = useState(0.2); // default 0.2
+
+  // Mechanical Cooling COP
+  const [mechanicalCOP, setMechanicalCOP] = useState(5.0); // default 5.0
+
+  // Economic Parameters (CAPEX)
+  const [capexPerCFM, setCapexPerCFM] = useState(2.5); // $/CFM, default 2.5
+  const [fixedEconomizerCapex, setFixedEconomizerCapex] = useState(20000); // $, default 20000
 
   const lastSentRef = useRef<string>('')
   const updateTimeoutRef = useRef<NodeJS.Timeout>()
@@ -510,7 +530,21 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         old: oldFanEfficiency 
       },
       locationData: localLocationData,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      // New fields
+      supplyAirTemp,
+      returnAirTemp,
+      airflowCFM,
+      deltaT,
+      // Advanced Economizer Controls
+      economizerMaxOutdoorTemp,
+      economizerMaxHumidity,
+      minOutdoorAirFraction,
+      // Mechanical Cooling COP
+      mechanicalCOP,
+      // Economic Parameters (CAPEX)
+      capexPerCFM,
+      fixedEconomizerCapex
     }
 
     try {
@@ -550,7 +584,11 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     totalFanPowerKW,
     totalCoolingPowerKW,
     annualCostUSD,
-    localLocationData
+    localLocationData,
+    supplyAirTemp,
+    returnAirTemp,
+    airflowCFM,
+    deltaT
   ])
 
   // Initialize location data from props
@@ -559,6 +597,31 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       setLocalLocationData(locationData)
     }
   }, [locationData])
+
+  // Render new physical fields UI
+  const renderPhysicalFields = () => (
+    <div className="mt-6 p-6 bg-blue-50 rounded-xl border border-blue-200">
+      <h4 className="text-sm font-medium text-gray-700 mb-2">Physical Parameters</h4>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Supply Air Temp (°C)</label>
+          <input type="number" min={5} max={30} step={0.1} value={supplyAirTemp} onChange={e => setSupplyAirTemp(Number(e.target.value))} className="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Return Air Temp (°C)</label>
+          <input type="number" min={10} max={50} step={0.1} value={returnAirTemp} onChange={e => setReturnAirTemp(Number(e.target.value))} className="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Airflow (CFM)</label>
+          <input type="number" min={100} max={100000} step={10} value={airflowCFM} onChange={e => setAirflowCFM(Number(e.target.value))} className="w-full border rounded px-2 py-1" />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">ΔT (Return - Supply, °C)</label>
+          <input type="number" min={1} max={40} step={0.1} value={deltaT} onChange={e => setDeltaT(Number(e.target.value))} className="w-full border rounded px-2 py-1" />
+        </div>
+      </div>
+    </div>
+  );
 
   // Server details section
   const renderServerDetails = () => {
@@ -574,6 +637,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     }
 
     return (
+      <>
       <div key={selectedServer.id} className="mt-6 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200 animate-fade-in">
         <div className="flex items-start justify-between mb-4">
           <div>
@@ -706,6 +770,9 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
           </div>
         </div>
       </div>
+    
+    {renderPhysicalFields()}
+    </>
     )
   }
 
@@ -1131,7 +1198,101 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         </div>
       </div>
 
-      {/* Country Tariff Section */}
+      {/* Advanced Economizer Controls (Optional) */}
+      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
+          <div className="w-10 h-10 rounded-lg bg-cyan-100 flex items-center justify-center">
+            <Wind className="w-5 h-5 text-cyan-600" />
+          </div>
+          <div>
+            <h4 className="font-bold text-lg text-gray-900">Advanced Economizer Controls <span className='text-xs text-gray-500'>(Optional)</span></h4>
+            <p className="text-sm text-gray-500">Fine-tune economizer operation for engineering analysis</p>
+          </div>
+        </div>
+        <div className="space-y-6">
+          {/* A) Economizer Max Outdoor Temperature (°C) */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-1">
+              Economizer Enable Temperature (°C)
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={10}
+                max={30}
+                step={0.5}
+                value={economizerMaxOutdoorTemp}
+                onChange={e => setEconomizerMaxOutdoorTemp(Number(e.target.value))}
+                className="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+              />
+              <input
+                type="number"
+                min={10}
+                max={30}
+                step={0.5}
+                value={economizerMaxOutdoorTemp}
+                onChange={e => setEconomizerMaxOutdoorTemp(Number(e.target.value))}
+                className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-center"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Outdoor air cooling is disabled above this temperature to avoid excessive heat load. (Range: 10–30°C, default 24°C)</p>
+          </div>
+          {/* B) Economizer Max Outdoor Humidity (%) */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-1">
+              Maximum Outdoor Humidity (%)
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={40}
+                max={80}
+                step={5}
+                value={economizerMaxHumidity}
+                onChange={e => setEconomizerMaxHumidity(Number(e.target.value))}
+                className="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+              />
+              <input
+                type="number"
+                min={40}
+                max={80}
+                step={5}
+                value={economizerMaxHumidity}
+                onChange={e => setEconomizerMaxHumidity(Number(e.target.value))}
+                className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-center"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Economizer operation is restricted when outdoor humidity exceeds this value. (Range: 40–80%, default 60%)</p>
+          </div>
+          {/* C) Minimum Outdoor Air Fraction */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-1">
+              Minimum Outdoor Air Fraction
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={0.1}
+                max={0.5}
+                step={0.05}
+                value={minOutdoorAirFraction}
+                onChange={e => setMinOutdoorAirFraction(Number(e.target.value))}
+                className="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+              />
+              <input
+                type="number"
+                min={0.1}
+                max={0.5}
+                step={0.05}
+                value={minOutdoorAirFraction}
+                onChange={e => setMinOutdoorAirFraction(Number(e.target.value))}
+                className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-center"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Controls how much outside air is introduced during partial economizer operation. (Range: 0.1–0.5, default 0.2)</p>
+          </div>
+        </div>
+      </div>
       <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
           <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -1355,6 +1516,101 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             </p>
           </div>
         )}
+      </div>
+      <div className="flex justify-end mt-8">
+        <button
+          className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-lg"
+          onClick={async () => {
+            // Calculate weighted average fan efficiency and total fan count
+            const totalFans = localFans.bestFans + localFans.averageFans + localFans.oldFans;
+            let weightedEfficiency = 0;
+            if (totalFans > 0) {
+              weightedEfficiency = (
+                (localFans.bestFans * bestFanEfficiency) +
+                (localFans.averageFans * avgFanEfficiency) +
+                (localFans.oldFans * oldFanEfficiency)
+              ) / totalFans;
+            }
+
+            // Map to backend fields
+            // Assume serverFanPowerPercent is normalized to 0-1 (e.g., 0.5 for 50%)
+            // You can adjust this logic as needed for your backend
+            const serverFanPowerPercent = weightedEfficiency; // or scale as needed
+            const variableFanSpeed = totalFans > 1; // Example: true if more than one fan
+            const minFanSpeed = totalFans > 0 ? 0.3 : 0; // Example: set a default min speed
+
+            const payload = {
+              // Server & rack config
+              numberOfRacks: localNumberOfRacks,
+              serversPerRack: localServersPerRack,
+              serverMaxPowerW: selectedServer?.max_power_w,
+              serverIdlePowerW: selectedServer?.idle_power_w,
+              serverTypicalPowerW: selectedServer?.typical_power_w,
+              serverType: localServerType,
+              serverName: selectedServer?.name,
+              manufacturer: selectedServer?.manufacturer,
+              model: selectedServer?.model,
+              formFactor: selectedServer?.form_factor,
+              coolingType: selectedServer?.cooling_type,
+              cpuType: selectedServer?.cpu_type,
+              memoryGB: selectedServer?.memory_gb,
+              storageTB: selectedServer?.storage_tb,
+              releaseYear: selectedServer?.release_year,
+              efficiencyRating: selectedServer?.efficiency_rating,
+              averageUtilization: localAvgUtil,
+              peakUtilization: localPeakUtil,
+              // Fan fields for backend
+              serverFanPowerPercent,
+              variableFanSpeed,
+              minFanSpeed,
+              // Country & tariff
+              country: selectedCountry?.country_name,
+              countryId: selectedCountry?.id,
+              electricityTariff: selectedCountry?.electricity_tariff,
+              carbonIntensity: selectedCountry?.co2_grid_factor,
+              // Weather data
+              weatherData: localLocationData,
+              // Physical fields
+              supplyAirTemp,
+              returnAirTemp,
+              airflowCFM,
+              deltaT,
+              // Advanced Economizer Controls
+              economizerMaxOutdoorTemp,
+              economizerMaxHumidity,
+              minOutdoorAirFraction,
+              // Mechanical Cooling COP
+              mechanicalCOP,
+              // Economic Parameters (CAPEX)
+              capexPerCFM,
+              fixedEconomizerCapex,
+              // Timestamp for traceability
+              timestamp: new Date().toISOString()
+            };
+
+            try {
+              console.log('[RunSimulation] Sending payload:', payload);
+              const response = await fetch('http://localhost:8080/api/simulation/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+              });
+              console.log('[RunSimulation] Response status:', response.status);
+              if (!response.ok) throw new Error('Simulation API error');
+              const results = await response.json();
+              console.log('[RunSimulation] Results from API:', results);
+              // Store results in localStorage for reload persistence
+              localStorage.setItem('lastSimulationResults', JSON.stringify(results));
+              console.log('[RunSimulation] Saved results to localStorage. Navigating to /raw-results');
+              navigate('/raw-results', { state: results });
+            } catch (err) {
+              console.error('[RunSimulation] Error:', err);
+              alert('Failed to run simulation: ' + err.message);
+            }
+          }}
+        >
+          Run Simulation
+        </button>
       </div>
     </div>
   )

@@ -36,6 +36,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Add dependency on core physics/logic module -->
+        <dependency>
+            <groupId>com.acme.aireconcalc</groupId>
+            <artifactId>cooling-air-economizer</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
     </dependencies>
     <build>
         <plugins>

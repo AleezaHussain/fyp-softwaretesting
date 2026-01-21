@@ -936,9 +936,9 @@ export const InputManagement: React.FC = () => {
     }, 500)
     
     // Run actual simulation
-    if (currentInput) {
+      if (configRef.current) {
       try {
-        await runSimulation(currentInput)
+          await runSimulation(configRef.current)
         
         // Wait for simulation to complete
         setTimeout(() => {

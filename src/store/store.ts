@@ -161,25 +161,49 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   },
 
   runSimulation: async (input: SimulationInput) => {
-    // Simulate API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const result: SimulationResult = {
-          id: Math.random().toString(36).substr(2, 9),
-          simulationId: Math.random().toString(36).substr(2, 9),
-          pue: 1.5 + Math.random() * 0.5,
-          wue: 0.8 + Math.random() * 0.3,
-          totalEnergyConsumption: input.itLoad * 8760 * 1.5,
-          estimatedCost: input.itLoad * 8760 * 0.12,
-          carbonFootprint: input.itLoad * 8760 * 0.5,
-          hourlyEnergyUse: Array.from({ length: 24 }, () => input.itLoad * (0.8 + Math.random() * 0.4)),
-          temperatureTrends: Array.from({ length: 24 }, () => 20 + Math.random() * 10),
-          copOverTime: Array.from({ length: 24 }, () => 2 + Math.random() * 1),
-          timestamp: new Date().toISOString(),
-        }
-        set({ currentResult: result })
-        resolve(result)
-      }, 2000)
-    })
+    // Map frontend input to backend API structure
+    // Map fans if available (example: best, average, old)
+    const fans = [];
+    if (input.fanConfig) {
+      if (input.fanConfig.bestFans)
+        fans.push({ type: "best", efficiencyWPerCFM: input.fanEfficiency?.best ?? 0.35, quantity: input.fanConfig.bestFans });
+      if (input.fanConfig.averageFans)
+        fans.push({ type: "average", efficiencyWPerCFM: input.fanEfficiency?.average ?? 0.6, quantity: input.fanConfig.averageFans });
+      if (input.fanConfig.oldFans)
+        fans.push({ type: "old", efficiencyWPerCFM: input.fanEfficiency?.old ?? 1, quantity: input.fanConfig.oldFans });
+    }
+
+    // Map weatherData from locationData (8760 values)
+    const weatherData = Array.isArray(input.locationData)
+      ? input.locationData.map((d: any) => ({
+          timestamp: d.timestamp,
+          dryBulb: d.temperature,
+          relativeHumidity: d.humidity
+        }))
+      : [];
+
+    const payload = {
+      numberOfRacks: input.numberOfRacks,
+      serversPerRack: input.totalServers ? input.totalServers / input.numberOfRacks : 10,
+      serverMaxPowerW: input.serverMaxPowerW ?? 300,
+      serverIdlePowerW: input.serverIdlePowerW ?? 100,
+      averageUtilization: input.efficiencyFactor ?? 70,
+      peakUtilization: input.peakUtilization ?? 65,
+      fans,
+      country: input.country ?? "",
+      electricityTariff: input.electricityTariff ?? 0.2,
+      carbonIntensity: input.co2EmissionFactor ?? 0.05,
+      weatherData
+    };
+
+    console.log("Simulation API payload:", payload);
+    const response = await fetch("http://localhost:9090/api/simulate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    set({ currentResult: data });
+    return data;
   },
 }))

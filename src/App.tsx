@@ -19,6 +19,8 @@ import { NewSimulation } from './pages/NewSimulation'
 import { DataCenterBuilder } from './pages/DataCenterBuilder'
 import Homepage from './pages/Homepage'
 
+import RawResultsPage from './pages/RawResultsPage';
+
 interface ProtectedRouteProps {
   children: React.ReactNode
 }
@@ -56,6 +58,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/raw-results"
+          element={
+            <ProtectedRoute>
+              <RawResultsPage />
             </ProtectedRoute>
           }
         />
