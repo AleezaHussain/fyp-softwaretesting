@@ -85,12 +85,16 @@ public class EconomizerController {
      * @param mode     Economizer mode (for uplift)
      * @return Fan power in kW
      */
-    public double computeFanPowerKW(double cfm, double itLoadKW, EconomizerMode mode) {
-        // Baseline: 0.25 W/CFM supply, 0.15 W/CFM return (lower for small systems)
-        double supplyWperCFM = 0.25;
-        double returnWperCFM = 0.15;
+    public double computeFanPowerKW(double cfm, double itLoadKW, EconomizerMode mode, double fanWeightedEfficiency) {
+        // Use weighted fan efficiency from inputs (W/CFM)
+        // NOTE: You must pass the weighted efficiency as a parameter or access it from
+        // a context object.
+        // For this patch, assume you add a parameter: double fanWeightedEfficiency
+        // Example usage: computeFanPowerKW(cfm, itLoadKW, mode, fanWeightedEfficiency)
+        // If you cannot change the method signature, you must refactor the call site to
+        // provide this value.
         double filterPenalty = 1.08; // Slightly lower penalty
-        double powerW = (supplyWperCFM + returnWperCFM) * cfm;
+        double powerW = fanWeightedEfficiency * cfm;
         double fanKW = (powerW * filterPenalty) / 1000.0;
         // Clamp to 7–15% of IT load for realism
         double minFrac = 0.07, maxFrac = 0.15;

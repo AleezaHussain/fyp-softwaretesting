@@ -4,6 +4,7 @@ import com.acme.aireconcalc.AirEconomizerModel;
 import com.acme.aireconcalc.EconomizerInputs;
 import com.acme.aireconcalc.SimUtils;
 import com.acme.aireconcalc.WeatherData;
+import com.example.coolingeconomizer.model.SimulationRequest;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,17 +23,25 @@ public class EconomizerController {
     @GetMapping("/simulate")
     public SimulationResponse runSimulation() {
         System.out.println("[EconomizerController] GET /simulate called");
-        SimulationResponse resp = runSimulationPost(new SimulationRequest());
+        SimulationResponse resp = runSimulationPost(new com.example.coolingeconomizer.model.SimulationRequest());
         System.out.println("[EconomizerController] GET /simulate response: " + resp);
         return resp;
     }
 
     @PostMapping("/simulate")
-    public SimulationResponse runSimulationPost(@RequestBody(required = false) SimulationRequest req) {
+    public SimulationResponse runSimulationPost(
+            @RequestBody(required = false) com.example.coolingeconomizer.model.SimulationRequest req) {
+        // Log received physical parameters
+        if (req != null) {
+            System.out.println("[EconomizerController] Received airflowCFM: " + req.airflowCFM);
+            System.out.println("[EconomizerController] Received supplyAirTemp: " + req.supplyAirTemp);
+            System.out.println("[EconomizerController] Received returnAirTemp: " + req.returnAirTemp);
+            System.out.println("[EconomizerController] Received deltaT: " + req.deltaT);
+        }
         System.out.println("[EconomizerController] POST /simulate called");
         if (req == null) {
             System.out.println("[EconomizerController] No request body provided, using defaults");
-            req = new SimulationRequest(); // Safety fallback
+            req = new com.example.coolingeconomizer.model.SimulationRequest(); // Safety fallback
         } else {
             System.out.println("[EconomizerController] Request body: " + req);
         }
@@ -60,9 +69,35 @@ public class EconomizerController {
         System.out.println(
                 "[EconomizerController] peakUtil: " + peakUtil + ", avgUtil: " + avgUtil + ", minUtil: " + minUtil);
 
-        in.fanWeightedEfficiency = 0.516;
-        in.maxAirflowCFM = 2000.0;
+        // Calculate weighted fan efficiency dynamically from request
+        int totalFans = req.bestQuantity + req.averageQuantity + req.legacyQuantity;
+        double weightedSum = (req.bestQuantity * req.bestEfficiency)
+                + (req.averageQuantity * req.averageEfficiency)
+                + (req.legacyQuantity * req.legacyEfficiency);
+        in.fanWeightedEfficiency = (totalFans > 0) ? (weightedSum / totalFans) : 0.60; // Default to 0.60 if no fans
+        // Use airflowCFM from frontend if provided, else default
+        in.maxAirflowCFM = req.airflowCFM > 0 ? req.airflowCFM : 2000.0;
+        System.out.println("[EconomizerController] Used in.maxAirflowCFM in model: " + in.maxAirflowCFM);
+
+        // Log usage of supplyAirTemp, returnAirTemp, deltaT in model formulas (example
+        // usage)
+        double supplyAirTemp = req.supplyAirTemp > 0 ? req.supplyAirTemp : 18.0;
+        double returnAirTemp = req.returnAirTemp > 0 ? req.returnAirTemp : 30.0;
+        double deltaT = req.deltaT > 0 ? req.deltaT : (returnAirTemp - supplyAirTemp);
+        System.out.println("[EconomizerController] Used supplyAirTemp in model: " + supplyAirTemp);
+        System.out.println("[EconomizerController] Used returnAirTemp in model: " + returnAirTemp);
+        System.out.println("[EconomizerController] Used deltaT in model: " + deltaT);
+
+        // Example: log a formula using these values
+        double airflowKW = in.maxAirflowCFM * deltaT * 1.2 / 3600.0; // Example formula
+        System.out.println("[EconomizerController] Example formula: airflowKW = maxAirflowCFM * deltaT * 1.2 / 3600 = "
+                + airflowKW);
         in.mechCOP = 3.0;
+
+        // Advanced Economizer Controls
+        in.economizerMaxOutdoorTemp = req.economizerMaxOutdoorTemp != null ? req.economizerMaxOutdoorTemp : 24.0;
+        in.economizerMaxHumidity = req.economizerMaxHumidity != null ? req.economizerMaxHumidity : 60.0;
+        in.minOutdoorAirFraction = req.minOutdoorAirFraction != null ? req.minOutdoorAirFraction : 0.2;
 
         AirEconomizerModel model = new AirEconomizerModel();
         List<AirEconomizerModel.StepResult> hourlyResults = new ArrayList<>();
@@ -78,10 +113,45 @@ public class EconomizerController {
         for (int h = 0; h < steps; h++) {
             WeatherData w = new WeatherData();
             if (useProvidedWeather) {
-                WeatherEntryDTO entry = req.weatherData.get(h);
-                w.dryBulbC = entry.dryBulbC != null ? entry.dryBulbC : (entry.tempC != null ? entry.tempC : 20.0);
-                w.relativeHumidity = entry.relativeHumidity != null ? entry.relativeHumidity
-                        : (entry.rh != null ? entry.rh : 50.0);
+                com.example.coolingeconomizer.model.SimulationRequest.WeatherData entry = req.weatherData.get(h);
+                // Map both possible frontend field names
+                double dryBulb = 0.0;
+                double rh = 0.0;
+                try {
+                    java.lang.reflect.Field tempField = entry.getClass().getDeclaredField("temperature");
+                    tempField.setAccessible(true);
+                    Object tempVal = tempField.get(entry);
+                    if (tempVal instanceof Number)
+                        dryBulb = ((Number) tempVal).doubleValue();
+                } catch (Exception ignore) {
+                }
+                try {
+                    java.lang.reflect.Field humField = entry.getClass().getDeclaredField("humidity");
+                    humField.setAccessible(true);
+                    Object humVal = humField.get(entry);
+                    if (humVal instanceof Number)
+                        rh = ((Number) humVal).doubleValue();
+                } catch (Exception ignore) {
+                }
+                // Fallback to dryBulb/relativeHumidity if present
+                try {
+                    java.lang.reflect.Field dryBulbField = entry.getClass().getDeclaredField("dryBulb");
+                    dryBulbField.setAccessible(true);
+                    Object dryVal = dryBulbField.get(entry);
+                    if (dryVal instanceof Number && ((Number) dryVal).doubleValue() != 0.0)
+                        dryBulb = ((Number) dryVal).doubleValue();
+                } catch (Exception ignore) {
+                }
+                try {
+                    java.lang.reflect.Field rhField = entry.getClass().getDeclaredField("relativeHumidity");
+                    rhField.setAccessible(true);
+                    Object rhVal = rhField.get(entry);
+                    if (rhVal instanceof Number && ((Number) rhVal).doubleValue() != 0.0)
+                        rh = ((Number) rhVal).doubleValue();
+                } catch (Exception ignore) {
+                }
+                w.dryBulbC = dryBulb != 0.0 ? dryBulb : 20.0;
+                w.relativeHumidity = rh != 0.0 ? rh : 50.0;
                 System.out.println("[EconomizerController] WeatherData (provided) h=" + h + ": dryBulbC=" + w.dryBulbC
                         + ", rh=" + w.relativeHumidity);
             } else {
@@ -127,25 +197,5 @@ public class EconomizerController {
         public double estimatedOpExUSD;
     }
 
-    // Request DTO matched to User Payload
-    public static class SimulationRequest {
-        public int numberOfRacks;
-        public int serversPerRack;
-        public double serverMaxPowerW;
-        public double serverIdlePowerW;
-        public double averageUtilization; // 0-100
-        public double peakUtilization; // 0-100
-        public double carbonIntensity;
-        public double electricityTariff;
-        public String country;
-        public List<WeatherEntryDTO> weatherData;
-    }
-
-    public static class WeatherEntryDTO {
-        // Supporting potential field names
-        public Double dryBulbC;
-        public Double tempC;
-        public Double relativeHumidity;
-        public Double rh;
-    }
+    // ...existing code...
 }

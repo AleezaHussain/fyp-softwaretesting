@@ -1,1 +1,13 @@
 mvn spring-boot:run -f cooling-air-economizer/api/pom.xml
+
+
+
+
+cd d:/aleezafyp/fyp ; mvn spring-boot:run -f cooling-air-economizer/api/pom.xml
+
+
+
+
+
+
+cd d:/aleezafyp/fyp/cooling-air-economizer ; mvn clean install

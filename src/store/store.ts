@@ -27,27 +27,39 @@ export interface Simulation {
 }
 
 export interface SimulationInput {
-  // Step 1: Basic Configuration
   dataCenterName: string
   location: string
   itLoad: number
   numberOfRacks: number
-
-  // Step 2: Cooling Technique
   coolingTechnique: 'air' | 'water' | 'evaporative' | 'hybrid'
-
-  // Step 3: Advanced Parameters
   supplyAirTemp: number
   chilledWaterTemp: number
   efficiencyFactor: number
-
-  // Step 4: Environmental Data
   electricityTariff: number
   co2EmissionFactor: number
   weatherData?: any
-
-  // Step 5: Review
+  
+  // Optional/Flat fields
+  serverMaxPowerW?: number;
+  serverIdlePowerW?: number;
+  averageUtilization?: number;
+  peakUtilization?: number;
+  bestQuantity?: number
+  bestEfficiency?: number
+  averageQuantity?: number
+  averageEfficiency?: number
+  legacyQuantity?: number
+  legacyEfficiency?: number
+  economizerMaxOutdoorTemp?: number
+  economizerMaxHumidity?: number
+  minOutdoorAirFraction?: number
+  computeIntensityFactor?: number
+  forecastYears?: number
+  climateChangeOffsetC?: number
   reviewed: boolean
+  airflowCFM?: number
+  returnAirTemp?: number
+  deltaT?: number
 }
 
 export interface SimulationResult {
@@ -78,7 +90,6 @@ export interface SimulationStore {
   currentSimulation: Simulation | null
   currentInput: SimulationInput | null
   currentResult: SimulationResult | null
-  
   addSimulation: (simulation: Simulation) => void
   setCurrentSimulation: (simulation: Simulation | null) => void
   setCurrentInput: (input: SimulationInput | null) => void
@@ -90,44 +101,28 @@ export interface SimulationStore {
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   isAuthenticated: false,
-
   login: (email: string, _password: string) => {
     const user: User = {
       id: '1',
       name: 'John Doe',
       email,
-      preferences: {
-        theme: 'light',
-        units: 'metric',
-        notifications: true,
-      },
+      preferences: { theme: 'light', units: 'metric', notifications: true },
     }
     set({ user, isAuthenticated: true })
   },
-
   signup: (name: string, email: string, _password: string) => {
     const user: User = {
       id: Math.random().toString(36).substr(2, 9),
       name,
       email,
-      preferences: {
-        theme: 'light',
-        units: 'metric',
-        notifications: true,
-      },
+      preferences: { theme: 'light', units: 'metric', notifications: true },
     }
     set({ user, isAuthenticated: true })
   },
-
-  logout: () => {
-    set({ user: null, isAuthenticated: false })
-  },
-
-  updateUser: (updates: Partial<User>) => {
-    set((state) => ({
-      user: state.user ? { ...state.user, ...updates } : null,
-    }))
-  },
+  logout: () => set({ user: null, isAuthenticated: false }),
+  updateUser: (updates) => set((state) => ({
+    user: state.user ? { ...state.user, ...updates } : null,
+  })),
 }))
 
 export const useSimulationStore = create<SimulationStore>((set) => ({
@@ -136,72 +131,72 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   currentInput: null,
   currentResult: null,
 
-  addSimulation: (simulation: Simulation) => {
-    set((state) => ({
-      simulations: [...state.simulations, simulation],
-    }))
-  },
-
-  setCurrentSimulation: (simulation: Simulation | null) => {
-    set({ currentSimulation: simulation })
-  },
-
-  setCurrentInput: (input: SimulationInput | null) => {
-    set({ currentInput: input })
-  },
-
-  setCurrentResult: (result: SimulationResult | null) => {
-    set({ currentResult: result })
-  },
-
-  updateSimulationInput: (input: Partial<SimulationInput>) => {
-    set((state) => ({
-      currentInput: state.currentInput ? { ...state.currentInput, ...input } : null,
-    }))
-  },
+  addSimulation: (simulation) => set((state) => ({
+    simulations: [...state.simulations, simulation],
+  })),
+  setCurrentSimulation: (simulation) => set({ currentSimulation: simulation }),
+  setCurrentInput: (input) => set({ currentInput: input }),
+  setCurrentResult: (result) => set({ currentResult: result }),
+  updateSimulationInput: (input) => set((state) => ({
+    currentInput: state.currentInput ? { ...state.currentInput, ...input } : null,
+  })),
 
   runSimulation: async (input: SimulationInput) => {
-    // Map frontend input to backend API structure
-    // Map fans if available (example: best, average, old)
-    const fans = [];
-    if (input.fanConfig) {
-      if (input.fanConfig.bestFans)
-        fans.push({ type: "best", efficiencyWPerCFM: input.fanEfficiency?.best ?? 0.35, quantity: input.fanConfig.bestFans });
-      if (input.fanConfig.averageFans)
-        fans.push({ type: "average", efficiencyWPerCFM: input.fanEfficiency?.average ?? 0.6, quantity: input.fanConfig.averageFans });
-      if (input.fanConfig.oldFans)
-        fans.push({ type: "old", efficiencyWPerCFM: input.fanEfficiency?.old ?? 1, quantity: input.fanConfig.oldFans });
-    }
+    // Helper returns the input value or null (removing hardcoded defaults)
+    const val = (v: any) => (v !== undefined && v !== null ? v : null);
 
-    // Map weatherData from locationData (8760 values)
-    const weatherData = Array.isArray(input.locationData)
-      ? input.locationData.map((d: any) => ({
+    const weatherData = Array.isArray((input as any).locationData)
+      ? (input as any).locationData.map((d: any) => ({
           timestamp: d.timestamp,
-          dryBulb: d.temperature,
-          relativeHumidity: d.humidity
+          temperature: d.temperature,
+          humidity: d.humidity
         }))
       : [];
 
     const payload = {
-      numberOfRacks: input.numberOfRacks,
-      serversPerRack: input.totalServers ? input.totalServers / input.numberOfRacks : 10,
-      serverMaxPowerW: input.serverMaxPowerW ?? 300,
-      serverIdlePowerW: input.serverIdlePowerW ?? 100,
-      averageUtilization: input.efficiencyFactor ?? 70,
-      peakUtilization: input.peakUtilization ?? 65,
-      fans,
-      country: input.country ?? "",
-      electricityTariff: input.electricityTariff ?? 0.2,
-      carbonIntensity: input.co2EmissionFactor ?? 0.05,
-      weatherData
+      numberOfRacks: val(input.numberOfRacks),
+      serversPerRack: val((input as any).serversPerRack),
+      serverMaxPowerW: input.serverMaxPowerW,
+      serverIdlePowerW: input.serverIdlePowerW,
+      averageUtilization: input.averageUtilization ?? input.efficiencyFactor,
+      peakUtilization: input.peakUtilization,
+      bestQuantity: val(input.bestQuantity),
+      bestEfficiency: val(input.bestEfficiency),
+      averageQuantity: val(input.averageQuantity),
+      averageEfficiency: val(input.averageEfficiency),
+      legacyQuantity: val(input.legacyQuantity),
+      legacyEfficiency: val(input.legacyEfficiency),
+      country: val((input as any).country),
+      electricityTariff: val(input.electricityTariff),
+      carbonIntensity: val(input.co2EmissionFactor),
+      weatherData,
+      airflowCFM: val(input.airflowCFM),
+      supplyAirTemp: val(input.supplyAirTemp),
+      returnAirTemp: val(input.returnAirTemp),
+      deltaT: val(input.deltaT),
+      economizerMaxOutdoorTemp: val(input.economizerMaxOutdoorTemp),
+      economizerMaxHumidity: val(input.economizerMaxHumidity),
+      minOutdoorAirFraction: val(input.minOutdoorAirFraction),
+      computeIntensityFactor: val(input.computeIntensityFactor),
+      forecastYears: val(input.forecastYears),
+      energyEscalationRate: val((input as any).energyEscalationRate),
+      carbonTaxProjected: val((input as any).carbonTaxProjected),
+      climateChangeOffsetC: val(input.climateChangeOffsetC),
+      ...(input as any).fans // Keep dynamic spread for any extra fan fields
     };
 
-    console.log("Simulation API payload:", payload);
-    const response = await fetch("http://localhost:9090/api/simulate", {
+    console.log('[DEBUG] Simulation API payload (No Defaults):', payload);
+
+    const response = await fetch("http://localhost:8080/api/simulation/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
+
+    if (!response.ok) {
+      throw new Error(`Server responded with ${response.status}`);
+    }
+
     const data = await response.json();
     set({ currentResult: data });
     return data;

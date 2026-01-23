@@ -21,7 +21,6 @@ public class App {
                 in.numServers = 50;
                 in.serverMaxPowerW = 507.0; // Updated to Fujitsu TX1330 M6
                 in.serverIdlePowerW = 100.0;
-                in.fanWeightedEfficiency = 0.516;
                 in.maxAirflowCFM = 2000.0;
                 in.mechCOP = 3.0;
                 in.carbonIntensity_kg_per_kWh = 0.055;

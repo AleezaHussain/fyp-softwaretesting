@@ -1,9 +1,22 @@
+
 package com.acme.aireconcalc;
 
 /**
  * All user-provided inputs (no APIs). Keep everything explicit & unit-tagged.
  */
 public class EconomizerInputs {
+    // Fan configuration for weighted efficiency calculation
+    public double bestQuantity = 0.0; // Number of best-in-class fans
+    public double averageQuantity = 0.0; // Number of average fans
+    public double legacyQuantity = 0.0; // Number of legacy/old fans
+    public double bestEfficiency = 0.60; // W/CFM for best-in-class fans (default example)
+    public double averageEfficiency = 0.75; // W/CFM for average fans (default example)
+    public double legacyEfficiency = 1.00; // W/CFM for legacy fans (default example)
+
+    // Advanced Economizer Controls (from UI)
+    public double economizerMaxOutdoorTemp; // °C (high-limit shutoff)
+    public double economizerMaxHumidity; // % (max outdoor humidity)
+    public double minOutdoorAirFraction; // fraction (minimum outdoor air)
 
     // Simulation horizon
     public double hours; // total simulation hours (e.g., 720 for a month)
@@ -85,7 +98,7 @@ public class EconomizerInputs {
     public int numServers = 50;
     public double serverMaxPowerW = 507.0; // Updated to Fujitsu TX1330 M6 (AI-ready)
     public double serverIdlePowerW = 100.0; // approx 20% of max
-    public double fanWeightedEfficiency = 0.516; // W/CFM (weighted average)
+    public double fanWeightedEfficiency; // W/CFM (weighted average, set by controller)
     public double maxAirflowCFM = 2000.0; // Limit from UI
     public double carbonIntensity_kg_per_kWh = 0.055; // 55g = 0.055kg per kWh
 

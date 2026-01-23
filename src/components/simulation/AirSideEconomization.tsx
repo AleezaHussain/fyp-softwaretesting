@@ -1,15 +1,15 @@
-// ...existing code...
 // AirSideEconomization.tsx - COMPLETE CORRECTED VERSION
 import React, { useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom';
-import { 
-  Zap, Wind, DollarSign, TrendingDown, MapPin, AlertCircle, 
+import {
+  Zap, Wind, DollarSign, TrendingDown, MapPin, AlertCircle,
   BarChart3, CheckCircle2, Server as ServerIcon,
-  Cpu, HardDrive, Upload, MemoryStick
+  Cpu, HardDrive, Upload, MemoryStick, ThermometerSun
 } from 'lucide-react'
 
 // Import Supabase
 import { supabase } from '../../lib/supabase'
+import { useSimulationStore } from '../../store/store'
 
 // Define interfaces for fetched data
 interface Server {
@@ -62,7 +62,7 @@ interface AirSideEconomizationProps {
   fans?: { bestFans: number; averageFans: number; oldFans: number }
   region?: string
   onConfigChange?: (config: any) => void
-  locationData?: Array<{timestamp: string, temperature: number, humidity: number}>
+  locationData?: Array<{ timestamp: string, temperature: number, humidity: number }>
   countryId?: string
   serverId?: string
 }
@@ -91,10 +91,13 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   const [fanParameters, setFanParameters] = useState<FanParameter[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedServer, setSelectedServer] = useState<Server | null>(null)
-  
+
+  // Zustand store updater
+  const updateSimulationInput = useSimulationStore(state => state.updateSimulationInput)
+
   // Initialize from props
   const [selectedCountryId, setSelectedCountryId] = useState<string>(countryId || '')
-  
+
   const [error, setError] = useState<string>('')
 
   // Local state
@@ -133,6 +136,13 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   const [capexPerCFM, setCapexPerCFM] = useState(2.5); // $/CFM, default 2.5
   const [fixedEconomizerCapex, setFixedEconomizerCapex] = useState(20000); // $, default 20000
 
+  // AI & Future-Proofing
+  const [workloadProfile, setWorkloadProfile] = useState<string>('standard'); // 'standard', 'inference', 'training'
+  const [forecastHorizon, setForecastHorizon] = useState<number>(1); // Years 1-10
+  const [utilityEscalation, setUtilityEscalation] = useState<number>(3.5); // %
+  const [enableCarbonTax, setEnableCarbonTax] = useState<boolean>(false);
+  const [climateOffset, setClimateOffset] = useState<number>(0.5); // +0.5 to +3.5 deg C
+
   const lastSentRef = useRef<string>('')
   const updateTimeoutRef = useRef<NodeJS.Timeout>()
 
@@ -161,17 +171,17 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     // Only process if we don't already have a serverId prop
     if (!serverId) {
       let match = servers.find(s => String(s.id) === String(serverType))
-      
+
       if (!match) {
         match = servers.find(s => s.name === serverType)
       }
-      
+
       if (!match) {
-        match = servers.find(s => 
+        match = servers.find(s =>
           `${s.manufacturer} - ${s.name} (${s.model || 'Standard'})` === serverType
         )
       }
-      
+
       if (match) {
         setLocalServerType(match.id)
       } else {
@@ -188,7 +198,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     }
 
     const server = servers.find(s => String(s.id) === String(localServerType))
-    
+
     if (server) {
       setSelectedServer(server)
     } else {
@@ -233,7 +243,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       if (data && data.length > 0) {
         console.log(`✅ Loaded ${data.length} servers from database`)
         setServers(data)
-        
+
         // If we have a serverId prop, try to select it
         if (serverId) {
           const server = data.find(s => String(s.id) === String(serverId))
@@ -266,10 +276,10 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
           electricity_tariff: Number(row.electricity_tariff ?? 0),
           co2_grid_factor: Number(row.co2_grid_factor ?? 0),
         }))
-        
+
         console.log(`✅ Loaded ${normalized.length} countries from database`)
         setCountries(normalized)
-        
+
         // If we have a countryId prop, verify it exists
         if (countryId) {
           const country = normalized.find(c => String(c.id) === String(countryId))
@@ -339,7 +349,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   const handleCountryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newCountryId = e.target.value
     setSelectedCountryId(newCountryId)
-    
+
     // Notify parent component of change
     if (onConfigChange && newCountryId) {
       const country = countries.find(c => String(c.id) === newCountryId)
@@ -357,25 +367,61 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   // Handle server selection change
   const handleServerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const serverId = e.target.value
-    
+
     if (!serverId) {
       setLocalServerType('')
       setSelectedServer(null)
+      // Clear server fields in global state
+      updateSimulationInput({
+        serverMaxPowerW: undefined,
+        serverIdlePowerW: undefined,
+        averageUtilization: undefined,
+        peakUtilization: undefined
+      })
       return
     }
 
     setLocalServerType(serverId)
     const server = servers.find(s => String(s.id) === serverId)
     if (server) {
-      setSelectedServer(server)
-      
+      // Convert all relevant fields to numbers (if not null/undefined)
+      const normalizedServer = {
+        ...server,
+        max_power_w: server.max_power_w !== undefined && server.max_power_w !== null ? Number(server.max_power_w) : undefined,
+        idle_power_w: server.idle_power_w !== undefined && server.idle_power_w !== null ? Number(server.idle_power_w) : undefined,
+        avg_utilization_percent: server.avg_utilization_percent !== undefined && server.avg_utilization_percent !== null ? Number(server.avg_utilization_percent) : undefined,
+        peak_utilization_percent: server.peak_utilization_percent !== undefined && server.peak_utilization_percent !== null ? Number(server.peak_utilization_percent) : undefined,
+        typical_utilization: server.typical_utilization !== undefined && server.typical_utilization !== null ? Number(server.typical_utilization) : undefined
+      }
+      setSelectedServer(normalizedServer)
+
+      // Log Supabase server values for simulation payload
+      console.log('[Simulation Payload] Selected server values:', {
+        max_power_w: normalizedServer.max_power_w,
+        idle_power_w: normalizedServer.idle_power_w,
+        avg_utilization_percent: normalizedServer.avg_utilization_percent,
+        peak_utilization_percent: normalizedServer.peak_utilization_percent
+      })
+
+      // Update Zustand store with selected server fields
+      updateSimulationInput({
+        serverMaxPowerW: normalizedServer.max_power_w,
+        serverIdlePowerW: normalizedServer.idle_power_w,
+        averageUtilization: normalizedServer.avg_utilization_percent ?? normalizedServer.typical_utilization,
+        peakUtilization: normalizedServer.peak_utilization_percent ?? undefined
+      })
+
       // Notify parent component of change
       if (onConfigChange) {
         onConfigChange({
           serverId: serverId,
-          serverType: server.name,
-          manufacturer: server.manufacturer,
-          model: server.model
+          serverType: normalizedServer.name,
+          manufacturer: normalizedServer.manufacturer,
+          model: normalizedServer.model,
+          max_power_w: normalizedServer.max_power_w,
+          idle_power_w: normalizedServer.idle_power_w,
+          avg_utilization_percent: normalizedServer.avg_utilization_percent,
+          peak_utilization_percent: normalizedServer.peak_utilization_percent
         })
       }
     }
@@ -388,27 +434,31 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
 
   // Handle fan count changes
   const handleFanChange = useCallback((type: 'bestFans' | 'averageFans' | 'oldFans', value: number) => {
-    setLocalFans(prev => ({
-      ...prev,
-      [type]: Math.max(0, Math.min(50, value))
-    }))
+    setLocalFans(prev => {
+      const updated = {
+        ...prev,
+        [type]: Math.max(0, Math.min(50, value))
+      };
+      console.log(`[DEBUG] Fan count changed:`, type, value, updated);
+      return updated;
+    });
   }, [])
 
   // Handle efficiency changes
   const handleEfficiencyChange = useCallback((type: 'best' | 'average' | 'old', value: number) => {
-    const param = getFanParameter(type)
-    const clampedValue = Math.max(param.min, Math.min(param.max, value))
-    
+    const param = getFanParameter(type);
+    const clampedValue = Math.max(param.min, Math.min(param.max, value));
+    console.log(`[DEBUG] Fan efficiency changed:`, type, value, clampedValue);
     switch (type) {
       case 'best':
-        setBestFanEfficiency(clampedValue)
-        break
+        setBestFanEfficiency(clampedValue);
+        break;
       case 'average':
-        setAvgFanEfficiency(clampedValue)
-        break
+        setAvgFanEfficiency(clampedValue);
+        break;
       case 'old':
-        setOldFanEfficiency(clampedValue)
-        break
+        setOldFanEfficiency(clampedValue);
+        break;
     }
   }, [fanParameters])
 
@@ -420,7 +470,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       if (type === 'average') return key.includes('average') || key.includes('vfd')
       return key.includes('legacy') || key.includes('old')
     })
-    
+
     if (param) {
       const defaultValue = (param.min_value + param.max_value) / 2 || param.max_value || param.min_value
       return {
@@ -431,7 +481,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         unit: param.unit
       }
     }
-    
+
     // Fallback defaults
     return {
       min: type === 'best' ? 0.3 : type === 'average' ? 0.5 : 0.8,
@@ -469,7 +519,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
 
     const totalFanPowerKW = (bestFanPower + avgFanPower + oldFanPower) / 1000
     const totalCoolingPowerKW = totalITPowerKW + totalFanPowerKW
-    
+
     const tariff = selectedCountry?.electricity_tariff ?? 0.15
     const carbonIntensity = selectedCountry?.co2_grid_factor ?? 0
     const annualCostUSD = totalCoolingPowerKW * 8760 * tariff
@@ -502,6 +552,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   useEffect(() => {
     if (!onConfigChange || !selectedServer || !selectedCountry) return
 
+    // Ensure all server fields use backend-expected names
     const payload = {
       numberOfServers,
       serverType: localServerType,
@@ -511,9 +562,18 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       model: selectedServer.model,
       numberOfRacks: localNumberOfRacks,
       serversPerRack: localServersPerRack,
-      avgUtilization: localAvgUtil,
-      peakUtilization: localPeakUtil,
-      fans: localFans,
+      serverMaxPowerW: selectedServer.max_power_w !== undefined && selectedServer.max_power_w !== null ? Number(selectedServer.max_power_w) : undefined,
+      serverIdlePowerW: selectedServer.idle_power_w !== undefined && selectedServer.idle_power_w !== null ? Number(selectedServer.idle_power_w) : undefined,
+      averageUtilization: Number(localAvgUtil),
+      peakUtilization: Number(localPeakUtil),
+      fans: {
+        bestQuantity: localFans.bestFans,
+        bestEfficiency: bestFanEfficiency,
+        averageQuantity: localFans.averageFans,
+        averageEfficiency: avgFanEfficiency,
+        legacyQuantity: localFans.oldFans,
+        legacyEfficiency: oldFanEfficiency
+      },
       country: selectedCountry?.country_name || '',
       countryId: selectedCountry?.id || '',
       regionName: '',
@@ -524,10 +584,10 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       fanPowerKW: totalFanPowerKW,
       totalCoolingPowerKW,
       annualCostUSD,
-      fanEfficiency: { 
-        best: bestFanEfficiency, 
-        average: avgFanEfficiency, 
-        old: oldFanEfficiency 
+      fanEfficiency: {
+        best: bestFanEfficiency,
+        average: avgFanEfficiency,
+        old: oldFanEfficiency
       },
       locationData: localLocationData,
       timestamp: new Date().toISOString(),
@@ -544,7 +604,13 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       mechanicalCOP,
       // Economic Parameters (CAPEX)
       capexPerCFM,
-      fixedEconomizerCapex
+      fixedEconomizerCapex,
+      // AI & Future Proofing Parameters
+      computeIntensityFactor: workloadProfile === 'training' ? 8.0 : (workloadProfile === 'inference' ? 2.5 : 1.0),
+      forecastYears: forecastHorizon,
+      energyEscalationRate: utilityEscalation / 100.0,
+      carbonTaxProjected: enableCarbonTax ? 126.0 : 0.0,
+      climateChangeOffsetC: climateOffset
     }
 
     try {
@@ -588,7 +654,12 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     supplyAirTemp,
     returnAirTemp,
     airflowCFM,
-    deltaT
+    deltaT,
+    workloadProfile,
+    forecastHorizon,
+    utilityEscalation,
+    enableCarbonTax,
+    climateOffset
   ])
 
   // Initialize location data from props
@@ -638,141 +709,141 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
 
     return (
       <>
-      <div key={selectedServer.id} className="mt-6 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200 animate-fade-in">
-        <div className="flex items-start justify-between mb-4">
+        <div key={selectedServer.id} className="mt-6 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border border-blue-200 animate-fade-in">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">
+                {selectedServer.name}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {selectedServer.manufacturer} • {selectedServer.model || 'Standard Model'}
+                {selectedServer.release_year && ` • Released: ${selectedServer.release_year}`}
+              </p>
+            </div>
+            {selectedServer.efficiency_rating && (
+              <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
+                {selectedServer.efficiency_rating} Efficiency
+              </span>
+            )}
+          </div>
+
+          {/* Power Specifications */}
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Power Specifications</h4>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs font-medium text-gray-600">Max Power</span>
+                </div>
+                <div className="text-lg font-bold text-gray-900">
+                  {selectedServer.max_power_w.toLocaleString()} W
+                </div>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className="w-4 h-4 text-gray-500" />
+                  <span className="text-xs font-medium text-gray-600">Idle Power</span>
+                </div>
+                <div className="text-lg font-bold text-gray-900">
+                  {selectedServer.idle_power_w.toLocaleString()} W
+                </div>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <Zap className="w-4 h-4 text-blue-500" />
+                  <span className="text-xs font-medium text-gray-600">Typical Power</span>
+                </div>
+                <div className="text-lg font-bold text-gray-900">
+                  {selectedServer.typical_power_w?.toLocaleString() || Math.round((selectedServer.max_power_w + selectedServer.idle_power_w) / 2).toLocaleString()} W
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Hardware Specifications */}
+          <div className="mb-4">
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Hardware Specifications</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <ServerIcon className="w-4 h-4 text-purple-500" />
+                  <span className="text-xs font-medium text-gray-600">Form Factor</span>
+                </div>
+                <div className="text-sm font-semibold text-gray-900">
+                  {selectedServer.form_factor}
+                </div>
+              </div>
+
+              {selectedServer.cpu_type && (
+                <div className="bg-white p-3 rounded-lg border border-gray-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Cpu className="w-4 h-4 text-gray-500" />
+                    <span className="text-xs font-medium text-gray-600">CPU</span>
+                  </div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    {selectedServer.cpu_type}
+                  </div>
+                </div>
+              )}
+
+              {selectedServer.memory_gb > 0 && (
+                <div className="bg-white p-3 rounded-lg border border-gray-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MemoryStick className="w-4 h-4 text-gray-500" />
+                    <span className="text-xs font-medium text-gray-600">Memory</span>
+                  </div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    {selectedServer.memory_gb} GB
+                  </div>
+                </div>
+              )}
+
+              {selectedServer.storage_tb > 0 && (
+                <div className="bg-white p-3 rounded-lg border border-gray-200">
+                  <div className="flex items-center gap-2 mb-1">
+                    <HardDrive className="w-4 h-4 text-gray-500" />
+                    <span className="text-xs font-medium text-gray-600">Storage</span>
+                  </div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    {selectedServer.storage_tb} TB
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Cooling Information */}
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-1">
-              {selectedServer.name}
-            </h3>
-            <p className="text-sm text-gray-600">
-              {selectedServer.manufacturer} • {selectedServer.model || 'Standard Model'}
-              {selectedServer.release_year && ` • Released: ${selectedServer.release_year}`}
-            </p>
-          </div>
-          {selectedServer.efficiency_rating && (
-            <span className="px-3 py-1 bg-green-100 text-green-800 text-xs font-medium rounded-full">
-              {selectedServer.efficiency_rating} Efficiency
-            </span>
-          )}
-        </div>
-
-        {/* Power Specifications */}
-        <div className="mb-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Power Specifications</h4>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-medium text-gray-600">Max Power</span>
-              </div>
-              <div className="text-lg font-bold text-gray-900">
-                {selectedServer.max_power_w.toLocaleString()} W
-              </div>
-            </div>
-
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="w-4 h-4 text-gray-500" />
-                <span className="text-xs font-medium text-gray-600">Idle Power</span>
-              </div>
-              <div className="text-lg font-bold text-gray-900">
-                {selectedServer.idle_power_w.toLocaleString()} W
-              </div>
-            </div>
-
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="w-4 h-4 text-blue-500" />
-                <span className="text-xs font-medium text-gray-600">Typical Power</span>
-              </div>
-              <div className="text-lg font-bold text-gray-900">
-                {selectedServer.typical_power_w?.toLocaleString() || Math.round((selectedServer.max_power_w + selectedServer.idle_power_w) / 2).toLocaleString()} W
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Hardware Specifications */}
-        <div className="mb-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Hardware Specifications</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <div className="flex items-center gap-2 mb-1">
-                <ServerIcon className="w-4 h-4 text-purple-500" />
-                <span className="text-xs font-medium text-gray-600">Form Factor</span>
-              </div>
-              <div className="text-sm font-semibold text-gray-900">
-                {selectedServer.form_factor}
-              </div>
-            </div>
-
-            {selectedServer.cpu_type && (
+            <h4 className="text-sm font-medium text-gray-700 mb-2">Cooling Information</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-1">
-                  <Cpu className="w-4 h-4 text-gray-500" />
-                  <span className="text-xs font-medium text-gray-600">CPU</span>
+                  <Wind className="w-4 h-4 text-cyan-500" />
+                  <span className="text-xs font-medium text-gray-600">Cooling Type</span>
                 </div>
                 <div className="text-sm font-semibold text-gray-900">
-                  {selectedServer.cpu_type}
+                  {selectedServer.cooling_type}
                 </div>
               </div>
-            )}
 
-            {selectedServer.memory_gb > 0 && (
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-1">
-                  <MemoryStick className="w-4 h-4 text-gray-500" />
-                  <span className="text-xs font-medium text-gray-600">Memory</span>
+                  <BarChart3 className="w-4 h-4 text-green-500" />
+                  <span className="text-xs font-medium text-gray-600">Typical Utilization</span>
                 </div>
                 <div className="text-sm font-semibold text-gray-900">
-                  {selectedServer.memory_gb} GB
+                  {selectedServer.typical_utilization || 45}%
                 </div>
-              </div>
-            )}
-
-            {selectedServer.storage_tb > 0 && (
-              <div className="bg-white p-3 rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2 mb-1">
-                  <HardDrive className="w-4 h-4 text-gray-500" />
-                  <span className="text-xs font-medium text-gray-600">Storage</span>
-                </div>
-                <div className="text-sm font-semibold text-gray-900">
-                  {selectedServer.storage_tb} TB
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Cooling Information */}
-        <div>
-          <h4 className="text-sm font-medium text-gray-700 mb-2">Cooling Information</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Wind className="w-4 h-4 text-cyan-500" />
-                <span className="text-xs font-medium text-gray-600">Cooling Type</span>
-              </div>
-              <div className="text-sm font-semibold text-gray-900">
-                {selectedServer.cooling_type}
-              </div>
-            </div>
-
-            <div className="bg-white p-3 rounded-lg border border-gray-200">
-              <div className="flex items-center gap-2 mb-1">
-                <BarChart3 className="w-4 h-4 text-green-500" />
-                <span className="text-xs font-medium text-gray-600">Typical Utilization</span>
-              </div>
-              <div className="text-sm font-semibold text-gray-900">
-                {selectedServer.typical_utilization || 45}%
               </div>
             </div>
           </div>
         </div>
-      </div>
-    
-    {renderPhysicalFields()}
-    </>
+
+        {renderPhysicalFields()}
+      </>
     )
   }
 
@@ -965,21 +1036,21 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 Number of Racks <span className="text-red-500">*</span>
               </label>
               <div className="flex items-center gap-4">
-                <input 
-                  type="range" 
-                  value={localNumberOfRacks} 
-                  onChange={(e) => setLocalNumberOfRacks(Number(e.target.value))} 
-                  min={1} 
-                  max={100} 
+                <input
+                  type="range"
+                  value={localNumberOfRacks}
+                  onChange={(e) => setLocalNumberOfRacks(Number(e.target.value))}
+                  min={1}
+                  max={100}
                   className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                 />
                 <div className="w-20">
-                  <input 
-                    type="number" 
-                    value={localNumberOfRacks} 
-                    onChange={(e) => setLocalNumberOfRacks(Number(e.target.value))} 
-                    min={1} 
-                    max={100} 
+                  <input
+                    type="number"
+                    value={localNumberOfRacks}
+                    onChange={(e) => setLocalNumberOfRacks(Number(e.target.value))}
+                    min={1}
+                    max={100}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-center"
                   />
                 </div>
@@ -992,21 +1063,21 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 Servers per Rack <span className="text-red-500">*</span>
               </label>
               <div className="flex items-center gap-4">
-                <input 
-                  type="range" 
-                  value={localServersPerRack} 
-                  onChange={(e) => setLocalServersPerRack(Number(e.target.value))} 
-                  min={1} 
-                  max={50} 
+                <input
+                  type="range"
+                  value={localServersPerRack}
+                  onChange={(e) => setLocalServersPerRack(Number(e.target.value))}
+                  min={1}
+                  max={50}
                   className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                 />
                 <div className="w-20">
-                  <input 
-                    type="number" 
-                    value={localServersPerRack} 
-                    onChange={(e) => setLocalServersPerRack(Number(e.target.value))} 
-                    min={1} 
-                    max={50} 
+                  <input
+                    type="number"
+                    value={localServersPerRack}
+                    onChange={(e) => setLocalServersPerRack(Number(e.target.value))}
+                    min={1}
+                    max={50}
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-center"
                   />
                 </div>
@@ -1019,25 +1090,33 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
           <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-l-4 border-blue-500">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Servers</div>
+                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                  Total Servers
+                </div>
                 <div className="text-2xl font-bold text-gray-900">
                   {numberOfServers.toLocaleString()}
                 </div>
               </div>
               <div>
-                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Total Power</div>
+                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                  Total Power
+                </div>
                 <div className="text-2xl font-bold text-gray-900">
                   {totalITPowerKW.toFixed(1)} kW
                 </div>
               </div>
               <div>
-                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Per Server Power</div>
+                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                  Per Server Power
+                </div>
                 <div className="text-2xl font-bold text-gray-900">
                   {perServerPower.toLocaleString()} W
                 </div>
               </div>
               <div>
-                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide">Utilization</div>
+                <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                  Utilization
+                </div>
                 <div className="text-2xl font-bold text-gray-900">
                   {localAvgUtil}%
                 </div>
@@ -1066,12 +1145,12 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
               <label className="text-sm font-semibold text-gray-900">Average Server Utilization</label>
               <span className="text-xl font-bold text-green-600">{localAvgUtil}%</span>
             </div>
-            <input 
-              type="range" 
-              value={localAvgUtil} 
-              onChange={(e) => setLocalAvgUtil(Number(e.target.value))} 
-              min={0} 
-              max={100} 
+            <input
+              type="range"
+              value={localAvgUtil}
+              onChange={(e) => setLocalAvgUtil(Number(e.target.value))}
+              min={0}
+              max={100}
               className="w-full h-2 bg-gradient-to-r from-green-200 to-green-500 rounded-lg appearance-none cursor-pointer"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -1085,12 +1164,12 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
               <label className="text-sm font-semibold text-gray-900">Peak Server Utilization</label>
               <span className="text-xl font-bold text-red-600">{localPeakUtil}%</span>
             </div>
-            <input 
-              type="range" 
-              value={localPeakUtil} 
-              onChange={(e) => setLocalPeakUtil(Number(e.target.value))} 
-              min={0} 
-              max={100} 
+            <input
+              type="range"
+              value={localPeakUtil}
+              onChange={(e) => setLocalPeakUtil(Number(e.target.value))}
+              min={0}
+              max={100}
               className="w-full h-2 bg-gradient-to-r from-orange-200 to-red-500 rounded-lg appearance-none cursor-pointer"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-1">
@@ -1105,8 +1184,8 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
           <h5 className="font-semibold text-gray-900 text-sm mb-4">Fan Configuration</h5>
           <div className="space-y-4">
             {[
-              { 
-                label: 'Best-in-class Fans', 
+              {
+                label: 'Best-in-class Fans',
                 type: 'best' as const,
                 efficiency: bestFanEfficiency,
                 setEfficiency: (v: number) => handleEfficiencyChange('best', v),
@@ -1116,8 +1195,8 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 shellClass: 'fan-shell fan-shell-best',
                 rotorClass: 'fan-rotor fan-rotor-best'
               },
-              { 
-                label: 'Average VFD Fans', 
+              {
+                label: 'Average VFD Fans',
                 type: 'average' as const,
                 efficiency: avgFanEfficiency,
                 setEfficiency: (v: number) => handleEfficiencyChange('average', v),
@@ -1127,8 +1206,8 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 shellClass: 'fan-shell fan-shell-average',
                 rotorClass: 'fan-rotor fan-rotor-average'
               },
-              { 
-                label: 'Legacy Fans', 
+              {
+                label: 'Legacy Fans',
                 type: 'old' as const,
                 efficiency: oldFanEfficiency,
                 setEfficiency: (v: number) => handleEfficiencyChange('old', v),
@@ -1140,7 +1219,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
               },
             ].map((fan, idx) => {
               const param = getFanParameter(fan.type)
-              
+
               return (
                 <div key={idx} className={`border rounded-lg p-4 ${fan.bg}`}>
                   <div className="flex items-center justify-between mb-3">
@@ -1159,21 +1238,21 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                       {fan.count} {fan.count === 1 ? 'fan' : 'fans'}
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs text-gray-600 mb-2">Efficiency ({param.unit})</label>
-                      <input 
-                        type="number" 
-                        value={fan.efficiency} 
-                        onChange={(e) => { 
-                          const v = Number(e.target.value); 
-                          if (v >= param.min && v <= param.max) fan.setEfficiency(v); 
-                        }} 
-                        min={param.min} 
-                        max={param.max} 
-                        step={0.01} 
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" 
+                      <input
+                        type="number"
+                        value={fan.efficiency}
+                        onChange={(e) => {
+                          const v = Number(e.target.value);
+                          if (v >= param.min && v <= param.max) fan.setEfficiency(v);
+                        }}
+                        min={param.min}
+                        max={param.max}
+                        step={0.01}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       />
                       <div className="text-xs text-gray-500 mt-1">
                         Range: {param.min.toFixed(2)} - {param.max.toFixed(2)}
@@ -1181,19 +1260,169 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                     </div>
                     <div>
                       <label className="block text-xs text-gray-600 mb-2">Quantity</label>
-                      <input 
-                        type="number" 
-                        value={fan.count} 
-                        onChange={(e) => fan.setCount(Number(e.target.value))} 
-                        min={0} 
-                        max={50} 
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" 
+                      <input
+                        type="number"
+                        value={fan.count}
+                        onChange={(e) => fan.setCount(Number(e.target.value))}
+                        min={0}
+                        max={50}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                       />
                     </div>
                   </div>
                 </div>
               )
             })}
+          </div>
+        </div>
+      </div>
+
+      {/* Workload Intensity & AI Scaling */}
+      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
+          <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+            <Zap className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <h4 className="font-bold text-lg text-gray-900">Workload Intensity & AI Scaling</h4>
+            <p className="text-sm text-gray-500">Simulate GPU-heavy AI clusters and density</p>
+          </div>
+        </div>
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">
+              Workload Profile Type
+            </label>
+            <select
+              value={workloadProfile}
+              onChange={(e) => setWorkloadProfile(e.target.value)}
+              className="w-full border-2 border-gray-300 rounded-xl px-4 py-3.5 focus:outline-none focus:border-purple-500 bg-white text-gray-900 font-medium"
+            >
+              <option value="standard">Standard IT (Current) - 1.0x</option>
+              <option value="inference">AI Inference (2027) - 2.5x-3.0x</option>
+              <option value="training">AI Training (2030) - 8.0x-10.0x</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-2">
+              adjusts the backend power multipliers for AI density simulation.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Lifecycle & Cost Projection */}
+      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
+          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+            <TrendingDown className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <h4 className="font-bold text-lg text-gray-900">Lifecycle & Cost Projection</h4>
+            <p className="text-sm text-gray-500">Predictive Multi-Year TCO Modeling</p>
+          </div>
+        </div>
+        <div className="space-y-6">
+          {/* Forecast Horizon */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-sm font-semibold text-gray-900">Forecast Horizon (Years)</label>
+              <span className="text-xl font-bold text-green-600">{forecastHorizon} Years</span>
+            </div>
+            <input
+              type="range"
+              min={1}
+              max={10}
+              step={1}
+              value={forecastHorizon}
+              onChange={e => setForecastHorizon(Number(e.target.value))}
+              className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>1 Year</span>
+              <span>10 Years</span>
+            </div>
+          </div>
+
+          {/* Annual Utility Escalation */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-1">
+              Annual Utility Escalation (%)
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={0}
+                max={10}
+                step={0.1}
+                value={utilityEscalation}
+                onChange={e => setUtilityEscalation(Number(e.target.value))}
+                className="flex-1 h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+              />
+              <input
+                type="number"
+                min={0}
+                max={10}
+                step={0.1}
+                value={utilityEscalation}
+                onChange={e => setUtilityEscalation(Number(e.target.value))}
+                className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-center"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Projected rise in grid fees and electricity volatility (Avg 3.5%).</p>
+          </div>
+
+          {/* Carbon Tax */}
+          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
+            <div>
+              <div className="font-semibold text-gray-900">Enable 2030 Carbon Tax</div>
+              <div className="text-sm text-gray-500">Apply projected €126/ton CO₂ tax</div>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={enableCarbonTax}
+                onChange={(e) => setEnableCarbonTax(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      {/* Environmental Future-Proofing */}
+      <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
+          <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
+            <ThermometerSun className="w-5 h-5 text-orange-600" />
+          </div>
+          <div>
+            <h4 className="font-bold text-lg text-gray-900">Environmental Future-Proofing</h4>
+            <p className="text-sm text-gray-500">Climate Change Impact Simulation</p>
+          </div>
+        </div>
+        <div className="space-y-6">
+          {/* Climate Offset */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label className="text-sm font-semibold text-gray-900">Climate Change Temperature Offset (°C)</label>
+              <span className="text-xl font-bold text-orange-600">+{climateOffset}°C</span>
+            </div>
+            <input
+              type="range"
+              min={0.5}
+              max={3.5}
+              step={0.1}
+              value={climateOffset}
+              onChange={e => setClimateOffset(Number(e.target.value))}
+              className="w-full h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>+0.5°C</span>
+              <span>+3.5°C</span>
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              Simulates reduced free cooling hours due to global warming.
+            </p>
           </div>
         </div>
       </div>
@@ -1335,7 +1564,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 </div>
                 <div className="text-xs text-amber-600">/ kWh</div>
               </div>
-              
+
               <div className="p-4 bg-green-50 rounded-xl border border-green-200">
                 <div className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-2">
                   Carbon Intensity
@@ -1371,7 +1600,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             <p className="text-xs text-gray-500">
               CSV should contain timestamp, temperature, and humidity columns
             </p>
-            <button 
+            <button
               onClick={() => {
                 const input = document.createElement('input')
                 input.type = 'file'
@@ -1422,7 +1651,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
               Browse Files
             </button>
           </div>
-          
+
           {localLocationData.length > 0 && (
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <div className="flex items-center gap-3">
@@ -1500,8 +1729,8 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         {selectedServer && (
           <div className="p-4 bg-blue-100 rounded-lg">
             <p className="text-sm text-blue-800">
-              Currently configured: {selectedServer.manufacturer} {selectedServer.name} • 
-              {selectedServer.max_power_w.toLocaleString()}W max power • 
+              Currently configured: {selectedServer.manufacturer} {selectedServer.name} •
+              {selectedServer.max_power_w.toLocaleString()}W max power •
               {selectedServer.cooling_type} cooling
             </p>
           </div>
@@ -1510,8 +1739,8 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         {selectedCountry && (
           <div className="p-4 bg-gray-100 rounded-lg mt-4">
             <p className="text-sm text-gray-800">
-              Based on {selectedCountry.country_name} • 
-              ${selectedCountry.electricity_tariff.toFixed(3)}/kWh • 
+              Based on {selectedCountry.country_name} •
+              ${selectedCountry.electricity_tariff.toFixed(3)}/kWh •
               {Math.round(selectedCountry.co2_grid_factor)} gCO₂/kWh
             </p>
           </div>
@@ -1520,94 +1749,131 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       <div className="flex justify-end mt-8">
         <button
           className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold text-lg"
-          onClick={async () => {
-            // Calculate weighted average fan efficiency and total fan count
-            const totalFans = localFans.bestFans + localFans.averageFans + localFans.oldFans;
-            let weightedEfficiency = 0;
-            if (totalFans > 0) {
-              weightedEfficiency = (
-                (localFans.bestFans * bestFanEfficiency) +
-                (localFans.averageFans * avgFanEfficiency) +
-                (localFans.oldFans * oldFanEfficiency)
-              ) / totalFans;
-            }
+            onClick={async () => {
+              // Always use the latest state for fan values
+              const latestBestFans = localFans.bestFans;
+              const latestAverageFans = localFans.averageFans;
+              const latestOldFans = localFans.oldFans;
+              const latestBestFanEfficiency = bestFanEfficiency;
+              const latestAvgFanEfficiency = avgFanEfficiency;
+              const latestOldFanEfficiency = oldFanEfficiency;
+              const latestTotalFans = latestBestFans + latestAverageFans + latestOldFans;
+              let weightedEfficiency = 0;
+              if (latestTotalFans > 0) {
+                weightedEfficiency = (
+                  (latestBestFans * latestBestFanEfficiency) +
+                  (latestAverageFans * latestAvgFanEfficiency) +
+                  (latestOldFans * latestOldFanEfficiency)
+                ) / latestTotalFans;
+              }
 
-            // Map to backend fields
-            // Assume serverFanPowerPercent is normalized to 0-1 (e.g., 0.5 for 50%)
-            // You can adjust this logic as needed for your backend
-            const serverFanPowerPercent = weightedEfficiency; // or scale as needed
-            const variableFanSpeed = totalFans > 1; // Example: true if more than one fan
-            const minFanSpeed = totalFans > 0 ? 0.3 : 0; // Example: set a default min speed
-
-            const payload = {
-              // Server & rack config
-              numberOfRacks: localNumberOfRacks,
-              serversPerRack: localServersPerRack,
-              serverMaxPowerW: selectedServer?.max_power_w,
-              serverIdlePowerW: selectedServer?.idle_power_w,
-              serverTypicalPowerW: selectedServer?.typical_power_w,
-              serverType: localServerType,
-              serverName: selectedServer?.name,
-              manufacturer: selectedServer?.manufacturer,
-              model: selectedServer?.model,
-              formFactor: selectedServer?.form_factor,
-              coolingType: selectedServer?.cooling_type,
-              cpuType: selectedServer?.cpu_type,
-              memoryGB: selectedServer?.memory_gb,
-              storageTB: selectedServer?.storage_tb,
-              releaseYear: selectedServer?.release_year,
-              efficiencyRating: selectedServer?.efficiency_rating,
-              averageUtilization: localAvgUtil,
-              peakUtilization: localPeakUtil,
-              // Fan fields for backend
-              serverFanPowerPercent,
-              variableFanSpeed,
-              minFanSpeed,
-              // Country & tariff
-              country: selectedCountry?.country_name,
-              countryId: selectedCountry?.id,
-              electricityTariff: selectedCountry?.electricity_tariff,
-              carbonIntensity: selectedCountry?.co2_grid_factor,
-              // Weather data
-              weatherData: localLocationData,
-              // Physical fields
-              supplyAirTemp,
-              returnAirTemp,
-              airflowCFM,
-              deltaT,
-              // Advanced Economizer Controls
-              economizerMaxOutdoorTemp,
-              economizerMaxHumidity,
-              minOutdoorAirFraction,
-              // Mechanical Cooling COP
-              mechanicalCOP,
-              // Economic Parameters (CAPEX)
-              capexPerCFM,
-              fixedEconomizerCapex,
-              // Timestamp for traceability
-              timestamp: new Date().toISOString()
-            };
-
-            try {
-              console.log('[RunSimulation] Sending payload:', payload);
-              const response = await fetch('http://localhost:8080/api/simulation/run', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+              // Debug: Log fan state before payload construction
+              console.log('[DEBUG] Fan state before payload (latest):', {
+                bestFans: latestBestFans,
+                bestFanEfficiency: latestBestFanEfficiency,
+                averageFans: latestAverageFans,
+                avgFanEfficiency: latestAvgFanEfficiency,
+                oldFans: latestOldFans,
+                oldFanEfficiency: latestOldFanEfficiency
               });
-              console.log('[RunSimulation] Response status:', response.status);
-              if (!response.ok) throw new Error('Simulation API error');
-              const results = await response.json();
-              console.log('[RunSimulation] Results from API:', results);
-              // Store results in localStorage for reload persistence
-              localStorage.setItem('lastSimulationResults', JSON.stringify(results));
-              console.log('[RunSimulation] Saved results to localStorage. Navigating to /raw-results');
-              navigate('/raw-results', { state: results });
-            } catch (err) {
-              console.error('[RunSimulation] Error:', err);
-              alert('Failed to run simulation: ' + err.message);
-            }
-          }}
+
+              const serverFanPowerPercent = weightedEfficiency;
+              const fans = {
+                bestQuantity: Number(latestBestFans) || 0,
+                bestEfficiency: Number(latestBestFanEfficiency) || 0,
+                averageQuantity: Number(latestAverageFans) || 0,
+                averageEfficiency: Number(latestAvgFanEfficiency) || 0,
+                legacyQuantity: Number(latestOldFans) || 0,
+                legacyEfficiency: Number(latestOldFanEfficiency) || 0
+              };
+              console.log('[DEBUG] Fans object for payload (latest):', fans);
+
+              const payload = {
+                // Server & rack config
+                numberOfRacks: localNumberOfRacks,
+                serversPerRack: localServersPerRack,
+                serverMaxPowerW: selectedServer?.max_power_w,
+                serverIdlePowerW: selectedServer?.idle_power_w,
+                serverTypicalPowerW: selectedServer?.typical_power_w,
+                serverType: localServerType,
+                serverName: selectedServer?.name,
+                manufacturer: selectedServer?.manufacturer,
+                model: selectedServer?.model,
+                formFactor: selectedServer?.form_factor,
+                coolingType: selectedServer?.cooling_type,
+                cpuType: selectedServer?.cpu_type,
+                memoryGB: selectedServer?.memory_gb,
+                storageTB: selectedServer?.storage_tb,
+                releaseYear: selectedServer?.release_year,
+                efficiencyRating: selectedServer?.efficiency_rating,
+                averageUtilization: localAvgUtil,
+                peakUtilization: localPeakUtil,
+                // Fan fields for backend
+                ...fans, // <-- flatten fans fields here
+                serverFanPowerPercent,
+                variableFanSpeed,
+                minFanSpeed,
+                // Country & tariff
+                country: selectedCountry?.country_name,
+                countryId: selectedCountry?.id,
+                electricityTariff: selectedCountry?.electricity_tariff,
+                carbonIntensity: selectedCountry?.co2_grid_factor,
+                // Weather data
+                weatherData: localLocationData,
+                // Physical fields
+                supplyAirTemp,
+                returnAirTemp,
+                airflowCFM,
+                deltaT,
+                // Advanced Economizer Controls
+                economizerMaxOutdoorTemp,
+                economizerMaxHumidity,
+                minOutdoorAirFraction,
+                // Mechanical Cooling COP
+                mechanicalCOP,
+                // Economic Parameters (CAPEX)
+                capexPerCFM,
+                fixedEconomizerCapex,
+                // AI & Future-Proofing
+                computeIntensityFactor: workloadProfile === 'training' ? 8.0 : (workloadProfile === 'inference' ? 2.5 : 1.0),
+                forecastYears: forecastHorizon,
+                energyEscalationRate: utilityEscalation / 100.0,
+                carbonTaxProjected: enableCarbonTax ? 126.0 : 0.0,
+                climateChangeOffsetC: climateOffset,
+                // Timestamp for traceability
+                timestamp: new Date().toISOString()
+              };
+
+              try {
+                console.log('[DEBUG] Final payload before API call:', payload);
+                // Extra: log fan values from payload
+                console.log('[DEBUG] Fan values in payload:', {
+                  bestQuantity: payload.bestQuantity,
+                  bestEfficiency: payload.bestEfficiency,
+                  averageQuantity: payload.averageQuantity,
+                  averageEfficiency: payload.averageEfficiency,
+                  legacyQuantity: payload.legacyQuantity,
+                  legacyEfficiency: payload.legacyEfficiency
+                });
+                console.log('[RunSimulation] Triggering AI-Enhanced Simulation API with payload:', payload);
+                const response = await fetch('http://localhost:8080/api/simulation/run', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(payload)
+                });
+                console.log('[RunSimulation] Response status:', response.status);
+                if (!response.ok) throw new Error('Simulation API error');
+                const results = await response.json();
+                console.log('[RunSimulation] Results from API:', results);
+                // Store results in localStorage for reload persistence
+                localStorage.setItem('lastSimulationResults', JSON.stringify(results));
+                console.log('[RunSimulation] Saved results to localStorage. Navigating to /raw-results');
+                navigate('/raw-results', { state: results });
+              } catch (err) {
+                console.error('[RunSimulation] Error:', err);
+                alert('Failed to run simulation: ' + err.message);
+              }
+            }}
         >
           Run Simulation
         </button>
