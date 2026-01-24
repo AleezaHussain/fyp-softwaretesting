@@ -358,7 +358,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
           countryId: newCountryId,
           country: country.country_name,
           electricityTariff: country.electricity_tariff,
-          carbonIntensity: country.co2_grid_factor
+          carbon_intensity: country.co2_grid_factor // changed to match backend
         })
       }
     }
@@ -1572,7 +1572,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 <div className="text-2xl font-bold text-green-800">
                   {selectedCountry.co2_grid_factor.toFixed(3)}
                 </div>
-                <div className="text-xs text-green-600">gCO₂ / kWh</div>
+                <div className="text-xs text-green-600">KgCO₂ / kWh</div>
               </div>
             </div>
           )}

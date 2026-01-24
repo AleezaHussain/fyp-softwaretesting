@@ -168,7 +168,12 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       legacyEfficiency: val(input.legacyEfficiency),
       country: val((input as any).country),
       electricityTariff: val(input.electricityTariff),
-      carbonIntensity: val(input.co2EmissionFactor),
+      carbonIntensity: val(
+        input.co2EmissionFactor ??
+        (input as any).carbon_intensity ??
+        (input as any).carbonIntensity ??
+        (input as any).co2_grid_factor
+      ),
       weatherData,
       airflowCFM: val(input.airflowCFM),
       supplyAirTemp: val(input.supplyAirTemp),

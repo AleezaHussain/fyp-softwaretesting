@@ -1,4 +1,4 @@
-logger.info("[API] manufacturer: "+request.manufacturer);logger.info("[API] model: "+request.model);
+
 package com.example.coolingeconomizer.controller;
 
 import com.acme.aireconcalc.AirEconomizerModel;
@@ -73,6 +73,12 @@ public class SimulationController {
             in.carbonIntensity_kg_per_kWh = request.carbonIntensity > 0 ? request.carbonIntensity : 0.055; // kg/kWh
             in.maxAirflowCFM = request.airflowCFM > 0 ? request.airflowCFM : 2000.0;
 
+            // Economizer and airflow fields (the missing assignments!)
+            in.economizerMaxOutdoorTemp = request.economizerMaxOutdoorTemp != null ? request.economizerMaxOutdoorTemp
+                    : 24.0;
+            in.economizerMaxHumidity = request.economizerMaxHumidity != null ? request.economizerMaxHumidity : 60.0;
+            in.minOutdoorAirFraction = request.minOutdoorAirFraction != null ? request.minOutdoorAirFraction : 0.2;
+
             // Fan Efficiency Calculation
             if (request.fans != null) {
                 // Calculate weighted efficiency if fans object is provided
@@ -89,6 +95,13 @@ public class SimulationController {
                     in.fanWeightedEfficiency = weighted;
                 }
             }
+
+            // Log model input check for economizer fields
+            System.out.println(
+                    "[MODEL INPUT CHECK] econTemp=" + in.economizerMaxOutdoorTemp +
+                            " | econRH=" + in.economizerMaxHumidity +
+                            " | minOA=" + in.minOutdoorAirFraction +
+                            " | maxAirflowCFM=" + in.maxAirflowCFM);
 
             // 2. Run Hourly Simulation
             AirEconomizerModel model = new AirEconomizerModel();

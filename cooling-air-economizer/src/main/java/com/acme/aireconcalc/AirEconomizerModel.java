@@ -82,16 +82,23 @@ public class AirEconomizerModel {
         // ---------------------------------------------------------------------
         boolean tempOK = weather.dryBulbC <= in.economizerMaxOutdoorTemp;
         boolean humidityOK = weather.relativeHumidity <= in.economizerMaxHumidity;
-//         System.out.println(
-//     "ECON CHECK | hour=" + hour +
-//     " | dryBulbC=" + weather.dryBulbC +
-//     " | RH=" + weather.relativeHumidity +
-//     " | tempLimit=" + in.economizerMaxOutdoorTemp +
-//     " | humidityLimit=" + in.economizerMaxHumidity +
-//     " | tempOK=" + tempOK +
-//     " | humidityOK=" + humidityOK
-// );
+        // System.out.println(
+        // "ECON CHECK | hour=" + hour +
+        // " | dryBulbC=" + weather.dryBulbC +
+        // " | RH=" + weather.relativeHumidity +
+        // " | tempLimit=" + in.economizerMaxOutdoorTemp +
+        // " | humidityLimit=" + in.economizerMaxHumidity +
+        // " | tempOK=" + tempOK +
+        // " | humidityOK=" + humidityOK
+        // );
 
+        // Log humidity and temperature checks for FULL_ECON logic
+        // System.out.println(String.format(
+        // "[ECON] Hour %d | dryBulbC=%.2f | RH=%.2f | tempLimit=%.2f |
+        // humidityLimit=%.2f | tempOK=%b | humidityOK=%b",
+        // hour, weather.dryBulbC, weather.relativeHumidity,
+        // in.economizerMaxOutdoorTemp, in.economizerMaxHumidity,
+        // tempOK, humidityOK));
 
         if (tempOK && humidityOK) {
             r.mode = "FULL_ECON";
