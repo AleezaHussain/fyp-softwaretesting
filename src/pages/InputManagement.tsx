@@ -119,6 +119,49 @@ const Step2Parameters: React.FC<Step2ParametersProps> = ({
   }
 
   if (selectedTechnique === 'water') {
+      if (selectedTechnique === 'evaporative') {
+        const [country, setCountry] = React.useState('');
+        const [submitted, setSubmitted] = React.useState(false);
+        const handleSubmit = (e: React.FormEvent) => {
+          e.preventDefault();
+          setSubmitted(true);
+          // Optionally, call handleConfigChange({ ...currentConfig, country })
+        };
+        return (
+          <div className={`max-w-6xl mx-auto transition-all duration-500 ${
+            isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
+          }`}>
+            <div className="text-center space-y-4 mb-12">
+              <h2 className={`text-4xl font-bold ${
+                isDark ? 'text-white' : 'text-gray-900'
+              }`}>
+                Configure Evaporative Cooling
+              </h2>
+              <p className={`text-lg max-w-2xl mx-auto ${
+                isDark ? 'text-gray-400' : 'text-gray-600'
+              }`}>
+                Please enter your country to customize evaporative cooling parameters.
+              </p>
+            </div>
+            <form onSubmit={handleSubmit} className="max-w-md mx-auto bg-white dark:bg-[#1a1f3a] p-8 rounded-2xl shadow">
+              <label htmlFor="country" className="block mb-2 font-semibold">Country Name:</label>
+              <input
+                id="country"
+                type="text"
+                value={country}
+                onChange={e => setCountry(e.target.value)}
+                placeholder="Enter your country"
+                required
+                className="w-full p-2 mb-4 border rounded"
+              />
+              <button type="submit" className="btn btn-primary w-full">Save</button>
+              {submitted && (
+                <div className="mt-4 text-green-600 dark:text-green-400">Country saved: <b>{country}</b></div>
+              )}
+            </form>
+          </div>
+        );
+      }
     return (
       <div className={`max-w-6xl mx-auto transition-all duration-500 ${
         isTransitioning ? 'opacity-0 translate-x-8' : 'opacity-100 translate-x-0'
