@@ -1,0 +1,40 @@
+{
+  "simulation": {
+    "time_horizon_hours": 24,
+    "time_step_seconds": 3600
+  },
+  "it_load": {
+    "total_it_power_kw": 75.5,
+    "servers": 75,
+    "racks": 8,
+    "power_utilization_model": "nonlinear"
+  },
+  "cooling_system": {
+    "type": "indirect_evaporative",
+    "max_airflow_cfm": 12000,
+    "fan_efficiency": 0.85,
+    "saturation_effectiveness": 92,
+    "face_velocity_ms": 2.8,
+    "wetting_efficiency": 96,
+    "media_type": "polymer",
+    "has_dx_backup": true,
+    "dx_cop": 4.2,
+    "water_source": "tank",
+    "cycles_of_concentration": 7,
+    "tank_volume_l": 8000,
+    "refill_rate_l_per_day": 500,
+    "low_water_cutoff_percent": 12
+  },
+  "rates": {
+    "electricity_usd_per_kwh": 0.18,
+    "water_usd_per_liter": 0.0025
+  },
+  "emissions": {
+    "grid_kgco2_per_kwh": 0.7
+  },
+  "constraints": {
+    "max_inlet_temp_c": 27,
+    "max_relative_humidity": 80,
+    "max_pue": 1.5
+  }
+}

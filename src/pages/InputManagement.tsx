@@ -952,6 +952,7 @@ export const InputManagement: React.FC = () => {
       updateSimulationInput({
         coolingTechnique: selectedTechnique || "air",
         airSideConfig: config,
+        evaporativeConfig: selectedTechnique === "evaporative" ? config : undefined,
         locationData: locationData, // Include location data
       } as any);
     }
@@ -1004,6 +1005,7 @@ export const InputManagement: React.FC = () => {
       updateSimulationInput({
         coolingTechnique: selectedTechnique || "air",
         airSideConfig: completeConfig,
+        evaporativeConfig: selectedTechnique === "evaporative" ? completeConfig : undefined,
         locationData: locationData,
       } as any);
     }

@@ -145,6 +145,119 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
     // Helper returns the input value or null (removing hardcoded defaults)
     const val = (v: any) => (v !== undefined && v !== null ? v : null);
 
+    // Check cooling technique to determine which API to call
+    const coolingTechnique = (input as any).coolingTechnique || 'air';
+    
+    console.log('🔥 [SIMULATION] Cooling technique selected:', coolingTechnique);
+    console.log('🔥 [SIMULATION] Input data:', input);
+
+    // If evaporative cooling is selected, use the new evaporative cooling API
+    if (coolingTechnique === 'evaporative') {
+      console.log('🌊 [EVAPORATIVE] Using Evaporative Cooling API');
+      
+      // Check if we have evaporative cooling configuration
+      const evapConfig = (input as any).evaporativeConfig || (input as any).airSideConfig;
+      
+      if (!evapConfig) {
+        throw new Error('Evaporative cooling configuration is missing');
+      }
+
+      console.log('🌊 [EVAPORATIVE] Configuration found:', evapConfig);
+
+      // Check for weather file
+      if (!evapConfig.weatherData || evapConfig.weatherData.length === 0) {
+        throw new Error('Weather data is required for evaporative cooling simulation. Please upload a weather CSV file.');
+      }
+
+      console.log('🌊 [EVAPORATIVE] Weather data found:', evapConfig.weatherData.length, 'data points');
+
+      // Build evaporative cooling API payload
+      const evaporativePayload = {
+        simulation: {
+          time_horizon_hours: 8760,
+          time_step_seconds: 3600
+        },
+        it_load: {
+          total_it_power_kw: evapConfig.totalITLoadKW || 
+                            (evapConfig.totalServers * evapConfig.serverMaxPower * (evapConfig.averageUtilization / 100)) / 1000 || 
+                            100.0,
+          servers: evapConfig.totalServers || 100,
+          racks: evapConfig.numberOfRacks || input.numberOfRacks || 10,
+          power_utilization_model: evapConfig.powerUtilizationModel || "linear"
+        },
+        cooling_system: {
+          type: evapConfig.coolingArchitecture === 'dec' ? 'direct_evaporative' : 
+                evapConfig.coolingArchitecture === 'iec' ? 'indirect_evaporative' : 'hybrid',
+          max_airflow_cfm: evapConfig.maxAirflowCapacity || 10000.0,
+          fan_efficiency: (evapConfig.fanEfficiency || 65) / 100,
+          saturation_effectiveness: evapConfig.saturationEffectiveness || 85.0,
+          face_velocity_ms: evapConfig.faceVelocity || 2.0,
+          wetting_efficiency: evapConfig.wettingEfficiency || 95.0,
+          media_type: evapConfig.mediaType || "cellulose",
+          has_dx_backup: evapConfig.enableMechanicalBackup || false,
+          dx_cop: evapConfig.dxCOP || 3.5,
+          water_source: evapConfig.waterSource || "municipal",
+          cycles_of_concentration: evapConfig.cyclesOfConcentration || 5.0,
+          tank_volume_l: evapConfig.tankVolume || 5000.0,
+          refill_rate_l_per_day: evapConfig.refillRate || 0.0,
+          low_water_cutoff_percent: evapConfig.lowWaterCutoff || 10.0
+        },
+        rates: {
+          electricity_usd_per_kwh: evapConfig.electricityRate || input.electricityTariff || 0.12,
+          water_usd_per_liter: evapConfig.waterRate || 0.001
+        },
+        emissions: {
+          grid_kgco2_per_kwh: evapConfig.gridEmissionsFactor || input.carbonIntensity || 0.45
+        },
+        constraints: {
+          max_inlet_temp_c: 27.0,
+          max_relative_humidity: 80.0,
+          max_pue: 1.5
+        }
+      };
+
+      console.log('🌊 [EVAPORATIVE] Evaporative Cooling API payload:', evaporativePayload);
+
+      // Create weather CSV from weather data
+      const weatherCsv = createWeatherCsv(evapConfig.weatherData);
+      
+      console.log('🌊 [EVAPORATIVE] Weather CSV created, length:', weatherCsv.length);
+      
+      // Create FormData for multipart request
+      const formData = new FormData();
+      const weatherBlob = new Blob([weatherCsv], { type: 'text/csv' });
+      formData.append('weatherFile', weatherBlob, 'weather_data.csv');
+      formData.append('config', JSON.stringify(evaporativePayload));
+
+      console.log('🌊 [EVAPORATIVE] Calling API: http://localhost:8080/api/simulations/evaporative-cooling');
+
+      // Call evaporative cooling API
+      const response = await fetch("http://localhost:8080/api/simulations/evaporative-cooling", {
+        method: "POST",
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(`Evaporative cooling simulation failed: ${errorData.message || response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      console.log('🌊 [EVAPORATIVE] API Response received:', data);
+      
+      // Transform evaporative cooling results to match expected format
+      const transformedData = transformEvaporativeResults(data);
+      
+      console.log('🌊 [EVAPORATIVE] Results transformed:', transformedData);
+      
+      set({ currentResult: transformedData });
+      return transformedData;
+    }
+
+    // For air economizer and other cooling techniques, use the existing API
+    console.log('💨 [AIR ECONOMIZER] Using existing Air Economizer API');
+    
     const weatherData = Array.isArray((input as any).locationData)
       ? (input as any).locationData.map((d: any) => ({
           timestamp: d.timestamp,
@@ -190,7 +303,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       ...(input as any).fans // Keep dynamic spread for any extra fan fields
     };
 
-    console.log('[DEBUG] Simulation API payload (No Defaults):', payload);
+    console.log('💨 [AIR ECONOMIZER] Air Economizer API payload (No Defaults):', payload);
 
     const response = await fetch("http://localhost:8080/api/simulation/run", {
       method: "POST",
@@ -203,7 +316,81 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
     }
 
     const data = await response.json();
+    console.log('💨 [AIR ECONOMIZER] API Response received:', data);
     set({ currentResult: data });
     return data;
   },
 }))
+// Helper function to create weather CSV from weather data
+const createWeatherCsv = (weatherData: any[]): string => {
+  const header = 'Hour,DryBulbTemp_C,RelativeHumidity_%,Pressure_kPa,WindSpeed_m/s';
+  const rows = weatherData.map((data, index) => {
+    const hour = index + 1;
+    const temp = data.temperature || 25.0;
+    const humidity = data.humidity || 50.0;
+    const pressure = 101.3; // Standard atmospheric pressure
+    const windSpeed = 2.0; // Default wind speed
+    
+    return `${hour},${temp},${humidity},${pressure},${windSpeed}`;
+  });
+  
+  return [header, ...rows].join('\n');
+};
+
+// Helper function to transform evaporative cooling results to match expected format
+const transformEvaporativeResults = (evapData: any): any => {
+  // Transform the evaporative cooling API response to match the expected simulation result format
+  const results = evapData.results || {};
+  const assessment = evapData.cooling_assessment || {};
+  
+  return {
+    // Basic simulation info
+    simulationId: `evap_${Date.now()}`,
+    timestamp: new Date().toISOString(),
+    coolingTechnique: 'evaporative',
+    
+    // Energy results
+    totalEnergyConsumption: results.energy?.electricity_kwh_total || 0,
+    energySavings: 0, // Calculate based on baseline
+    energyEfficiency: results.performance?.pue_average || 1.0,
+    
+    // Cost results
+    totalCost: results.cost?.total_energy_cost_usd || 0,
+    costSavings: 0, // Calculate based on baseline
+    opexPerServer: results.opex?.opex_per_server_annual || 0,
+    
+    // Environmental results
+    carbonEmissions: results.emissions?.co2_kg_total || 0,
+    carbonSavings: 0, // Calculate based on baseline
+    waterConsumption: results.water?.water_liters_total || 0,
+    
+    // Performance metrics
+    pue: results.performance?.pue_average || 1.0,
+    wue: results.performance?.wue_average || 0,
+    availability: results.performance?.availability_percent || 100,
+    
+    // Cooling assessment
+    coolingAdequacy: {
+      status: assessment.status || 'UNKNOWN',
+      confidence: assessment.confidence || 0.5,
+      checks: assessment.checks || {},
+      keyMetrics: assessment.key_metrics || {},
+      engineeringNotes: assessment.engineering_notes || [],
+      recommendations: assessment.recommendations || []
+    },
+    
+    // Additional evaporative-specific data
+    evaporativeResults: {
+      fanEnergy: results.energy?.fan_kwh || 0,
+      pumpEnergy: results.energy?.pump_kwh || 0,
+      dxBackupEnergy: results.energy?.dx_kwh || 0,
+      waterEvaporation: results.water?.evaporation_liters || 0,
+      waterBlowdown: results.water?.blowdown_liters || 0,
+      maxInletTemp: assessment.key_metrics?.max_inlet_temp_c || 0,
+      coolingFailureHours: results.performance?.cooling_failure_hours || 0
+    },
+    
+    // Raw data for detailed analysis
+    rawEvaporativeData: evapData
+  };
+};

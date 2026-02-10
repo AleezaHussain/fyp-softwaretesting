@@ -153,6 +153,15 @@ public class App {
         double cumCO2_kg = 0.0;
         FanModel fan = new FanModel();
 
+        // Cooling adequacy tracking variables
+        double maxInletTempC = 0.0;
+        double maxHumidityPercent = 0.0;
+        double minWetbulbDepressionC = Double.MAX_VALUE;
+        double totalPUE = 0.0;
+        int pueCount = 0;
+        double totalCoolingCapacityKW = 0.0;
+        double totalHeatLoadKW = 0.0;
+
         // Use WeatherProvider for ambient conditions
         WeatherProvider weatherProvider = null;
         try {
@@ -276,6 +285,26 @@ public class App {
             double drift_kg = sc.driftLossFrac * evap_kg;
             double recovered_kg = sc.recoveryFrac * evap_kg;
             cumWater_kg += Math.max(0.0, evap_kg + drift_kg - recovered_kg);
+
+            // 🔥 COOLING ADEQUACY TRACKING
+            // Track maximum inlet temperature (approximate as supply + server delta-T)
+            double estimatedInletTempC = out.T_out_C + (P_IT_kW * 0.02); // ~2°C rise per 100kW
+            maxInletTempC = Math.max(maxInletTempC, estimatedInletTempC);
+            
+            // Track humidity conditions
+            maxHumidityPercent = Math.max(maxHumidityPercent, RH_out);
+            double wetbulbDepression = Tdb_out - Twb_out;
+            minWetbulbDepressionC = Math.min(minWetbulkDepressionC, wetbulbDepression);
+            
+            // Track PUE for averaging
+            if (P_IT_kW > 0) {
+                totalPUE += PUE_inst;
+                pueCount++;
+            }
+            
+            // Track cooling capacity vs heat load
+            totalCoolingCapacityKW += Q_evap_kW;
+            totalHeatLoadKW += (P_IT_kW + P_UPS_loss_kW + P_PDU_loss_kW);
             // Expanded recorder call for industry-grade CSV
 
             // Weather/psychro
@@ -320,7 +349,7 @@ public class App {
                     P_fan_kW, P_DX_kW, P_pump_kW,
                     E_fan_kWh_cum, E_DX_kWh_cum, E_total_kWh_cum,
                     P_IT_kW, P_total_kW, PUE_inst, PUE_avg, WUE_inst, CUE_inst,
-                    cost_elec, cost_water, OPEX_total, CO2_kg_cum);
+                    cost_elec, cost_water, OPEX_total, CO2_kg_cum, estimatedInletTempC);
 
             // restore airflow after failure window
             in.V_air_m3s = V_air_saved;
@@ -329,6 +358,46 @@ public class App {
         try {
             rec.writeCsv(path);
             System.out.println("Wrote evaporative metrics: " + path);
+            
+            // 🔥 PERFORM COOLING ADEQUACY ASSESSMENT
+            double avgCoolingCapacityKW = totalCoolingCapacityKW / Math.max(1, pueCount);
+            double avgHeatLoadKW = totalHeatLoadKW / Math.max(1, pueCount);
+            double avgPUE = pueCount > 0 ? totalPUE / pueCount : 1.0;
+            
+            CoolingAdequacyAssessment.Assessment assessment = CoolingAdequacyAssessment.evaluate(
+                avgCoolingCapacityKW, avgHeatLoadKW, maxInletTempC, maxHumidityPercent,
+                minWetbulbDepressionC, avgPUE, sc.mode, sc.T_in_C
+            );
+            
+            // Print assessment results
+            System.out.println("\n🔥 COOLING ADEQUACY ASSESSMENT:");
+            System.out.println("Status: " + assessment.status + " (Confidence: " + 
+                             String.format("%.1f%%", assessment.confidence * 100) + ")");
+            System.out.println("\nChecks:");
+            System.out.println("  ✓ Heat Balance: " + (assessment.checks.heat_balance ? "PASS" : "FAIL"));
+            System.out.println("  ✓ Inlet Temperature: " + (assessment.checks.inlet_temperature_ok ? "PASS" : "FAIL"));
+            System.out.println("  ✓ Humidity Feasibility: " + (assessment.checks.humidity_ok ? "PASS" : "FAIL"));
+            System.out.println("  ✓ Energy Efficiency: " + (assessment.checks.energy_efficiency_ok ? "PASS" : "FAIL"));
+            
+            System.out.println("\nKey Metrics:");
+            System.out.println("  Max Inlet Temp: " + String.format("%.1f°C", assessment.key_metrics.max_inlet_temp_c));
+            System.out.println("  Cooling Capacity: " + String.format("%.1f kW", assessment.key_metrics.cooling_capacity_kw));
+            System.out.println("  Heat Load: " + String.format("%.1f kW", assessment.key_metrics.heat_load_kw));
+            System.out.println("  Average PUE: " + String.format("%.2f", assessment.key_metrics.pue_avg));
+            
+            System.out.println("\nEngineering Notes:");
+            for (String note : assessment.engineering_notes) {
+                System.out.println("  • " + note);
+            }
+            
+            System.out.println("\nRecommendations:");
+            for (String rec : assessment.recommendations) {
+                System.out.println("  🔧 " + rec);
+            }
+            
+            // Write assessment to JSON file
+            writeAssessmentJson(assessment, "target/cooling_assessment_" + sc.name + ".json");
+            
             // Print single-step results for quick view
             EvaporativeCoolingModel.Outputs out = model.compute(in);
             // PUE comparison (use mean IT load over simulation)
@@ -378,5 +447,54 @@ public class App {
             Files.write(p, header.getBytes(StandardCharsets.UTF_8));
         }
         Files.write(p, row.getBytes(StandardCharsets.UTF_8), StandardOpenOption.APPEND);
+    }
+
+    /**
+     * Write cooling adequacy assessment to JSON file for frontend consumption
+     */
+    private static void writeAssessmentJson(CoolingAdequacyAssessment.Assessment assessment, String filename) {
+        try {
+            StringBuilder json = new StringBuilder();
+            json.append("{\n");
+            json.append("  \"cooling_assessment\": {\n");
+            json.append("    \"status\": \"").append(assessment.status).append("\",\n");
+            json.append("    \"confidence\": ").append(String.format("%.2f", assessment.confidence)).append(",\n");
+            json.append("    \"checks\": {\n");
+            json.append("      \"heat_balance\": ").append(assessment.checks.heat_balance).append(",\n");
+            json.append("      \"inlet_temperature_ok\": ").append(assessment.checks.inlet_temperature_ok).append(",\n");
+            json.append("      \"humidity_ok\": ").append(assessment.checks.humidity_ok).append(",\n");
+            json.append("      \"energy_efficiency_ok\": ").append(assessment.checks.energy_efficiency_ok).append("\n");
+            json.append("    },\n");
+            json.append("    \"key_metrics\": {\n");
+            json.append("      \"max_inlet_temp_c\": ").append(String.format("%.1f", assessment.key_metrics.max_inlet_temp_c)).append(",\n");
+            json.append("      \"cooling_capacity_kw\": ").append(String.format("%.1f", assessment.key_metrics.cooling_capacity_kw)).append(",\n");
+            json.append("      \"heat_load_kw\": ").append(String.format("%.1f", assessment.key_metrics.heat_load_kw)).append(",\n");
+            json.append("      \"pue_avg\": ").append(String.format("%.2f", assessment.key_metrics.pue_avg)).append(",\n");
+            json.append("      \"max_humidity_percent\": ").append(String.format("%.1f", assessment.key_metrics.max_humidity_percent)).append(",\n");
+            json.append("      \"min_wetbulb_depression_c\": ").append(String.format("%.1f", assessment.key_metrics.min_wetbulb_depression_c)).append("\n");
+            json.append("    },\n");
+            json.append("    \"engineering_notes\": [\n");
+            for (int i = 0; i < assessment.engineering_notes.size(); i++) {
+                json.append("      \"").append(assessment.engineering_notes.get(i)).append("\"");
+                if (i < assessment.engineering_notes.size() - 1) json.append(",");
+                json.append("\n");
+            }
+            json.append("    ],\n");
+            json.append("    \"recommendations\": [\n");
+            for (int i = 0; i < assessment.recommendations.size(); i++) {
+                json.append("      \"").append(assessment.recommendations.get(i)).append("\"");
+                if (i < assessment.recommendations.size() - 1) json.append(",");
+                json.append("\n");
+            }
+            json.append("    ]\n");
+            json.append("  }\n");
+            json.append("}\n");
+            
+            Files.write(Paths.get(filename), json.toString().getBytes(StandardCharsets.UTF_8));
+            System.out.println("Wrote cooling assessment: " + filename);
+            
+        } catch (IOException e) {
+            System.err.println("Failed to write assessment JSON: " + e.getMessage());
+        }
     }
 }

@@ -14,7 +14,7 @@ public class EvapMetricsRecorder {
     public EvapMetricsRecorder(String scenario) {
         this.scenario = scenario;
         rows.add(
-                "scenario,time_s,Tdb_in,RH_in,Twb_in,W_in,h_in,Tdp_in,mode,T_supply,T_cold,T_hot,Q_evap_kW,Q_DX_kW,m_evap_kg_s,blowdown_kg_s,makeup_kg_s,P_fan_kW,P_DX_kW,P_pump_kW,E_fan_kWh_cum,E_DX_kWh_cum,E_total_kWh_cum,P_IT_kW,P_total_kW,PUE_inst,PUE_avg,WUE_inst,CUE_inst,cost_elec,cost_water,OPEX_total,CO2_kg_cum\n");
+                "scenario,time_s,Tdb_in,RH_in,Twb_in,W_in,h_in,Tdp_in,mode,T_supply,T_cold,T_hot,Q_evap_kW,Q_DX_kW,m_evap_kg_s,blowdown_kg_s,makeup_kg_s,P_fan_kW,P_DX_kW,P_pump_kW,E_fan_kWh_cum,E_DX_kWh_cum,E_total_kWh_cum,P_IT_kW,P_total_kW,PUE_inst,PUE_avg,WUE_inst,CUE_inst,cost_elec,cost_water,OPEX_total,CO2_kg_cum,inlet_temp_est_c\n");
     }
 
     public void record(
@@ -31,16 +31,18 @@ public class EvapMetricsRecorder {
             // DC metrics
             double P_IT_kW, double P_total_kW, double PUE_inst, double PUE_avg, double WUE_inst, double CUE_inst,
             // Cost & CO2
-            double cost_elec, double cost_water, double OPEX_total, double CO2_kg_cum) {
+            double cost_elec, double cost_water, double OPEX_total, double CO2_kg_cum,
+            // Cooling adequacy
+            double inlet_temp_est_c) {
         String line = String.format(java.util.Locale.US,
-                "%s,%.2f,%.3f,%.2f,%.3f,%.6f,%.2f,%.3f,%s,%.3f,%.3f,%.3f,%.3f,%.3f,%.6f,%.6f,%.6f,%.3f,%.3f,%.3f,%.6f,%.6f,%.6f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.6f\n",
+                "%s,%.2f,%.3f,%.2f,%.3f,%.6f,%.2f,%.3f,%s,%.3f,%.3f,%.3f,%.3f,%.3f,%.6f,%.6f,%.6f,%.3f,%.3f,%.3f,%.6f,%.6f,%.6f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.6f,%.2f\n",
                 scenario, t, Tdb_in, RH_in, Twb_in, W_in, h_in, Tdp_in,
                 mode, T_supply, T_cold, T_hot, Q_evap_kW, Q_DX_kW,
                 m_evap_kg_s, blowdown_kg_s, makeup_kg_s,
                 P_fan_kW, P_DX_kW, P_pump_kW,
                 E_fan_kWh_cum, E_DX_kWh_cum, E_total_kWh_cum,
                 P_IT_kW, P_total_kW, PUE_inst, PUE_avg, WUE_inst, CUE_inst,
-                cost_elec, cost_water, OPEX_total, CO2_kg_cum);
+                cost_elec, cost_water, OPEX_total, CO2_kg_cum, inlet_temp_est_c);
         rows.add(line);
     }
 

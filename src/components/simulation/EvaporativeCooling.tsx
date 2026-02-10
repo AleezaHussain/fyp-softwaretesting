@@ -149,6 +149,17 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
     currentConfig?.dxMaxCapacity || 0, // 0 = auto
   );
 
+  // Cost & Environmental Impact fields
+  const [electricityRate, setElectricityRate] = useState<number>(
+    currentConfig?.electricityRate || 0.12, // $/kWh
+  );
+  const [waterRate, setWaterRate] = useState<number>(
+    currentConfig?.waterRate || 0.001, // $/L
+  );
+  const [gridEmissionsFactor, setGridEmissionsFactor] = useState<number>(
+    currentConfig?.gridEmissionsFactor || 0.45, // kg CO2/kWh
+  );
+
   // State for server data from database
   const [servers, setServers] = useState<ServerType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -442,6 +453,9 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
         dxCOP,
         dxMaxCapacity: dxMaxCapacity === 0 ? autoCalculatedDxCapacity : dxMaxCapacity,
         autoCalculatedDxCapacity,
+        electricityRate,
+        waterRate,
+        gridEmissionsFactor,
       });
     }
   }, [
@@ -482,6 +496,9 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
     dxCOP,
     dxMaxCapacity,
     autoCalculatedDxCapacity,
+    electricityRate,
+    waterRate,
+    gridEmissionsFactor,
     onConfigChange,
   ]);
 
@@ -1824,6 +1841,115 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
               </div>
             </>
           )}
+
+          {/* Cost & Environmental Impact Section */}
+          <div className="md:col-span-2 mt-6">
+            <h3 className={`text-lg font-semibold mb-4 ${
+              isDark ? "text-white" : "text-gray-900"
+            }`}>
+              Cost & Environmental Impact
+            </h3>
+          </div>
+
+          {/* Electricity Rate */}
+          <div>
+            <label
+              className={`block mb-2 font-semibold ${
+                isDark ? "text-white" : "text-gray-900"
+              }`}
+            >
+              Electricity Rate ($/kWh)
+            </label>
+            <input
+              type="number"
+              min={0.01}
+              max={1.0}
+              step={0.01}
+              value={electricityRate}
+              onChange={(e) => setElectricityRate(Number(e.target.value))}
+              className={`w-full p-3 border rounded-lg ${
+                isDark
+                  ? "bg-[#1a1f3a] border-[#3f4a68] text-white"
+                  : "bg-white border-gray-300 text-gray-900"
+              }`}
+            />
+            <p className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              Local electricity cost per kilowatt-hour (US avg: $0.12)
+            </p>
+          </div>
+
+          {/* Water Rate */}
+          <div>
+            <label
+              className={`block mb-2 font-semibold ${
+                isDark ? "text-white" : "text-gray-900"
+              }`}
+            >
+              Water Rate ($/L)
+            </label>
+            <input
+              type="number"
+              min={0.0001}
+              max={0.01}
+              step={0.0001}
+              value={waterRate}
+              onChange={(e) => setWaterRate(Number(e.target.value))}
+              className={`w-full p-3 border rounded-lg ${
+                isDark
+                  ? "bg-[#1a1f3a] border-[#3f4a68] text-white"
+                  : "bg-white border-gray-300 text-gray-900"
+              }`}
+            />
+            <p className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              Local water cost per liter (Municipal avg: $0.001)
+            </p>
+          </div>
+
+          {/* Grid Emissions Factor */}
+          <div className="md:col-span-2">
+            <label
+              className={`block mb-2 font-semibold ${
+                isDark ? "text-white" : "text-gray-900"
+              }`}
+            >
+              Grid Emissions Factor (kg CO₂/kWh)
+            </label>
+            <div className="flex items-center gap-4">
+              <input
+                type="range"
+                min={0.1}
+                max={1.0}
+                step={0.01}
+                value={gridEmissionsFactor}
+                onChange={(e) => setGridEmissionsFactor(Number(e.target.value))}
+                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+              />
+              <input
+                type="number"
+                min={0.1}
+                max={1.0}
+                step={0.01}
+                value={gridEmissionsFactor}
+                onChange={(e) => setGridEmissionsFactor(Number(e.target.value))}
+                className={`w-24 p-2 border rounded-lg text-center ${
+                  isDark
+                    ? "bg-[#1a1f3a] border-[#3f4a68] text-white"
+                    : "bg-white border-gray-300 text-gray-900"
+                }`}
+              />
+              <span className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
+                kg CO₂/kWh
+              </span>
+            </div>
+            <div className="flex justify-between text-xs mt-1">
+              <span className={isDark ? "text-gray-500" : "text-gray-500"}>0.1 (Clean)</span>
+              <span className={isDark ? "text-gray-500" : "text-gray-500"}>0.45 (Mixed)</span>
+              <span className={isDark ? "text-gray-500" : "text-gray-500"}>1.0 (Coal)</span>
+            </div>
+            <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              Carbon intensity of local electricity grid (US avg: 0.45)
+            </p>
+          </div>
 
         </div>
       </div>
