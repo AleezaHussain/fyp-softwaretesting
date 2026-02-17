@@ -990,6 +990,12 @@ export const InputManagement: React.FC = () => {
 
   // Enhanced simulation run with loader
   const handleSubmit = async () => {
+    // 🔍 DEBUG: Log weatherData at submission time
+    console.log('🔍 [SUBMIT] handleSubmit called');
+    console.log('🔍 [SUBMIT] configRef.current:', configRef.current);
+    console.log('🔍 [SUBMIT] Has weatherData in configRef?', !!configRef.current?.weatherData);
+    console.log('🔍 [SUBMIT] WeatherData length:', configRef.current?.weatherData?.length || 0);
+
     // Capture config before submitting
     if (configRef.current) {
       const config = configRef.current;
@@ -1000,14 +1006,21 @@ export const InputManagement: React.FC = () => {
         ...config,
         serverId: config.serverId || serverId,
         countryId: config.countryId || countryId,
+        coolingTechnique: selectedTechnique || "air", // ← Add cooling technique to config
       };
+
+      console.log('🔍 [SUBMIT] completeConfig has weatherData?', !!completeConfig.weatherData);
+      console.log('🔍 [SUBMIT] completeConfig weatherData length:', completeConfig.weatherData?.length || 0);
 
       updateSimulationInput({
         coolingTechnique: selectedTechnique || "air",
-        airSideConfig: completeConfig,
+        airSideConfig: selectedTechnique === "air" ? completeConfig : undefined,
         evaporativeConfig: selectedTechnique === "evaporative" ? completeConfig : undefined,
         locationData: locationData,
       } as any);
+
+      // Update configRef with cooling technique
+      configRef.current = completeConfig;
     }
 
     // Start simulation loader
@@ -1029,7 +1042,22 @@ export const InputManagement: React.FC = () => {
     // Run actual simulation
     if (configRef.current) {
       try {
-        await runSimulation(configRef.current);
+        // Wrap config properly based on cooling technique
+        const simulationInput = selectedTechnique === 'evaporative' 
+          ? { 
+              ...configRef.current,
+              evaporativeConfig: configRef.current,
+              coolingTechnique: 'evaporative'
+            }
+          : selectedTechnique === 'air'
+          ? {
+              ...configRef.current,
+              airSideConfig: configRef.current,
+              coolingTechnique: 'air'
+            }
+          : configRef.current;
+
+        await runSimulation(simulationInput);
 
         // Wait for simulation to complete
         setTimeout(() => {
@@ -1055,6 +1083,14 @@ export const InputManagement: React.FC = () => {
     (config: any) => {
       // Store in ref immediately for quick access
       configRef.current = config;
+
+      // 🔍 DEBUG: Log weatherData when config changes
+      console.log('🔍 [CONFIG] handleConfigChange called');
+      console.log('🔍 [CONFIG] Has weatherData?', !!config.weatherData);
+      console.log('🔍 [CONFIG] WeatherData length:', config.weatherData?.length || 0);
+      if (config.weatherData && config.weatherData.length > 0) {
+        console.log('✅ [CONFIG] Weather data present:', config.weatherData.slice(0, 2));
+      }
 
       // ✅ FIX: Store serverId and countryId from config
       if (config.serverId && config.serverId !== serverId) {

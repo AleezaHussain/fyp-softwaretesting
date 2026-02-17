@@ -145,6 +145,12 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
     // Helper returns the input value or null (removing hardcoded defaults)
     const val = (v: any) => (v !== undefined && v !== null ? v : null);
 
+    // 🔍 DEBUG: Log the raw input to see what we're receiving
+    console.log('🔍 [DEBUG] Raw input received by runSimulation:', JSON.stringify(input, null, 2));
+    console.log('🔍 [DEBUG] Input keys:', Object.keys(input));
+    console.log('🔍 [DEBUG] Has evaporativeConfig?', !!(input as any).evaporativeConfig);
+    console.log('🔍 [DEBUG] Has airSideConfig?', !!(input as any).airSideConfig);
+
     // Check cooling technique to determine which API to call
     const coolingTechnique = (input as any).coolingTechnique || 'air';
     

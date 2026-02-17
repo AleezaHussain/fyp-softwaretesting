@@ -23,6 +23,38 @@ public class EvaporativeCoolingService {
     private final WeatherCsvParser weatherParser = new WeatherCsvParser();
     
     /**
+     * Calculate dynamic DX COP based on outdoor temperature
+     * COP degrades as outdoor temperature increases (condenser has to work harder)
+     * 
+     * Formula: COP = Nominal_COP * (1 - degradation_factor * (T_outdoor - T_reference))
+     * 
+     * @param outdoorTempC Outdoor dry bulb temperature in Celsius
+     * @param nominalCOP Base COP at reference conditions (typically 3.5)
+     * @return Dynamic COP adjusted for outdoor temperature
+     */
+    private double calculateDynamicDxCop(double outdoorTempC, double nominalCOP) {
+        // Reference temperature (25°C / 77°F) - standard rating condition
+        final double T_REFERENCE = 25.0;
+        
+        // Degradation factor: COP drops ~2-3% per degree C above reference
+        // Using 2.5% per degree C as a reasonable middle ground
+        final double DEGRADATION_FACTOR = 0.025;
+        
+        // Calculate temperature difference from reference
+        double tempDelta = outdoorTempC - T_REFERENCE;
+        
+        // Calculate degraded COP
+        double dynamicCOP = nominalCOP * (1.0 - DEGRADATION_FACTOR * tempDelta);
+        
+        // Apply realistic bounds:
+        // - Minimum COP: 2.0 (even in extreme heat, system maintains some efficiency)
+        // - Maximum COP: 5.0 (in cold weather, COP can improve but has practical limits)
+        dynamicCOP = Math.max(2.0, Math.min(5.0, dynamicCOP));
+        
+        return dynamicCOP;
+    }
+    
+    /**
      * Parse configuration JSON from multipart request
      */
     public SimulationRequest parseConfigJson(String configJson) throws IOException {
@@ -170,7 +202,22 @@ public class EvaporativeCoolingService {
         double dxPowerKW = 0.0;
         if (request.cooling_system.has_dx_backup && evapResult.coolingCapacityKW < totalHeatLoadKW) {
             double dxCoolingKW = totalHeatLoadKW - evapResult.coolingCapacityKW;
-            dxPowerKW = dxCoolingKW / request.cooling_system.dx_cop; // Use frontend DX COP
+            
+            // 🔥 DYNAMIC COP: Calculate COP based on current outdoor temperature
+            double dynamicCOP = calculateDynamicDxCop(
+                weather.dryBulbTempC, 
+                request.cooling_system.dx_cop  // Use frontend nominal COP as baseline
+            );
+            
+            dxPowerKW = dxCoolingKW / dynamicCOP;
+            
+            // Log DX backup usage for debugging (only first few times to avoid spam)
+            if (hour < 5 || hour % 1000 == 0) {
+                System.out.println(String.format(
+                    "  Hour %d: DX Backup Active - Outdoor: %.1f°C, Nominal COP: %.2f, Dynamic COP: %.2f, DX Load: %.1f kW, DX Power: %.1f kW",
+                    hour, weather.dryBulbTempC, request.cooling_system.dx_cop, dynamicCOP, dxCoolingKW, dxPowerKW
+                ));
+            }
         }
         
         // Calculate total electrical power

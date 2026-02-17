@@ -294,7 +294,11 @@ public class App {
             // Track humidity conditions
             maxHumidityPercent = Math.max(maxHumidityPercent, RH_out);
             double wetbulbDepression = Tdb_out - Twb_out;
-            minWetbulbDepressionC = Math.min(minWetbulkDepressionC, wetbulbDepression);
+            minWetbulbDepressionC = Math.min(minWetbulbDepressionC, wetbulbDepression);
+            
+            // Calculate PUE for this timestep
+            double P_total_kW = P_IT_kW + P_UPS_loss_kW + P_PDU_loss_kW + P_fan_kW + P_pump_kW + P_DX_kW;
+            double PUE_inst = P_total_kW / P_IT_kW;
             
             // Track PUE for averaging
             if (P_IT_kW > 0) {
@@ -326,8 +330,6 @@ public class App {
             double E_DX_kWh_cum = 0.0; // not yet modeled
             double E_total_kWh_cum = fanEnergy_kWh; // can add more terms
             // DC metrics
-            double P_total_kW = P_IT_kW + P_UPS_loss_kW + P_PDU_loss_kW + P_fan_kW + P_pump_kW + P_DX_kW;
-            double PUE_inst = P_total_kW / P_IT_kW;
             double PUE_avg = PUE_inst; // dummy
             double WUE_inst = m_evap_kg_s * 3600.0 / P_IT_kW; // dummy
             double CUE_inst = 0.45; // dummy
@@ -391,8 +393,8 @@ public class App {
             }
             
             System.out.println("\nRecommendations:");
-            for (String rec : assessment.recommendations) {
-                System.out.println("  🔧 " + rec);
+            for (String recommendation : assessment.recommendations) {
+                System.out.println("  🔧 " + recommendation);
             }
             
             // Write assessment to JSON file

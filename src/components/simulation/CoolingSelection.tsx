@@ -3,6 +3,7 @@ import { Wind, Droplets, Cloud } from 'lucide-react'
 import { CoolingTechnique, CoolingTechniqueConfig } from '../../types/simulation'
 import { CoolingEfficiencyPreview } from './CoolingEfficiencyPreview'
 import AirSideEconomization from './AirSideEconomization'
+import EvaporativeCooling from './EvaporativeCooling'
 
 interface CoolingSelectionProps {
   onSelect: (config: CoolingTechniqueConfig) => void
@@ -96,6 +97,10 @@ export const CoolingSelection: React.FC<CoolingSelectionProps> = ({ onSelect, on
       waterSource: formData.waterSource,
       evaporationRate: formData.evaporationRate,
       humidityLimit: formData.humidityLimit,
+      // Add evaporative config if available
+      evaporativeConfig: formData.evaporativeConfig,
+      // Add air side config if available
+      airSideConfig: formData.airSideConfig,
     }
 
     onSelect(config)
@@ -184,6 +189,19 @@ export const CoolingSelection: React.FC<CoolingSelectionProps> = ({ onSelect, on
                 }))
               }}
             />
+          ) : selectedTechnique === 'evaporative' ? (
+            <EvaporativeCooling
+              isDark={false}
+              isTransitioning={false}
+              currentConfig={formData.evaporativeConfig || {}}
+              currentInput={{}}
+              onConfigChange={(config: any) => {
+                setFormData((prev) => ({
+                  ...prev,
+                  evaporativeConfig: config,
+                }))
+              }}
+            />
           ) : (
             <div className="bg-white rounded-lg border border-gray-200 p-6">
               <h3 className="text-lg font-bold text-[#1a1a2e] mb-4">
@@ -228,49 +246,6 @@ export const CoolingSelection: React.FC<CoolingSelectionProps> = ({ onSelect, on
                         max="100"
                         value={formData.hxEfficiency || 85}
                         onChange={(e) => handleInputChange('hxEfficiency', parseFloat(e.target.value))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                      />
-                    </div>
-                  </>
-                )}
-
-                {selectedTechnique === 'evaporative' && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Water Source
-                      </label>
-                      <select
-                        value={formData.waterSource || 'mains'}
-                        onChange={(e) => handleInputChange('waterSource', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                      >
-                        <option value="mains">Mains Water</option>
-                        <option value="recycled">Recycled Water</option>
-                        <option value="rainwater">Rainwater Harvesting</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Evaporation Rate (kg/s)
-                      </label>
-                      <input
-                        type="number"
-                        value={formData.evaporationRate || 5}
-                        onChange={(e) => handleInputChange('evaporationRate', parseFloat(e.target.value))}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Humidity Limit (%)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={formData.humidityLimit || 60}
-                        onChange={(e) => handleInputChange('humidityLimit', parseFloat(e.target.value))}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#5ce1e5]"
                       />
                     </div>
