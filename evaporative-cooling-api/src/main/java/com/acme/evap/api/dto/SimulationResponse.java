@@ -1,6 +1,7 @@
 package com.acme.evap.api.dto;
 
 import java.util.List;
+import com.acme.evap.api.service.SimulationState;
 
 /**
  * Complete simulation results for frontend consumption
@@ -11,6 +12,7 @@ public class SimulationResponse {
     public String message;
     public SimulationResults results;
     public CoolingAssessment cooling_assessment;
+    public List<SimulationState.HourlyData> hourly_data; // ← ADD THIS
     
     public static class SimulationResults {
         public EnergyResults energy;

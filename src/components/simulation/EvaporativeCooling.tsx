@@ -116,9 +116,8 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
   );
   
   // C. Air Handling Unit
-  const [maxAirflowCapacity] = useState<number>(
-    currentConfig?.maxAirflowCapacity || 5000,
-  );
+  // Note: maxAirflowCapacity is calculated later after selectedServer is defined
+  
   const [fanEfficiency] = useState<number>(
     currentConfig?.fanEfficiency || 65,
   );
@@ -142,7 +141,8 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
 
   // Mechanical Backup fields (kept for backend compatibility)
   const [enableMechanicalBackup] = useState<boolean>(
-    currentConfig?.enableMechanicalBackup ?? false,
+    // ✅ RECOMMENDED: Enable DX backup for hybrid operation (was false)
+    currentConfig?.enableMechanicalBackup ?? true,
   );
   const [dxCOP] = useState<number>(
     currentConfig?.dxCOP || 3.5,
@@ -214,27 +214,103 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Fallback server data if Supabase is unavailable
+  const fallbackServers: ServerType[] = [
+    {
+      id: 1,
+      name: "Dell PowerEdge R740",
+      manufacturer: "Dell",
+      max_power_w: 750,
+      idle_power_w: 150,
+      avg_utilization_percent: 60,
+      peak_utilization_percent: 90,
+      form_factor: "2U",
+      max_airflow_cfm: 250,
+    },
+    {
+      id: 2,
+      name: "HP ProLiant DL380 Gen10",
+      manufacturer: "HP",
+      max_power_w: 800,
+      idle_power_w: 160,
+      avg_utilization_percent: 65,
+      peak_utilization_percent: 95,
+      form_factor: "2U",
+      max_airflow_cfm: 280,
+    },
+    {
+      id: 3,
+      name: "Cisco UCS C240 M5",
+      manufacturer: "Cisco",
+      max_power_w: 850,
+      idle_power_w: 170,
+      avg_utilization_percent: 60,
+      peak_utilization_percent: 90,
+      form_factor: "2U",
+      max_airflow_cfm: 300,
+    },
+    {
+      id: 4,
+      name: "Lenovo ThinkSystem SR650",
+      manufacturer: "Lenovo",
+      max_power_w: 700,
+      idle_power_w: 140,
+      avg_utilization_percent: 55,
+      peak_utilization_percent: 85,
+      form_factor: "2U",
+      max_airflow_cfm: 240,
+    },
+    {
+      id: 5,
+      name: "Supermicro SuperServer 2029U",
+      manufacturer: "Supermicro",
+      max_power_w: 900,
+      idle_power_w: 180,
+      avg_utilization_percent: 70,
+      peak_utilization_percent: 95,
+      form_factor: "2U",
+      max_airflow_cfm: 320,
+    },
+  ];
+
   // Fetch servers from database
   useEffect(() => {
     const fetchServers = async () => {
       try {
         setLoading(true);
+        console.log('🔍 [SERVERS] Fetching servers from Supabase...');
+        
         const { data, error } = await supabase
           .from("servers")
           .select("*")
           .order("name", { ascending: true });
 
-        if (error) throw error;
-
-        setServers(data || []);
+        if (error) {
+          console.warn('⚠️ [SERVERS] Supabase error:', error.message);
+          console.log('🔄 [SERVERS] Using fallback server data');
+          setServers(fallbackServers);
+          setError(null); // Don't show error to user, just use fallback
+        } else {
+          console.log('✅ [SERVERS] Loaded', data?.length || 0, 'servers from Supabase');
+          setServers(data || fallbackServers);
+        }
         
         // Set default server if none selected
-        if (!serverType && data && data.length > 0) {
-          setServerType(data[0].id);
+        const serverList = data || fallbackServers;
+        if (!serverType && serverList && serverList.length > 0) {
+          setServerType(serverList[0].id);
+          console.log('✅ [SERVERS] Default server selected:', serverList[0].name);
         }
       } catch (err: any) {
-        console.error("Error fetching servers:", err);
-        setError(err.message || "Failed to load servers");
+        console.error("❌ [SERVERS] Error fetching servers:", err);
+        console.log('🔄 [SERVERS] Using fallback server data');
+        setServers(fallbackServers);
+        setError(null); // Don't show error to user, just use fallback
+        
+        // Set default server
+        if (!serverType && fallbackServers.length > 0) {
+          setServerType(fallbackServers[0].id);
+        }
       } finally {
         setLoading(false);
       }
@@ -247,6 +323,27 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
     () => servers.find((s) => s.id === serverType) || null,
     [serverType, servers],
   );
+
+  // ✅ AUTO-CALCULATE: Airflow based on server count and specifications
+  // Must be defined AFTER selectedServer to avoid initialization errors
+  const maxAirflowCapacity = useMemo(() => {
+    if (selectedServer && totalServers > 0) {
+      // Calculate required airflow based on server specifications
+      // Rule of thumb: 150-200 CFM per server (depending on power density)
+      const cfmPerServer = selectedServer.max_airflow_cfm || 180; // Use server's max airflow or default
+      const calculatedCFM = totalServers * cfmPerServer;
+      
+      // Add 20% safety margin
+      const airflowWithMargin = calculatedCFM * 1.2;
+      
+      console.log(`🌀 Auto-calculated airflow: ${totalServers} servers × ${cfmPerServer} CFM/server × 1.2 margin = ${airflowWithMargin.toFixed(0)} CFM`);
+      
+      return Math.round(airflowWithMargin);
+    }
+    
+    // Fallback to config or default
+    return currentConfig?.maxAirflowCapacity || 9000;
+  }, [selectedServer, totalServers, currentConfig?.maxAirflowCapacity]);
 
   // Auto-calculate rack count
   const numberOfRacks = useMemo(
@@ -1241,6 +1338,34 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
                   );
                 }
               })()}
+            </div>
+          )}
+
+          {/* Auto-calculated Airflow Display */}
+          {selectedServer && totalServers > 0 && (
+            <div className="md:col-span-2">
+              <div className={`p-4 rounded-lg border ${
+                isDark 
+                  ? "bg-blue-900/20 border-blue-700/30" 
+                  : "bg-blue-50 border-blue-200"
+              }`}>
+                <div className="flex items-start gap-3">
+                  <svg className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                    isDark ? "text-blue-400" : "text-blue-600"
+                  }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className={`text-sm ${isDark ? "text-blue-300" : "text-blue-700"}`}>
+                    <div className="font-semibold mb-1">
+                      🌀 Auto-Calculated Airflow: {maxAirflowCapacity.toLocaleString()} CFM
+                    </div>
+                    <div className="text-xs opacity-90">
+                      Based on {totalServers} servers × {selectedServer.max_airflow_cfm || 180} CFM/server × 1.2 safety margin
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

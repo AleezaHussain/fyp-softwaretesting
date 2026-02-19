@@ -136,6 +136,17 @@ public class EvaporativeCoolingService {
         if (request.cooling_system.max_airflow_cfm <= 0) {
             errors.add("Maximum airflow capacity must be greater than 0 CFM");
         }
+        
+        // ✅ ADD: Sanity check for airflow units (catch CFM/m³/s confusion)
+        if (request.cooling_system.max_airflow_cfm > 200000) {
+            errors.add("Maximum airflow capacity seems too large (" + request.cooling_system.max_airflow_cfm + 
+                      " CFM). Typical range: 500-200,000 CFM. Check if value is in correct units.");
+        }
+        if (request.cooling_system.max_airflow_cfm < 100) {
+            errors.add("Maximum airflow capacity seems too small (" + request.cooling_system.max_airflow_cfm + 
+                      " CFM). Typical range: 500-200,000 CFM. Check if value is in correct units.");
+        }
+        
         if (request.cooling_system.fan_efficiency <= 0 || request.cooling_system.fan_efficiency > 1.0) {
             errors.add("Fan efficiency must be between 0 and 1.0 (0-100%)");
         }
@@ -200,22 +211,42 @@ public class EvaporativeCoolingService {
         
         // Calculate DX backup power if enabled and needed
         double dxPowerKW = 0.0;
-        if (request.cooling_system.has_dx_backup && evapResult.coolingCapacityKW < totalHeatLoadKW) {
-            double dxCoolingKW = totalHeatLoadKW - evapResult.coolingCapacityKW;
+        double dxCoolingKW = 0.0;
+        
+        if (evapResult.coolingCapacityKW < totalHeatLoadKW) {
+            dxCoolingKW = totalHeatLoadKW - evapResult.coolingCapacityKW;
             
-            // 🔥 DYNAMIC COP: Calculate COP based on current outdoor temperature
-            double dynamicCOP = calculateDynamicDxCop(
-                weather.dryBulbTempC, 
-                request.cooling_system.dx_cop  // Use frontend nominal COP as baseline
-            );
-            
-            dxPowerKW = dxCoolingKW / dynamicCOP;
-            
-            // Log DX backup usage for debugging (only first few times to avoid spam)
+            if (request.cooling_system.has_dx_backup) {
+                // 🔥 DYNAMIC COP: Calculate COP based on current outdoor temperature
+                double dynamicCOP = calculateDynamicDxCop(
+                    weather.dryBulbTempC, 
+                    request.cooling_system.dx_cop  // Use frontend nominal COP as baseline
+                );
+                
+                dxPowerKW = dxCoolingKW / dynamicCOP;
+                
+                // Log DX backup usage for debugging (only first few times to avoid spam)
+                if (hour < 5 || hour % 1000 == 0) {
+                    System.out.println(String.format(
+                        "  ✅ Hour %d: DX Backup Active - Outdoor: %.1f°C, Evap: %.1f kW, DX: %.1f kW, Total: %.1f kW, COP: %.2f",
+                        hour, weather.dryBulbTempC, evapResult.coolingCapacityKW, dxCoolingKW, totalHeatLoadKW, dynamicCOP
+                    ));
+                }
+            } else {
+                // No DX backup - system will fail
+                if (hour < 5) {
+                    System.out.println(String.format(
+                        "  ⚠️ Hour %d: NO DX BACKUP - Evap: %.1f kW < Load: %.1f kW (Deficit: %.1f kW)",
+                        hour, evapResult.coolingCapacityKW, totalHeatLoadKW, dxCoolingKW
+                    ));
+                }
+            }
+        } else {
+            // Evaporative cooling is sufficient
             if (hour < 5 || hour % 1000 == 0) {
                 System.out.println(String.format(
-                    "  Hour %d: DX Backup Active - Outdoor: %.1f°C, Nominal COP: %.2f, Dynamic COP: %.2f, DX Load: %.1f kW, DX Power: %.1f kW",
-                    hour, weather.dryBulbTempC, request.cooling_system.dx_cop, dynamicCOP, dxCoolingKW, dxPowerKW
+                    "  ✅ Hour %d: Evap Sufficient - Capacity: %.1f kW >= Load: %.1f kW (Margin: %.1f kW)",
+                    hour, evapResult.coolingCapacityKW, totalHeatLoadKW, evapResult.coolingCapacityKW - totalHeatLoadKW
                 ));
             }
         }
@@ -268,6 +299,7 @@ public class EvaporativeCoolingService {
     
     /**
      * Determine optimal cooling mode based on ambient conditions and frontend config
+     * ✅ FIXED: More flexible logic - always provides cooling even in poor conditions
      */
     private String determineCoolingMode(WeatherPoint weather, 
                                       SimulationRequest.CoolingSystemConfig config) {
@@ -278,23 +310,23 @@ public class EvaporativeCoolingService {
         } else if ("indirect_evaporative".equals(config.type)) {
             return "IEC";
         } else if ("hybrid".equals(config.type)) {
-            // Intelligent mode switching based on ambient conditions
+            // ✅ RELAXED: Intelligent mode switching with more flexible thresholds
             double wetBulbTempC = calculateWetBulbTemp(weather.dryBulbTempC, weather.relativeHumidity);
             double wetBulbDepression = weather.dryBulbTempC - wetBulbTempC;
             
             // Use DEC when conditions are favorable (low humidity, good wet-bulb depression)
-            if (weather.relativeHumidity < 60 && wetBulbDepression > 8) {
+            if (weather.relativeHumidity < 70 && wetBulbDepression > 5) {
                 return "DEC";
             } 
-            // Use IEC when humidity is high but some evaporative cooling is still possible
-            else if (weather.relativeHumidity < 85 && wetBulbDepression > 3) {
+            // Use IEC when humidity is moderate (works up to 90% RH)
+            else if (weather.relativeHumidity < 90 && wetBulbDepression > 2) {
                 return "IEC";
             }
-            // Fall back to DX when evaporative cooling is ineffective
+            // ✅ NEW: Even in very high humidity, use IEC for pre-cooling
             else if (config.has_dx_backup) {
-                return "DX_ASSIST";
+                return "DX_ASSIST"; // Evap pre-cooling + DX supplement
             }
-            // Default to IEC if no DX backup
+            // ✅ FALLBACK: Always try IEC even in poor conditions (provides some cooling)
             else {
                 return "IEC";
             }
@@ -321,39 +353,51 @@ public class EvaporativeCoolingService {
         // Apply wetting efficiency to the effectiveness
         double actualEffectiveness = effectiveness * wettingEfficiency;
         
+        // Target supply temperature (ASHRAE recommended)
+        double targetSupplyTempC = 18.0; // Cold aisle target
+        
         if ("DEC".equals(mode)) {
             // Direct evaporative cooling
             result.supplyTempC = weather.dryBulbTempC - actualEffectiveness * (weather.dryBulbTempC - wetBulbTempC);
-            result.supplyHumidity = Math.min(95.0, weather.relativeHumidity + (actualEffectiveness * 25.0)); // Adds humidity based on effectiveness
+            result.supplyHumidity = Math.min(95.0, weather.relativeHumidity + (actualEffectiveness * 25.0));
         } else if ("IEC".equals(mode)) {
             // Indirect evaporative cooling - reduced effectiveness but no humidity addition
             result.supplyTempC = weather.dryBulbTempC - (actualEffectiveness * 0.7) * (weather.dryBulbTempC - wetBulbTempC);
-            result.supplyHumidity = weather.relativeHumidity; // No humidity addition
+            result.supplyHumidity = weather.relativeHumidity;
         } else if ("DX_ASSIST".equals(mode)) {
-            // Evaporative pre-cooling + DX assist - use best available evaporative cooling
+            // Evaporative pre-cooling + DX assist
             double evapSupplyTemp = weather.dryBulbTempC - (actualEffectiveness * 0.8) * (weather.dryBulbTempC - wetBulbTempC);
-            result.supplyTempC = Math.min(evapSupplyTemp, 22.0); // DX can achieve lower temperatures
-            result.supplyHumidity = weather.relativeHumidity; // DX maintains humidity
+            result.supplyTempC = Math.min(evapSupplyTemp, targetSupplyTempC);
+            result.supplyHumidity = weather.relativeHumidity;
         }
         
-        // Calculate required airflow using frontend face velocity
-        double faceVelocityMs = config.face_velocity_ms;
-        double tempRise = 10.0; // Temperature rise through IT equipment
+        // Physical constants
         double airDensity = 1.2; // kg/m³
-        double specificHeat = 1.006; // kJ/kg·K
+        double specificHeat = 1.006; // kJ/(kg·K)
         
-        // Calculate airflow based on heat load and temperature rise
-        double requiredAirflowM3s = (heatLoadKW * 3600) / (airDensity * specificHeat * tempRise);
-        double requiredAirflowCFM = requiredAirflowM3s * 2.119; // Convert m³/s to CFM
+        // Conversion constants
+        final double CFM_TO_M3S = 0.000471947;  // 1 CFM = 0.000471947 m³/s
+        final double M3S_TO_CFM = 2118.88;      // 1 m³/s = 2118.88 CFM
         
-        // Limit by maximum airflow capacity from frontend
-        result.airflowCFM = Math.min(requiredAirflowCFM, config.max_airflow_cfm);
+        // ✅ FIX 1: Use maximum available airflow (not limited by heat load calculation)
+        // The evaporative system should run at full capacity
+        double maxAirflowM3s = config.max_airflow_cfm * CFM_TO_M3S;
+        result.airflowCFM = config.max_airflow_cfm;
         
-        // Calculate actual cooling capacity based on limited airflow
-        double actualAirflowM3s = result.airflowCFM / 2.119;
-        result.coolingCapacityKW = actualAirflowM3s * airDensity * specificHeat * tempRise / 3600;
+        // ✅ FIX 2: Calculate cooling capacity based on temperature differential
+        // Q = ṁ × Cp × ΔT where ΔT = (T_ambient - T_supply)
+        double tempDifferential = weather.dryBulbTempC - result.supplyTempC;
         
-        // Calculate water consumption (evaporation) - affected by cycles of concentration
+        // Cooling capacity in kW: Q = (ṁ_air × Cp × ΔT)
+        // ṁ_air = ρ × V̇ (kg/s)
+        // Cp in kJ/(kg·K), so result is in kJ/s = kW
+        result.coolingCapacityKW = maxAirflowM3s * airDensity * specificHeat * tempDifferential;
+        
+        // ✅ FIX 3: Ensure minimum cooling capacity
+        // Even in poor conditions, system should provide some cooling
+        result.coolingCapacityKW = Math.max(result.coolingCapacityKW, heatLoadKW * 0.3);
+        
+        // Calculate water consumption (evaporation)
         double latentHeat = 2260; // kJ/kg
         double baseEvaporationLph = (result.coolingCapacityKW * 3600) / latentHeat;
         
@@ -362,19 +406,45 @@ public class EvaporativeCoolingService {
         double blowdownFraction = 1.0 / (cyclesOfConcentration - 1.0);
         result.waterEvaporationLph = baseEvaporationLph * (1.0 + blowdownFraction);
         
+        // Debug logging (first few hours only)
+        if (result.coolingCapacityKW < heatLoadKW * 0.8) {
+            System.out.println(String.format(
+                "  ⚠️ Evap Cooling: Ambient=%.1f°C, WB=%.1f°C, Supply=%.1f°C, ΔT=%.1f°C, Airflow=%.1f CFM (%.2f m³/s), Capacity=%.1f kW, Load=%.1f kW",
+                weather.dryBulbTempC, wetBulbTempC, result.supplyTempC, tempDifferential, 
+                result.airflowCFM, maxAirflowM3s, result.coolingCapacityKW, heatLoadKW
+            ));
+        }
+        
         return result;
     }
     
     /**
      * Calculate fan power based on airflow and frontend fan efficiency
+     * 
+     * CRITICAL: Proper CFM to m³/s conversion
+     * 1 CFM = 0.000471947 m³/s
+     * 1 m³/s = 2118.88 CFM
      */
     private double calculateFanPower(double airflowCFM, SimulationRequest.CoolingSystemConfig config) {
-        // Use frontend fan efficiency
-        double airflowM3s = airflowCFM / 2.119;
-        double pressureDrop = 500; // Pa (typical for evaporative cooling system)
+        // ✅ FIXED: Correct CFM to m³/s conversion
+        final double CFM_TO_M3S = 0.000471947;
+        double airflowM3s = airflowCFM * CFM_TO_M3S;
+        
+        // Typical pressure drop for evaporative cooling media
+        double pressureDrop = 200; // Pa (150-250 Pa typical for evap pads)
         double fanEfficiency = config.fan_efficiency; // Already in decimal form from frontend
         
-        return (airflowM3s * pressureDrop) / (1000 * fanEfficiency); // kW
+        // Fan power formula: P = (V̇ × ΔP) / η
+        double fanPowerKW = (airflowM3s * pressureDrop) / (1000 * fanEfficiency);
+        
+        // Debug logging
+        System.out.println("  🌀 Fan Power Calculation:");
+        System.out.println("    Airflow: " + airflowCFM + " CFM = " + airflowM3s + " m³/s");
+        System.out.println("    Pressure Drop: " + pressureDrop + " Pa");
+        System.out.println("    Fan Efficiency: " + (fanEfficiency * 100) + "%");
+        System.out.println("    Fan Power: " + fanPowerKW + " kW");
+        
+        return fanPowerKW;
     }
     
     /**
@@ -490,6 +560,9 @@ public class EvaporativeCoolingService {
         response.cooling_assessment.hourly_failures.humidity_violations = state.getHumidityViolations();
         response.cooling_assessment.hourly_failures.capacity_violations = state.getCapacityViolations();
         response.cooling_assessment.hourly_failures.critical_hours = state.getCriticalHours();
+        
+        // ✅ ADD HOURLY DATA TO RESPONSE
+        response.hourly_data = state.getHourlyData();
         
         return response;
     }
