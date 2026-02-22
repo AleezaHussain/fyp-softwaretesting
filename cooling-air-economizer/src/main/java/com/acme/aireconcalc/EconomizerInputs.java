@@ -105,6 +105,7 @@ public class EconomizerInputs {
     // --- Future-Proofing / AI Inputs ---
     public double computeIntensityFactor = 1.0; // 1.0 = Standard, >1.0 = AI/HPC
     public int forecastYears = 5; // Forecast horizon
-    public double energyEscalationRate = 0.035; // 3.5%
+    public double energyEscalationRate = 0.035; // 3.5% annual energy cost increase
     public double carbonTaxProjected = 126.0; // Euro per ton 2030 target
+    public double climateChangeOffsetC = 0.0; // Temperature increase due to climate change (°C per year)
 }

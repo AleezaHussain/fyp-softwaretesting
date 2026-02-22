@@ -273,18 +273,30 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       : [];
 
     const payload = {
+      // CloudSim parameters - ALWAYS ENABLED
+      enableCloudSim: true,  // ← Hardcoded to always use CloudSim
+      aiWorkloadMode: val((input as any).aiWorkloadMode) ?? "AI_TRAINING",  // Default to AI_TRAINING
+      computeIntensityFactor: val(input.computeIntensityFactor) ?? 1.0,
+      coresPerServer: val((input as any).coresPerServer) ?? 4,
+      mipsPerCore: val((input as any).mipsPerCore) ?? 1000,
+      
+      // Server configuration
       numberOfRacks: val(input.numberOfRacks),
       serversPerRack: val((input as any).serversPerRack),
       serverMaxPowerW: input.serverMaxPowerW,
       serverIdlePowerW: input.serverIdlePowerW,
       averageUtilization: input.averageUtilization ?? input.efficiencyFactor,
       peakUtilization: input.peakUtilization,
+      
+      // Fan configuration
       bestQuantity: val(input.bestQuantity),
       bestEfficiency: val(input.bestEfficiency),
       averageQuantity: val(input.averageQuantity),
       averageEfficiency: val(input.averageEfficiency),
       legacyQuantity: val(input.legacyQuantity),
       legacyEfficiency: val(input.legacyEfficiency),
+      
+      // Location and tariffs
       country: val((input as any).country),
       electricityTariff: val(input.electricityTariff),
       carbonIntensity: val(
@@ -294,6 +306,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
         (input as any).co2_grid_factor
       ),
       weatherData,
+      
+      // Physics parameters
       airflowCFM: val(input.airflowCFM),
       supplyAirTemp: val(input.supplyAirTemp),
       returnAirTemp: val(input.returnAirTemp),
@@ -301,7 +315,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       economizerMaxOutdoorTemp: val(input.economizerMaxOutdoorTemp),
       economizerMaxHumidity: val(input.economizerMaxHumidity),
       minOutdoorAirFraction: val(input.minOutdoorAirFraction),
-      computeIntensityFactor: val(input.computeIntensityFactor),
+      
+      // Legacy parameters (for backward compatibility)
       forecastYears: val(input.forecastYears),
       energyEscalationRate: val((input as any).energyEscalationRate),
       carbonTaxProjected: val((input as any).carbonTaxProjected),
@@ -311,7 +326,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
 
     console.log('💨 [AIR ECONOMIZER] Air Economizer API payload (No Defaults):', payload);
 
-    const response = await fetch("http://localhost:8080/api/simulation/run", {
+    const response = await fetch("http://localhost:8080/api/simulate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)

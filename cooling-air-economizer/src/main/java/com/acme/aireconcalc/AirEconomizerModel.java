@@ -34,10 +34,14 @@ public class AirEconomizerModel {
 
     /**
      * Computes a single hour's performance.
+     * 
+     * @param in Input parameters
+     * @param weather Weather data for this hour
+     * @param hour Hour index
+     * @param utilization CPU utilization (0-1) - can be from CloudSim or synthetic
+     * @return Step result with cooling performance
      */
     public StepResult computeTimeStep(EconomizerInputs in, WeatherData weather, int hour, double utilization) {
-        // DEBUG LOG: If you see this, the new code is running!
-
         StepResult r = new StepResult();
         r.timestampHour = hour;
         r.outdoorTempC = weather.dryBulbC;
@@ -166,6 +170,111 @@ public class AirEconomizerModel {
         r.pue = r.itLoad_kW > 0 ? r.totalPower_kW / r.itLoad_kW : 0.0;
 
         // CUE = (Total * CarbonIntensity) / IT
+        r.cue = r.itLoad_kW > 0 ? (r.totalPower_kW * in.carbonIntensity_kg_per_kWh) / r.itLoad_kW : 0.0;
+
+        return r;
+    }
+    
+    /**
+     * Computes a single hour's performance using CloudSim-generated IT load.
+     * This method bypasses utilization calculation and uses pre-computed IT load.
+     * 
+     * @param in Input parameters
+     * @param weather Weather data for this hour
+     * @param hour Hour index
+     * @param itLoadKW IT load in kW (from CloudSim)
+     * @return Step result with cooling performance
+     */
+    public StepResult computeTimeStepWithCloudSimLoad(EconomizerInputs in, WeatherData weather, int hour, double itLoadKW) {
+        StepResult r = new StepResult();
+        r.timestampHour = hour;
+        r.outdoorTempC = weather.dryBulbC;
+        r.outdoorRH = weather.relativeHumidity;
+
+        // Use CloudSim-provided IT load directly
+        r.itLoad_kW = itLoadKW;
+        r.coolingLoad_kW = r.itLoad_kW;
+
+        // ---------------------------------------------------------------------
+        // 2) Required Airflow (Heat removal constraint)
+        // V_req (CFM) = (P_IT_kW * 3160) / (rho * Cp * deltaT)
+        // rho=1.2, Cp=1.006, deltaT = Tr (30) - Ts (18) = 12
+        // ---------------------------------------------------------------------
+        double deltaT_design = 30.0 - 18.0;
+        double rho = 1.2;
+        double cp = 1.006;
+        r.requiredAirflow_CFM = (r.itLoad_kW * 3160.0) / (rho * cp * deltaT_design);
+
+        if (r.requiredAirflow_CFM > in.maxAirflowCFM) {
+            r.airflowViolation = true;
+            r.violationMsg = String.format(
+                    "VIOLATION: %.0f CFM > Limit %.0f. Air-Side Economization is insufficient for this AI density. " +
+                            "RECOMMENDATION: Upgrade to Liquid Cooling (Direct-to-Chip).",
+                    r.requiredAirflow_CFM, in.maxAirflowCFM);
+        } else {
+            r.airflowViolation = false;
+        }
+
+        // ---------------------------------------------------------------------
+        // 3) Economizer Mode Logic
+        // ---------------------------------------------------------------------
+        boolean tempOK = weather.dryBulbC <= in.economizerMaxOutdoorTemp;
+        boolean humidityOK = weather.relativeHumidity <= in.economizerMaxHumidity;
+
+        if (tempOK && humidityOK) {
+            r.mode = "FULL_ECON";
+        } else if (tempOK) {
+            r.mode = "PARTIAL_TRIM";
+        } else {
+            r.mode = "MECHANICAL_ONLY";
+        }
+
+        // Outdoor Air Fraction
+        double oaFraction;
+        if ("FULL_ECON".equals(r.mode)) {
+            oaFraction = 1.0;
+        } else if ("PARTIAL_TRIM".equals(r.mode)) {
+            oaFraction = in.minOutdoorAirFraction;
+        } else {
+            oaFraction = 0.0;
+        }
+
+        // ---------------------------------------------------------------------
+        // 4) Weighted Fan Efficiency
+        // ---------------------------------------------------------------------
+        double totalFans = in.bestQuantity + in.averageQuantity + in.legacyQuantity;
+        double weightedSum = (in.bestQuantity * in.bestEfficiency) +
+                (in.averageQuantity * in.averageEfficiency) +
+                (in.legacyQuantity * in.legacyEfficiency);
+        double fanEff = (totalFans > 0) ? (weightedSum / totalFans) : 0.60;
+
+        // ---------------------------------------------------------------------
+        // 5) Cooling & Power Calculations
+        // ---------------------------------------------------------------------
+        double cop = 3.0;
+
+        double deltaT_free = (30.0 - weather.dryBulbC);
+        if (deltaT_free < 0)
+            deltaT_free = 0;
+
+        r.q_free_kW = oaFraction * rho * (r.requiredAirflow_CFM / 2118.88) * cp * deltaT_free;
+
+        r.mech_load_kW = r.itLoad_kW - r.q_free_kW;
+        if (r.mech_load_kW < 0)
+            r.mech_load_kW = 0;
+
+        r.mechPower_kW = r.mech_load_kW / cop;
+
+        double filterFactor = ("MECHANICAL_ONLY".equals(r.mode)) ? 1.0 : 1.15;
+        r.fanPower_kW = (r.requiredAirflow_CFM * fanEff * filterFactor) / 1000.0;
+
+        // ---------------------------------------------------------------------
+        // 6) Total Power & Metrics
+        // ---------------------------------------------------------------------
+        r.totalPower_kW = r.itLoad_kW + r.fanPower_kW + r.mechPower_kW;
+
+        r.pue = r.itLoad_kW > 0 ? r.totalPower_kW / r.itLoad_kW : 0.0;
+
         r.cue = r.itLoad_kW > 0 ? (r.totalPower_kW * in.carbonIntensity_kg_per_kWh) / r.itLoad_kW : 0.0;
 
         return r;
