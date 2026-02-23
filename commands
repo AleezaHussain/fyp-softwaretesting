@@ -11,3 +11,7 @@ PS D:\aleezafyp\fyp\cooling-air-economizer\api> mvn spring-boot:run
 
 PS D:\aleezafyp\fyp\cooling-air-economizer> cd "d:\aleezafyp\fyp\cooling-air-economizer\api" ; mvn clean compile
 mvn clean compile
+
+
+
+D:\aleezafyp\fyp\evaporative-cooling-api> mvn spring-boot:run

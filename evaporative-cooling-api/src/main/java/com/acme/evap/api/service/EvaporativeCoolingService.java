@@ -4,6 +4,7 @@ import com.acme.evap.api.dto.SimulationRequest;
 import com.acme.evap.api.dto.SimulationResponse;
 import com.acme.evap.api.service.WeatherCsvParser;
 import com.acme.evap.CoolingAdequacyAssessment;
+import com.acme.aireconcalc.cloudsim.CloudSimWorkloadService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -71,7 +72,10 @@ public class EvaporativeCoolingService {
         validateSimulationRequest(request);
         
         // Log frontend configuration for debugging
-        System.out.println("🔧 FRONTEND CONFIGURATION RECEIVED:");
+        System.out.println("═══════════════════════════════════════════════════════════");
+        System.out.println("  🔧 FRONTEND CONFIGURATION RECEIVED");
+        System.out.println("═══════════════════════════════════════════════════════════");
+        System.out.println("📊 Basic Configuration:");
         System.out.println("  IT Load: " + request.it_load.total_it_power_kw + " kW, " + 
                           request.it_load.servers + " servers, " + request.it_load.racks + " racks");
         System.out.println("  Cooling Type: " + request.cooling_system.type);
@@ -87,10 +91,97 @@ public class EvaporativeCoolingService {
         System.out.println("  Water Rate: $" + request.rates.water_usd_per_liter + "/L");
         System.out.println("  Grid Emissions: " + request.emissions.grid_kgco2_per_kwh + " kg CO2/kWh");
         System.out.println("  Power Model: " + request.it_load.power_utilization_model);
+        
+        // Log advanced configuration if present
+        if (request.financial_escalation != null) {
+            System.out.println();
+            System.out.println("🆕 Financial Escalation:");
+            System.out.println("  Electricity Inflation: " + request.financial_escalation.annual_electricity_inflation + "% per year");
+            System.out.println("  Water Inflation: " + request.financial_escalation.annual_water_inflation + "% per year");
+            System.out.println("  Carbon Price: $" + request.financial_escalation.carbon_price + " per ton CO2");
+            System.out.println("  Carbon Price Growth: " + request.financial_escalation.carbon_price_growth + "% per year");
+        }
+        
+        if (request.carbon_accounting != null) {
+            System.out.println();
+            System.out.println("🆕 Carbon Accounting:");
+            System.out.println("  Accounting Method: " + request.carbon_accounting.emissions_accounting_method);
+            System.out.println("  Renewable Energy: " + request.carbon_accounting.renewable_energy_percentage + "%");
+        }
+        
+        if (request.scenario != null) {
+            System.out.println();
+            System.out.println("🆕 2030 Scenario:");
+            System.out.println("  Scenario Type: " + request.scenario.scenario_type);
+            System.out.println("  Temperature Offset: " + request.scenario.temperature_offset + "°C");
+            System.out.println("  Humidity Adjustment: " + request.scenario.humidity_adjustment + "%");
+        }
+        
+        if (request.rack_geometry != null) {
+            System.out.println();
+            System.out.println("🆕 Rack Geometry:");
+            System.out.println("  Rack Height: " + request.rack_geometry.rack_height_u + " U");
+            System.out.println("  Front-to-Back Airflow: " + request.rack_geometry.front_to_back_airflow);
+        }
+        
+        if (request.airflow_distribution != null) {
+            System.out.println();
+            System.out.println("🆕 Airflow Distribution:");
+            System.out.println("  Quality Preset: " + request.airflow_distribution.airflow_quality_preset);
+            System.out.println("  Air Bypass: " + request.airflow_distribution.air_bypass_fraction + "%");
+            System.out.println("  Hot Air Recirculation: " + request.airflow_distribution.hot_air_recirculation + "%");
+        }
+        
+        if (request.thermal_mass != null) {
+            System.out.println();
+            System.out.println("🆕 Thermal Mass:");
+            System.out.println("  Rack Thermal Mass: " + request.thermal_mass.rack_thermal_mass + " kJ/K");
+            System.out.println("  Enclosure Thermal Mass: " + request.thermal_mass.enclosure_thermal_mass + " kJ/K");
+            System.out.println("  Manual Override: " + request.thermal_mass.manual_thermal_override);
+        }
+        
+        if (request.enclosure != null) {
+            System.out.println();
+            System.out.println("🆕 Enclosure:");
+            System.out.println("  Enclosure Type: " + request.enclosure.enclosure_type);
+            System.out.println("  Thermal Mass Value: " + request.enclosure.enclosure_thermal_mass_value + " kJ/K");
+            System.out.println("  Air Leakage: " + request.enclosure.enclosure_air_leakage + " ACH");
+            System.out.println("  Insulation Quality: " + request.enclosure.insulation_quality);
+        }
+        
+        if (request.infiltration != null) {
+            System.out.println();
+            System.out.println("🆕 Infiltration:");
+            System.out.println("  Infiltration Level: " + request.infiltration.infiltration_level);
+            System.out.println("  Infiltration ACH: " + request.infiltration.infiltration_ach);
+            System.out.println("  Custom Infiltration: " + request.infiltration.enable_custom_infiltration);
+        }
+        
+        System.out.println("═══════════════════════════════════════════════════════════");
         System.out.println();
         
         // Parse weather CSV file
         List<WeatherPoint> weatherData = weatherParser.parseWeatherCsv(weatherFile);
+        
+        // Apply scenario adjustments to weather data if configured
+        if (request.scenario != null) {
+            System.out.println("🌡️ Applying scenario adjustments to weather data:");
+            System.out.println("  Temperature Offset: " + request.scenario.temperature_offset + "°C");
+            System.out.println("  Humidity Adjustment: " + request.scenario.humidity_adjustment + "%");
+            
+            for (WeatherPoint point : weatherData) {
+                // Apply temperature offset (climate change scenario)
+                point.dryBulbTempC += request.scenario.temperature_offset;
+                
+                // Apply humidity adjustment (percentage change)
+                point.relativeHumidity += request.scenario.humidity_adjustment;
+                
+                // Clamp humidity to valid range [0, 100]
+                point.relativeHumidity = Math.max(0.0, Math.min(100.0, point.relativeHumidity));
+            }
+            
+            System.out.println("  ✓ Weather data adjusted for scenario: " + request.scenario.scenario_type);
+        }
         
         // Validate weather data (should be 8760 hours)
         if (weatherData.size() != request.simulation.time_horizon_hours) {
@@ -99,13 +190,21 @@ public class EvaporativeCoolingService {
                              weatherData.size(), request.simulation.time_horizon_hours));
         }
         
+        // 🚀 GENERATE CLOUDSIM WORKLOAD PROFILE
+        System.out.println("═══════════════════════════════════════════════════════════");
+        System.out.println("  CLOUDSIM AI WORKLOAD GENERATION");
+        System.out.println("═══════════════════════════════════════════════════════════");
+        double[] cloudSimWorkload = generateCloudSimWorkload(request);
+        System.out.println("═══════════════════════════════════════════════════════════");
+        System.out.println();
+        
         // Initialize simulation state
         SimulationState state = new SimulationState();
         
-        // Run hourly simulation loop
+        // Run hourly simulation loop with CloudSim workload
         for (int hour = 0; hour < weatherData.size(); hour++) {
             WeatherPoint weather = weatherData.get(hour);
-            runHourlySimulation(hour, weather, request, state);
+            runHourlySimulation(hour, weather, request, state, cloudSimWorkload);
         }
         
         // Perform cooling adequacy assessment
@@ -180,12 +279,13 @@ public class EvaporativeCoolingService {
     
     /**
      * Run simulation for single hour
+     * PHASE 1 IMPROVEMENTS: Dynamic physics with fan affinity laws, velocity-dependent effectiveness, and thermal mass
      */
     private void runHourlySimulation(int hour, WeatherPoint weather, 
-                                   SimulationRequest request, SimulationState state) {
+                                   SimulationRequest request, SimulationState state, double[] cloudSimWorkload) {
         
-        // Calculate IT load for this hour using frontend server configuration
-        double itLoadKW = calculateITLoad(hour, request.it_load);
+        // Calculate IT load for this hour using CloudSim workload or frontend configuration
+        double itLoadKW = calculateITLoad(hour, request.it_load, cloudSimWorkload);
         
         // Calculate auxiliary loads using realistic efficiency values
         double upsEfficiency = 0.96; // 96% UPS efficiency (could be made configurable)
@@ -193,17 +293,71 @@ public class EvaporativeCoolingService {
         
         double upsLossKW = itLoadKW * (1.0 / upsEfficiency - 1.0);
         double pduLossKW = itLoadKW * pduLossFraction;
-        double totalHeatLoadKW = itLoadKW + upsLossKW + pduLossKW;
+        
+        // ═══════════════════════════════════════════════════════════════════════════
+        // PHASE 1 STEP 1: FAN AFFINITY LAWS - Dynamic airflow based on IT load
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Calculate required airflow based on current IT load
+        // Formula: CFM = (Q_kW × 3160) / (ΔT_target × 1.08)
+        double deltaT_target = 15.0; // Target temperature rise across servers (°C)
+        double requiredCFM = (itLoadKW * 3160) / (deltaT_target * 1.08);
+        double maxAirflowCapacity = request.cooling_system.max_airflow_cfm;
+        
+        // Calculate speed ratio (capped at 100%)
+        double speedRatio = Math.min(1.0, requiredCFM / maxAirflowCapacity);
+        
+        // Store speed ratio for later use in fan power calculation
+        state.setCurrentSpeedRatio(speedRatio);
+        
+        // Calculate infiltration heat load (uncontrolled air exchange with outside)
+        double infiltrationLoadKW = 0.0;
+        
+        if (request.infiltration != null) {
+            // Get infiltration ACH (Air Changes per Hour)
+            double infiltrationACH = request.infiltration.infiltration_ach;
+            
+            // Estimate enclosure volume (rough approximation based on rack count)
+            // Typical: 1 rack ≈ 2m × 1m × 2m = 4 m³, plus aisle space ≈ 10 m³ per rack
+            double enclosureVolumeM3 = request.it_load.racks * 10.0;
+            
+            // Calculate infiltration airflow (m³/s)
+            double infiltrationM3s = (enclosureVolumeM3 * infiltrationACH) / 3600.0;
+            
+            // Calculate heat load from infiltration: Q = ṁ × Cp × ΔT
+            // ṁ = ρ × V̇, where ρ = 1.2 kg/m³, Cp = 1.006 kJ/(kg·K)
+            double tempDifferential = Math.abs(weather.dryBulbTempC - 22.0); // Assume 22°C indoor setpoint
+            infiltrationLoadKW = infiltrationM3s * 1.2 * 1.006 * tempDifferential;
+            
+            // Log infiltration impact (first few hours only)
+            if (hour < 5 && infiltrationLoadKW > 1.0) {
+                System.out.println(String.format(
+                    "  🌬️ Infiltration: ACH=%.2f, Volume=%.1f m³, Airflow=%.3f m³/s, ΔT=%.1f°C, Load=%.2f kW",
+                    infiltrationACH, enclosureVolumeM3, infiltrationM3s, tempDifferential, infiltrationLoadKW
+                ));
+            }
+        }
+        
+        double totalHeatLoadKW = itLoadKW + upsLossKW + pduLossKW + infiltrationLoadKW;
         
         // Determine cooling mode based on ambient conditions and frontend config
         String coolingMode = determineCoolingMode(weather, request.cooling_system);
         
-        // Calculate evaporative cooling performance using frontend parameters
-        EvapCoolingResult evapResult = calculateEvaporativeCooling(
-            weather, totalHeatLoadKW, request.cooling_system, coolingMode);
+        // ═══════════════════════════════════════════════════════════════════════════
+        // PHASE 1 STEP 2: VELOCITY-DEPENDENT SATURATION EFFECTIVENESS
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Calculate current face velocity based on speed ratio
+        double referenceFaceVelocity = request.cooling_system.face_velocity_ms; // From config (e.g., 2.0 m/s)
+        double currentFaceVelocity = referenceFaceVelocity * speedRatio;
         
-        // Calculate fan power using frontend fan efficiency
-        double fanPowerKW = calculateFanPower(evapResult.airflowCFM, request.cooling_system);
+        // Calculate evaporative cooling performance with velocity-adjusted effectiveness
+        EvapCoolingResult evapResult = calculateEvaporativeCooling(
+            weather, totalHeatLoadKW, request.cooling_system, coolingMode, request, currentFaceVelocity, speedRatio);
+        
+        // ═══════════════════════════════════════════════════════════════════════════
+        // PHASE 1 STEP 1 (CONTINUED): FAN AFFINITY LAWS - Dynamic fan power
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Fan power scales with cube of speed ratio: P_fan = P_base × (speed_ratio)³
+        double fanPowerKW = calculateDynamicFanPower(evapResult.airflowCFM, request.cooling_system, speedRatio);
         
         // Calculate pump power as percentage of cooling load (configurable)
         double pumpPowerFraction = 0.02; // 2% of cooling load (could be made configurable)
@@ -217,7 +371,11 @@ public class EvaporativeCoolingService {
             dxCoolingKW = totalHeatLoadKW - evapResult.coolingCapacityKW;
             
             if (request.cooling_system.has_dx_backup) {
-                // 🔥 DYNAMIC COP: Calculate COP based on current outdoor temperature
+                // ═══════════════════════════════════════════════════════════════════════════
+                // PHASE 1 STEP 3: DYNAMIC DX COP DEGRADATION
+                // ═══════════════════════════════════════════════════════════════════════════
+                // Calculate COP based on current outdoor temperature
+                // COP degrades ~2-3% per degree C above 25°C reference
                 double dynamicCOP = calculateDynamicDxCop(
                     weather.dryBulbTempC, 
                     request.cooling_system.dx_cop  // Use frontend nominal COP as baseline
@@ -228,8 +386,8 @@ public class EvaporativeCoolingService {
                 // Log DX backup usage for debugging (only first few times to avoid spam)
                 if (hour < 5 || hour % 1000 == 0) {
                     System.out.println(String.format(
-                        "  ✅ Hour %d: DX Backup Active - Outdoor: %.1f°C, Evap: %.1f kW, DX: %.1f kW, Total: %.1f kW, COP: %.2f",
-                        hour, weather.dryBulbTempC, evapResult.coolingCapacityKW, dxCoolingKW, totalHeatLoadKW, dynamicCOP
+                        "  ✅ Hour %d: DX Backup Active - Outdoor: %.1f°C, Evap: %.1f kW, DX: %.1f kW, Total: %.1f kW, Dynamic COP: %.2f (Nominal: %.2f)",
+                        hour, weather.dryBulbTempC, evapResult.coolingCapacityKW, dxCoolingKW, totalHeatLoadKW, dynamicCOP, request.cooling_system.dx_cop
                     ));
                 }
             } else {
@@ -257,9 +415,59 @@ public class EvaporativeCoolingService {
         // Calculate PUE
         double pue = totalElectricalKW / itLoadKW;
         
-        // Estimate inlet temperature (supply + server delta-T based on IT load density)
-        double serverDeltaT = (itLoadKW / request.it_load.servers) * 0.02; // More realistic delta-T calculation
-        double inletTempC = evapResult.supplyTempC + serverDeltaT;
+        // ═══════════════════════════════════════════════════════════════════════════
+        // PHASE 1 STEP 4: THERMAL MASS INTEGRATION (Transient Delay) - FIXED
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Get thermal mass from configuration
+        double rackThermalMass = 15.0; // Default kJ/K
+        double enclosureThermalMass = 50.0; // Default kJ/K
+        
+        if (request.thermal_mass != null) {
+            rackThermalMass = request.thermal_mass.rack_thermal_mass;
+            enclosureThermalMass = request.thermal_mass.enclosure_thermal_mass;
+        }
+        
+        double totalThermalMass = rackThermalMass + enclosureThermalMass; // kJ/K
+        
+        // Calculate heat balance for this timestep
+        double dt = request.simulation.time_step_seconds; // seconds (typically 3600 for 1 hour)
+        double coolingProvided = evapResult.coolingCapacityKW + dxCoolingKW; // Total cooling (kW)
+        
+        // FIX: Calculate heat imbalance in kJ, but cap it to prevent runaway
+        double heatImbalanceKW = totalHeatLoadKW - coolingProvided;
+        double heatAbsorbed = heatImbalanceKW * dt; // kJ
+        
+        // FIX: Cap the heat absorbed to prevent extreme temperature swings
+        // Maximum reasonable temperature change per hour: ±10°C
+        double maxHeatAbsorbed = totalThermalMass * 10.0; // kJ for 10°C change
+        heatAbsorbed = Math.max(-maxHeatAbsorbed, Math.min(maxHeatAbsorbed, heatAbsorbed));
+        
+        // Calculate temperature rise due to thermal imbalance
+        double tempRise = heatAbsorbed / totalThermalMass; // °C
+        
+        // Get previous inlet temperature from state (or use supply temp for first hour)
+        double previousInletTemp = (hour == 0) ? evapResult.supplyTempC : state.getPreviousInletTemp();
+        
+        // FIX: Apply damping factor to prevent oscillations (exponential smoothing)
+        double dampingFactor = 0.3; // 30% of new value, 70% of old value
+        double targetInletTemp = previousInletTemp + tempRise;
+        double inletTempC = previousInletTemp + dampingFactor * (targetInletTemp - previousInletTemp);
+        
+        // FIX: Apply physical bounds to inlet temperature
+        // Minimum: Supply temperature (can't be colder than supply air)
+        // Maximum: 50°C (reasonable upper limit for data center)
+        inletTempC = Math.max(evapResult.supplyTempC, Math.min(50.0, inletTempC));
+        
+        // Store current inlet temp for next iteration
+        state.setPreviousInletTemp(inletTempC);
+        
+        // Log thermal mass effect (first few hours only)
+        if (hour < 5 && Math.abs(tempRise) > 0.1) {
+            System.out.println(String.format(
+                "  🌡️ Thermal Mass: Total=%.1f kJ/K, Heat Imbalance=%.2f kW, Heat Absorbed=%.1f kJ, Temp Rise=%.2f°C, Inlet: %.2f°C → %.2f°C",
+                totalThermalMass, heatImbalanceKW, heatAbsorbed, tempRise, previousInletTemp, inletTempC
+            ));
+        }
         
         // Update simulation state
         state.addHourlyData(hour, weather, itLoadKW, totalElectricalKW, fanPowerKW, 
@@ -267,9 +475,110 @@ public class EvaporativeCoolingService {
     }
     
     /**
-     * Calculate IT load based on time and frontend configuration
+     * Generate CloudSim-based AI workload profile
+     * Uses CloudSimWorkloadService to generate realistic AI/ML workload patterns
      */
-    private double calculateITLoad(int hour, SimulationRequest.ITLoadConfig config) {
+    private double[] generateCloudSimWorkload(SimulationRequest request) {
+        System.out.println("🚀 [CLOUDSIM] Generating AI workload profile using CloudSim Plus...");
+        
+        try {
+            // Create CloudSim workload configuration
+            CloudSimWorkloadService.WorkloadConfig cloudSimConfig = new CloudSimWorkloadService.WorkloadConfig();
+            
+            // Map frontend configuration to CloudSim
+            cloudSimConfig.numberOfServers = request.it_load.servers;
+            cloudSimConfig.serversPerRack = request.it_load.servers / request.it_load.racks;
+            cloudSimConfig.serverMaxPowerW = 507.0; // Default server max power
+            cloudSimConfig.serverIdlePowerW = 100.0; // Default server idle power
+            cloudSimConfig.coresPerServer = 4;
+            cloudSimConfig.mipsPerCore = 1000;
+            cloudSimConfig.simulationHours = request.simulation.time_horizon_hours;
+            cloudSimConfig.schedulingIntervalSeconds = 300.0; // 5 minutes
+            cloudSimConfig.computeIntensityFactor = 1.2; // AI/HPC multiplier
+            
+            // Map workload type to CloudSim AI workload mode
+            if ("ai_training".equals(request.it_load.workload_type)) {
+                cloudSimConfig.workloadMode = CloudSimWorkloadService.AIWorkloadMode.AI_TRAINING;
+                System.out.println("  ✓ Workload Mode: AI_TRAINING (1.8x power multiplier, 85-95% utilization)");
+            } else if ("ai_inference".equals(request.it_load.workload_type)) {
+                cloudSimConfig.workloadMode = CloudSimWorkloadService.AIWorkloadMode.AI_INFERENCE;
+                System.out.println("  ✓ Workload Mode: AI_INFERENCE (1.4x power multiplier, bursty spikes)");
+            } else if ("mixed_ai".equals(request.it_load.workload_type)) {
+                cloudSimConfig.workloadMode = CloudSimWorkloadService.AIWorkloadMode.MIXED;
+                System.out.println("  ✓ Workload Mode: MIXED (1.3x power multiplier, hybrid workload)");
+            } else {
+                cloudSimConfig.workloadMode = CloudSimWorkloadService.AIWorkloadMode.ENTERPRISE;
+                System.out.println("  ✓ Workload Mode: ENTERPRISE (1.0x power multiplier, 50-65% utilization)");
+            }
+            
+            // Generate workload using CloudSim
+            CloudSimWorkloadService workloadService = new CloudSimWorkloadService();
+            CloudSimWorkloadService.WorkloadResult result = workloadService.generateWorkloadProfile(cloudSimConfig);
+            
+            System.out.println("✅ [CLOUDSIM] Workload profile generated successfully!");
+            System.out.println("  ✓ Total Hours: " + result.totalHours);
+            System.out.println("  ✓ Number of Racks: " + result.numberOfRacks);
+            System.out.println("  ✓ Average IT Load: " + String.format("%.2f", calculateAverage(result.hourlyITLoadKW)) + " kW");
+            System.out.println("  ✓ Peak IT Load: " + String.format("%.2f", findMax(result.hourlyITLoadKW)) + " kW");
+            System.out.println("  ✓ Min IT Load: " + String.format("%.2f", findMin(result.hourlyITLoadKW)) + " kW");
+            System.out.println();
+            
+            return result.hourlyITLoadKW;
+            
+        } catch (Exception e) {
+            System.err.println("❌ [CLOUDSIM] Failed to generate workload profile: " + e.getMessage());
+            e.printStackTrace();
+            
+            // Fallback to simple calculation
+            System.out.println("⚠️ [CLOUDSIM] Falling back to simple IT load calculation");
+            return null;
+        }
+    }
+    
+    /**
+     * Calculate average of array
+     */
+    private double calculateAverage(double[] values) {
+        double sum = 0;
+        for (double value : values) {
+            sum += value;
+        }
+        return sum / values.length;
+    }
+    
+    /**
+     * Find maximum value in array
+     */
+    private double findMax(double[] values) {
+        double max = Double.MIN_VALUE;
+        for (double value : values) {
+            if (value > max) max = value;
+        }
+        return max;
+    }
+    
+    /**
+     * Find minimum value in array
+     */
+    private double findMin(double[] values) {
+        double min = Double.MAX_VALUE;
+        for (double value : values) {
+            if (value < min) min = value;
+        }
+        return min;
+    }
+    
+    /**
+     * Calculate IT load based on time and frontend configuration
+     * Now supports CloudSim-generated workload profiles
+     */
+    private double calculateITLoad(int hour, SimulationRequest.ITLoadConfig config, double[] cloudSimWorkload) {
+        // If CloudSim workload is available, use it
+        if (cloudSimWorkload != null && hour < cloudSimWorkload.length) {
+            return cloudSimWorkload[hour];
+        }
+        
+        // Fallback to simple calculation
         // Base IT load from frontend configuration
         double baseITLoadKW = config.total_it_power_kw;
         
@@ -337,21 +646,50 @@ public class EvaporativeCoolingService {
     
     /**
      * Calculate evaporative cooling performance
+     * PHASE 1 IMPROVEMENT: Velocity-dependent saturation effectiveness
      */
     private EvapCoolingResult calculateEvaporativeCooling(WeatherPoint weather, 
                                                         double heatLoadKW,
                                                         SimulationRequest.CoolingSystemConfig config,
-                                                        String mode) {
+                                                        String mode,
+                                                        SimulationRequest request,
+                                                        double currentFaceVelocity,
+                                                        double speedRatio) {
         
         EvapCoolingResult result = new EvapCoolingResult();
         
-        // Use frontend effectiveness values
-        double effectiveness = config.saturation_effectiveness / 100.0;
+        // ═══════════════════════════════════════════════════════════════════════════
+        // PHASE 1 STEP 2: VELOCITY-DEPENDENT SATURATION EFFECTIVENESS
+        // ═══════════════════════════════════════════════════════════════════════════
+        // Base effectiveness from configuration
+        double baseEffectiveness = config.saturation_effectiveness / 100.0;
         double wettingEfficiency = config.wetting_efficiency / 100.0;
-        double wetBulbTempC = calculateWetBulbTemp(weather.dryBulbTempC, weather.relativeHumidity);
         
-        // Apply wetting efficiency to the effectiveness
-        double actualEffectiveness = effectiveness * wettingEfficiency;
+        // Reference velocity from configuration (typically 2.0 m/s)
+        double referenceVelocity = config.face_velocity_ms;
+        
+        // Adjust effectiveness based on velocity
+        // As velocity increases beyond reference, effectiveness decreases
+        // Linear degradation: 5% loss per m/s above reference
+        double velocityAdjustmentFactor = 1.0;
+        if (currentFaceVelocity > referenceVelocity) {
+            velocityAdjustmentFactor = 1.0 - 0.05 * (currentFaceVelocity - referenceVelocity);
+            velocityAdjustmentFactor = Math.max(0.5, velocityAdjustmentFactor); // Minimum 50% effectiveness
+        }
+        
+        // Calculate actual effectiveness with velocity adjustment
+        double actualEffectiveness = baseEffectiveness * wettingEfficiency * velocityAdjustmentFactor;
+        
+        // Log velocity effect (first few hours only)
+        if (velocityAdjustmentFactor < 0.95) {
+            System.out.println(String.format(
+                "  🌀 Velocity Effect: Current=%.2f m/s, Reference=%.2f m/s, Adjustment=%.1f%%, Effectiveness: %.1f%% → %.1f%%",
+                currentFaceVelocity, referenceVelocity, velocityAdjustmentFactor * 100, 
+                baseEffectiveness * wettingEfficiency * 100, actualEffectiveness * 100
+            ));
+        }
+        
+        double wetBulbTempC = calculateWetBulbTemp(weather.dryBulbTempC, weather.relativeHumidity);
         
         // Target supply temperature (ASHRAE recommended)
         double targetSupplyTempC = 18.0; // Cold aisle target
@@ -392,6 +730,35 @@ public class EvaporativeCoolingService {
         // ṁ_air = ρ × V̇ (kg/s)
         // Cp in kJ/(kg·K), so result is in kJ/s = kW
         result.coolingCapacityKW = maxAirflowM3s * airDensity * specificHeat * tempDifferential;
+        
+        // ✅ APPLY AIRFLOW LOSSES: Reduce effective cooling capacity by bypass and recirculation
+        // These losses are passed from frontend via SimulationRequest
+        double effectiveAirflowFraction = 1.0; // Start at 100% effectiveness
+        
+        // Get airflow distribution settings from request (with defaults)
+        double bypassFraction = 0.10; // Default 10%
+        double recirculationFraction = 0.05; // Default 5%
+        
+        if (request.airflow_distribution != null) {
+            bypassFraction = request.airflow_distribution.air_bypass_fraction / 100.0;
+            recirculationFraction = request.airflow_distribution.hot_air_recirculation / 100.0;
+        }
+        
+        // Combined effectiveness: (1 - bypass) × (1 - recirculation)
+        effectiveAirflowFraction = (1.0 - bypassFraction) * (1.0 - recirculationFraction);
+        
+        // Apply losses to cooling capacity
+        double nominalCoolingCapacity = result.coolingCapacityKW;
+        result.coolingCapacityKW *= effectiveAirflowFraction;
+        
+        // Log airflow losses (first few hours only)
+        if (nominalCoolingCapacity > 0 && effectiveAirflowFraction < 0.95) {
+            System.out.println(String.format(
+                "  🌀 Airflow Losses: Nominal=%.1f kW, Bypass=%.1f%%, Recirc=%.1f%%, Effective=%.1f kW (%.1f%% efficiency)",
+                nominalCoolingCapacity, bypassFraction * 100, recirculationFraction * 100, 
+                result.coolingCapacityKW, effectiveAirflowFraction * 100
+            ));
+        }
         
         // ✅ FIX 3: Ensure minimum cooling capacity
         // Even in poor conditions, system should provide some cooling
@@ -445,6 +812,52 @@ public class EvaporativeCoolingService {
         System.out.println("    Fan Power: " + fanPowerKW + " kW");
         
         return fanPowerKW;
+    }
+    
+    /**
+     * ═══════════════════════════════════════════════════════════════════════════
+     * PHASE 1 STEP 1: FAN AFFINITY LAWS - Dynamic fan power calculation
+     * ═══════════════════════════════════════════════════════════════════════════
+     * Calculate dynamic fan power using affinity laws
+     * Fan power scales with the CUBE of speed ratio: P = P_base × (speed_ratio)³
+     * 
+     * Example: If servers are at 40% utilization requiring 60% airflow:
+     *   - Speed ratio = 0.6
+     *   - Power ratio = 0.6³ = 0.216 (21.6% of full power)
+     *   - This is a 78.4% power savings!
+     * 
+     * @param airflowCFM Current airflow in CFM
+     * @param config Cooling system configuration
+     * @param speedRatio Fan speed ratio (0-1.0)
+     * @return Dynamic fan power in kW
+     */
+    private double calculateDynamicFanPower(double airflowCFM, 
+                                           SimulationRequest.CoolingSystemConfig config,
+                                           double speedRatio) {
+        // Calculate base fan power at full speed
+        final double CFM_TO_M3S = 0.000471947;
+        double maxAirflowM3s = config.max_airflow_cfm * CFM_TO_M3S;
+        
+        // Typical pressure drop for evaporative cooling media
+        double pressureDrop = 200; // Pa (150-250 Pa typical for evap pads)
+        double fanEfficiency = config.fan_efficiency;
+        
+        // Base fan power at full speed: P_base = (V̇_max × ΔP) / η
+        double baseFanPowerKW = (maxAirflowM3s * pressureDrop) / (1000 * fanEfficiency);
+        
+        // Apply affinity laws: P_dynamic = P_base × (speed_ratio)³
+        double dynamicFanPowerKW = baseFanPowerKW * Math.pow(speedRatio, 3);
+        
+        // Debug logging (first few hours only)
+        if (speedRatio < 0.95) {
+            System.out.println(String.format(
+                "  ⚡ Fan Affinity Laws: Speed Ratio=%.1f%%, Base Power=%.2f kW, Dynamic Power=%.2f kW (%.1f%% savings)",
+                speedRatio * 100, baseFanPowerKW, dynamicFanPowerKW, 
+                (1 - Math.pow(speedRatio, 3)) * 100
+            ));
+        }
+        
+        return dynamicFanPowerKW;
     }
     
     /**
@@ -517,11 +930,39 @@ public class EvaporativeCoolingService {
         response.results.opex.opex_per_kwh_it = response.results.opex.opex_total_usd / state.getTotalITKWh();
         response.results.opex.opex_per_server_annual = response.results.opex.opex_total_usd / request.it_load.servers;
         
-        // Emissions results
+        // Emissions results with carbon accounting
         response.results.emissions = new SimulationResponse.EmissionsResults();
-        response.results.emissions.co2_kg_total = state.getTotalElectricityKWh() * request.emissions.grid_kgco2_per_kwh;
-        response.results.emissions.co2_kg_per_kwh_it = response.results.emissions.co2_kg_total / state.getTotalITKWh();
-        response.results.emissions.co2_kg_per_server_annual = response.results.emissions.co2_kg_total / request.it_load.servers;
+        
+        // Calculate base emissions
+        double baseEmissionsKg = state.getTotalElectricityKWh() * request.emissions.grid_kgco2_per_kwh;
+        
+        // Apply carbon accounting method and renewable energy percentage
+        double effectiveEmissionsKg = baseEmissionsKg;
+        
+        if (request.carbon_accounting != null) {
+            double renewablePercentage = request.carbon_accounting.renewable_energy_percentage / 100.0;
+            
+            if ("market_based".equals(request.carbon_accounting.emissions_accounting_method)) {
+                // Market-based: Renewable energy credits reduce emissions to zero for that portion
+                effectiveEmissionsKg = baseEmissionsKg * (1.0 - renewablePercentage);
+                
+                System.out.println("🌱 Carbon Accounting (Market-Based):");
+                System.out.println("  Base Emissions: " + String.format("%.2f", baseEmissionsKg) + " kg CO2");
+                System.out.println("  Renewable Energy: " + (renewablePercentage * 100) + "%");
+                System.out.println("  Effective Emissions: " + String.format("%.2f", effectiveEmissionsKg) + " kg CO2");
+            } else {
+                // Location-based: Use actual grid emissions (renewable % doesn't affect this)
+                effectiveEmissionsKg = baseEmissionsKg;
+                
+                System.out.println("🌱 Carbon Accounting (Location-Based):");
+                System.out.println("  Grid Emissions: " + String.format("%.2f", baseEmissionsKg) + " kg CO2");
+                System.out.println("  (Renewable energy % not applied in location-based accounting)");
+            }
+        }
+        
+        response.results.emissions.co2_kg_total = effectiveEmissionsKg;
+        response.results.emissions.co2_kg_per_kwh_it = effectiveEmissionsKg / state.getTotalITKWh();
+        response.results.emissions.co2_kg_per_server_annual = effectiveEmissionsKg / request.it_load.servers;
         
         // Performance results
         response.results.performance = new SimulationResponse.PerformanceResults();

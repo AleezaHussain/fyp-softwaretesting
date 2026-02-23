@@ -177,7 +177,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
 
       console.log('🌊 [EVAPORATIVE] Weather data found:', evapConfig.weatherData.length, 'data points');
 
-      // Build evaporative cooling API payload
+      // Build evaporative cooling API payload with ALL advanced fields
       const evaporativePayload = {
         simulation: {
           time_horizon_hours: 8760,
@@ -189,7 +189,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
                             100.0,
           servers: evapConfig.totalServers || 100,
           racks: evapConfig.numberOfRacks || input.numberOfRacks || 10,
-          power_utilization_model: evapConfig.powerUtilizationModel || "linear"
+          power_utilization_model: evapConfig.powerUtilizationModel || "linear",
+          workload_type: evapConfig.workloadType || "traditional" // 🚀 CloudSim AI workload mode
         },
         cooling_system: {
           type: evapConfig.coolingArchitecture === 'dec' ? 'direct_evaporative' : 
@@ -219,10 +220,117 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
           max_inlet_temp_c: 27.0,
           max_relative_humidity: 80.0,
           max_pue: 1.5
+        },
+        // 🆕 ADVANCED FIELDS - Financial Escalation (4 fields)
+        financial_escalation: {
+          annual_electricity_inflation: evapConfig.annualElectricityInflation || 4.0,
+          annual_water_inflation: evapConfig.annualWaterInflation || 3.0,
+          carbon_price: evapConfig.carbonPrice || 50.0,
+          carbon_price_growth: evapConfig.carbonPriceGrowth || 5.0
+        },
+        // 🆕 ADVANCED FIELDS - Carbon Accounting (2 fields)
+        carbon_accounting: {
+          emissions_accounting_method: evapConfig.emissionsAccountingMethod || "location_based",
+          renewable_energy_percentage: evapConfig.renewableEnergyPercentage || 0.0
+        },
+        // 🆕 ADVANCED FIELDS - 2030 Scenarios (3 fields)
+        scenario: {
+          scenario_type: evapConfig.scenarioType || "baseline_2025",
+          temperature_offset: evapConfig.temperatureOffset || 1.0,
+          humidity_adjustment: evapConfig.humidityAdjustment || 0.0
+        },
+        // 🆕 ADVANCED FIELDS - Rack Geometry (2 fields)
+        rack_geometry: {
+          rack_height_u: evapConfig.rackHeightU || 42,
+          front_to_back_airflow: evapConfig.frontToBackAirflow !== undefined ? evapConfig.frontToBackAirflow : true
+        },
+        // 🆕 ADVANCED FIELDS - Airflow Distribution (3 fields)
+        airflow_distribution: {
+          airflow_quality_preset: evapConfig.airflowQualityPreset || "typical",
+          air_bypass_fraction: evapConfig.airBypassFraction || 10.0,
+          hot_air_recirculation: evapConfig.hotAirRecirculation || 5.0
+        },
+        // 🆕 ADVANCED FIELDS - Thermal Mass (3 fields)
+        thermal_mass: {
+          rack_thermal_mass: evapConfig.rackThermalMass || 15.0,
+          enclosure_thermal_mass: evapConfig.enclosureThermalMass || 30.0,
+          manual_thermal_override: evapConfig.manualThermalOverride || false
+        },
+        // 🆕 ADVANCED FIELDS - Enclosure Type (1 field + auto-calculated)
+        enclosure: {
+          enclosure_type: evapConfig.enclosureType || "outdoor_container",
+          enclosure_thermal_mass_value: evapConfig.enclosureThermalMassValue || 30.0,
+          enclosure_air_leakage: evapConfig.enclosureAirLeakage || 0.5,
+          insulation_quality: evapConfig.insulationQuality || "Low-Medium"
+        },
+        // 🆕 ADVANCED FIELDS - Infiltration (2 fields)
+        infiltration: {
+          infiltration_level: evapConfig.infiltrationLevel || "standard",
+          infiltration_ach: evapConfig.infiltrationACH || 0.25,
+          enable_custom_infiltration: evapConfig.enableCustomInfiltration || false
         }
       };
 
-      console.log('🌊 [EVAPORATIVE] Evaporative Cooling API payload:', evaporativePayload);
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('  📤 SENDING TO BACKEND API - COMPLETE PAYLOAD');
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log('🌊 [EVAPORATIVE] Basic Configuration:');
+      console.log('  ✓ IT Load:', evaporativePayload.it_load.total_it_power_kw, 'kW');
+      console.log('  ✓ Servers:', evaporativePayload.it_load.servers);
+      console.log('  ✓ Racks:', evaporativePayload.it_load.racks);
+      console.log('  ✓ Workload Type:', evaporativePayload.it_load.workload_type, '🚀 (CloudSim AI Mode)');
+      console.log('  ✓ Power Model:', evaporativePayload.it_load.power_utilization_model);
+      console.log('  ✓ Cooling Type:', evaporativePayload.cooling_system.type);
+      console.log('  ✓ Max Airflow:', evaporativePayload.cooling_system.max_airflow_cfm, 'CFM');
+      console.log('  ✓ Fan Efficiency:', (evaporativePayload.cooling_system.fan_efficiency * 100).toFixed(1), '%');
+      console.log('  ✓ Saturation Effectiveness:', evaporativePayload.cooling_system.saturation_effectiveness, '%');
+      console.log('  ✓ DX Backup:', evaporativePayload.cooling_system.has_dx_backup);
+      console.log('  ✓ Water Source:', evaporativePayload.cooling_system.water_source);
+      console.log('  ✓ Electricity Rate: $', evaporativePayload.rates.electricity_usd_per_kwh, '/kWh');
+      console.log('  ✓ Grid Emissions:', evaporativePayload.emissions.grid_kgco2_per_kwh, 'kg CO2/kWh');
+      console.log('  ✓ Weather Data Points:', evapConfig.weatherData.length);
+      console.log();
+      console.log('🆕 [ADVANCED] Financial Escalation:');
+      console.log('  ✓ Electricity Inflation:', evaporativePayload.financial_escalation.annual_electricity_inflation, '% per year');
+      console.log('  ✓ Water Inflation:', evaporativePayload.financial_escalation.annual_water_inflation, '% per year');
+      console.log('  ✓ Carbon Price: $', evaporativePayload.financial_escalation.carbon_price, 'per ton CO2');
+      console.log('  ✓ Carbon Price Growth:', evaporativePayload.financial_escalation.carbon_price_growth, '% per year');
+      console.log();
+      console.log('🆕 [ADVANCED] Carbon Accounting:');
+      console.log('  ✓ Accounting Method:', evaporativePayload.carbon_accounting.emissions_accounting_method);
+      console.log('  ✓ Renewable Energy:', evaporativePayload.carbon_accounting.renewable_energy_percentage, '%');
+      console.log();
+      console.log('🆕 [ADVANCED] 2030 Scenario:');
+      console.log('  ✓ Scenario Type:', evaporativePayload.scenario.scenario_type);
+      console.log('  ✓ Temperature Offset:', evaporativePayload.scenario.temperature_offset, '°C');
+      console.log('  ✓ Humidity Adjustment:', evaporativePayload.scenario.humidity_adjustment, '%');
+      console.log();
+      console.log('🆕 [ADVANCED] Rack Geometry:');
+      console.log('  ✓ Rack Height:', evaporativePayload.rack_geometry.rack_height_u, 'U');
+      console.log('  ✓ Front-to-Back Airflow:', evaporativePayload.rack_geometry.front_to_back_airflow);
+      console.log();
+      console.log('🆕 [ADVANCED] Airflow Distribution:');
+      console.log('  ✓ Quality Preset:', evaporativePayload.airflow_distribution.airflow_quality_preset);
+      console.log('  ✓ Air Bypass:', evaporativePayload.airflow_distribution.air_bypass_fraction, '%');
+      console.log('  ✓ Hot Air Recirculation:', evaporativePayload.airflow_distribution.hot_air_recirculation, '%');
+      console.log();
+      console.log('🆕 [ADVANCED] Thermal Mass:');
+      console.log('  ✓ Rack Thermal Mass:', evaporativePayload.thermal_mass.rack_thermal_mass, 'kJ/K');
+      console.log('  ✓ Enclosure Thermal Mass:', evaporativePayload.thermal_mass.enclosure_thermal_mass, 'kJ/K');
+      console.log('  ✓ Manual Override:', evaporativePayload.thermal_mass.manual_thermal_override);
+      console.log();
+      console.log('🆕 [ADVANCED] Enclosure:');
+      console.log('  ✓ Enclosure Type:', evaporativePayload.enclosure.enclosure_type);
+      console.log('  ✓ Thermal Mass Value:', evaporativePayload.enclosure.enclosure_thermal_mass_value, 'kJ/K');
+      console.log('  ✓ Air Leakage:', evaporativePayload.enclosure.enclosure_air_leakage, 'ACH');
+      console.log('  ✓ Insulation Quality:', evaporativePayload.enclosure.insulation_quality);
+      console.log();
+      console.log('🆕 [ADVANCED] Infiltration:');
+      console.log('  ✓ Infiltration Level:', evaporativePayload.infiltration.infiltration_level);
+      console.log('  ✓ Infiltration ACH:', evaporativePayload.infiltration.infiltration_ach);
+      console.log('  ✓ Custom Infiltration:', evaporativePayload.infiltration.enable_custom_infiltration);
+      console.log('═══════════════════════════════════════════════════════════');
+      console.log();
 
       // Create weather CSV from weather data
       const weatherCsv = createWeatherCsv(evapConfig.weatherData);

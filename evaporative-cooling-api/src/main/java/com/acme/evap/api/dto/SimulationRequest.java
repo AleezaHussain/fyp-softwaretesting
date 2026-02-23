@@ -32,6 +32,30 @@ public class SimulationRequest {
     @NotNull
     public ConstraintsConfig constraints;
     
+    @Valid
+    public FinancialEscalationConfig financial_escalation;
+    
+    @Valid
+    public CarbonAccountingConfig carbon_accounting;
+    
+    @Valid
+    public ScenarioConfig scenario;
+    
+    @Valid
+    public RackGeometryConfig rack_geometry;
+    
+    @Valid
+    public AirflowDistributionConfig airflow_distribution;
+    
+    @Valid
+    public ThermalMassConfig thermal_mass;
+    
+    @Valid
+    public EnclosureConfig enclosure;
+    
+    @Valid
+    public InfiltrationConfig infiltration;
+    
     public static class SimulationConfig {
         @Min(1)
         @Max(8760)
@@ -57,6 +81,8 @@ public class SimulationRequest {
         
         @NotBlank
         public String power_utilization_model = "linear"; // linear, nonlinear
+        
+        public String workload_type = "traditional"; // traditional, ai_training, ai_inference, mixed_ai
     }
     
     public static class CoolingSystemConfig {
@@ -142,5 +168,140 @@ public class SimulationRequest {
         @DecimalMin("1.0")
         @DecimalMax("2.0")
         public double max_pue = 1.5;
+    }
+    
+    // ========================================================================
+    // ADVANCED CONFIGURATION CLASSES
+    // ========================================================================
+    
+    /**
+     * Financial Escalation Configuration
+     * Multi-year projections with inflation and carbon tax growth
+     */
+    public static class FinancialEscalationConfig {
+        @DecimalMin("0.0")
+        @DecimalMax("15.0")
+        public double annual_electricity_inflation = 4.0; // % per year
+        
+        @DecimalMin("0.0")
+        @DecimalMax("15.0")
+        public double annual_water_inflation = 3.0; // % per year
+        
+        @DecimalMin("0.0")
+        @DecimalMax("200.0")
+        public double carbon_price = 50.0; // $ per ton CO2
+        
+        @DecimalMin("0.0")
+        @DecimalMax("15.0")
+        public double carbon_price_growth = 5.0; // % per year
+    }
+    
+    /**
+     * Carbon Accounting Configuration
+     * Location-based vs Market-based emissions accounting
+     */
+    public static class CarbonAccountingConfig {
+        @NotBlank
+        public String emissions_accounting_method = "location_based"; // location_based, market_based
+        
+        @DecimalMin("0.0")
+        @DecimalMax("100.0")
+        public double renewable_energy_percentage = 0.0; // % of energy from renewables
+    }
+    
+    /**
+     * 2030 Scenario Configuration
+     * Climate change and future scenario modeling
+     */
+    public static class ScenarioConfig {
+        @NotBlank
+        public String scenario_type = "baseline_2025"; // baseline_2025, moderate_growth_2030, ai_growth, energy_carbon_pressure
+        
+        @DecimalMin("-2.0")
+        @DecimalMax("4.0")
+        public double temperature_offset = 1.0; // °C offset for climate change
+        
+        @DecimalMin("-10.0")
+        @DecimalMax("10.0")
+        public double humidity_adjustment = 0.0; // % adjustment for humidity
+    }
+    
+    /**
+     * Rack Geometry Configuration
+     * Physical rack dimensions and airflow patterns
+     */
+    public static class RackGeometryConfig {
+        @Min(24)
+        @Max(48)
+        public int rack_height_u = 42; // Rack units (U)
+        
+        public boolean front_to_back_airflow = true; // Standard front-to-back cooling
+    }
+    
+    /**
+     * Airflow Distribution Configuration
+     * Bypass and recirculation losses
+     */
+    public static class AirflowDistributionConfig {
+        @NotBlank
+        public String airflow_quality_preset = "typical"; // excellent, typical, poor, custom
+        
+        @DecimalMin("0.0")
+        @DecimalMax("30.0")
+        public double air_bypass_fraction = 10.0; // % of cold air bypassing servers
+        
+        @DecimalMin("0.0")
+        @DecimalMax("25.0")
+        public double hot_air_recirculation = 5.0; // % of hot air re-entering inlets
+    }
+    
+    /**
+     * Thermal Mass Configuration
+     * Thermal capacitance for transient analysis
+     */
+    public static class ThermalMassConfig {
+        @DecimalMin("5.0")
+        @DecimalMax("50.0")
+        public double rack_thermal_mass = 15.0; // kJ/K
+        
+        @DecimalMin("20.0")
+        @DecimalMax("150.0")
+        public double enclosure_thermal_mass = 30.0; // kJ/K
+        
+        public boolean manual_thermal_override = false; // Use manual values vs auto-calculated
+    }
+    
+    /**
+     * Enclosure Configuration
+     * Building type and insulation properties
+     */
+    public static class EnclosureConfig {
+        @NotBlank
+        public String enclosure_type = "outdoor_container"; // outdoor_container, indoor_closet, prefab_micro_dc, custom
+        
+        @DecimalMin("20.0")
+        @DecimalMax("150.0")
+        public double enclosure_thermal_mass_value = 30.0; // kJ/K (auto-set based on type)
+        
+        @DecimalMin("0.05")
+        @DecimalMax("1.0")
+        public double enclosure_air_leakage = 0.5; // ACH (auto-set based on type)
+        
+        public String insulation_quality = "Low-Medium"; // Auto-set based on type
+    }
+    
+    /**
+     * Infiltration Configuration
+     * Uncontrolled air exchange rates
+     */
+    public static class InfiltrationConfig {
+        @NotBlank
+        public String infiltration_level = "standard"; // sealed, standard, leaky, custom
+        
+        @DecimalMin("0.05")
+        @DecimalMax("2.0")
+        public double infiltration_ach = 0.25; // Air Changes per Hour
+        
+        public boolean enable_custom_infiltration = false; // Use custom ACH value
     }
 }

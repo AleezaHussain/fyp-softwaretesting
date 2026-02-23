@@ -31,6 +31,12 @@ public class SimulationState {
     private int capacityViolations = 0;
     private List<Integer> criticalHours = new ArrayList<>();
     
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 1: Thermal mass tracking and dynamic fan control
+    // ═══════════════════════════════════════════════════════════════════════════
+    private double previousInletTemp = 22.0; // Initialize to typical supply temp
+    private double currentSpeedRatio = 1.0; // Initialize to full speed
+    
     public void addHourlyData(int hour, EvaporativeCoolingService.WeatherPoint weather, 
                              double itLoadKW, double totalElectricalKW, double fanPowerKW,
                              double dxPowerKW, double pumpPowerKW, 
@@ -165,6 +171,15 @@ public class SimulationState {
     public int getHumidityViolations() { return humidityViolations; }
     public int getCapacityViolations() { return capacityViolations; }
     public List<Integer> getCriticalHours() { return criticalHours; }
+    
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 1: Thermal mass and dynamic fan control getters/setters
+    // ═══════════════════════════════════════════════════════════════════════════
+    public double getPreviousInletTemp() { return previousInletTemp; }
+    public void setPreviousInletTemp(double temp) { this.previousInletTemp = temp; }
+    
+    public double getCurrentSpeedRatio() { return currentSpeedRatio; }
+    public void setCurrentSpeedRatio(double ratio) { this.currentSpeedRatio = ratio; }
     
     // Get hourly data for detailed analysis
     public List<HourlyData> getHourlyData() { return hourlyData; }
