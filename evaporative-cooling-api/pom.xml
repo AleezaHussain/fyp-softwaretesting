@@ -47,6 +47,20 @@
             <version>1.10.0</version>
         </dependency>
         
+        <!-- CloudSim Plus for AI Workload Generation (MUST match cooling-air-economizer version) -->
+        <dependency>
+            <groupId>org.cloudsimplus</groupId>
+            <artifactId>cloudsim-plus</artifactId>
+            <version>8.0.0</version>
+        </dependency>
+        
+        <!-- Local Cooling Air Economizer Module (for CloudSim integration) -->
+        <dependency>
+            <groupId>com.acme.aireconcalc</groupId>
+            <artifactId>cooling-air-economizer</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        
         <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

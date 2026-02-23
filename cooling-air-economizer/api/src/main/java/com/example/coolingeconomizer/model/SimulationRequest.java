@@ -88,6 +88,27 @@ public class SimulationRequest {
     public double electricityTariff; // $/kWh
     public double carbonIntensity; // kgCO2/kWh
     public String country; // optional
+    
+    /*
+     * =====================================================
+     * FUTURE PROJECTIONS & ESCALATION
+     * =====================================================
+     */
+    public Integer forecastYears; // Forecast horizon (e.g., 5 years)
+    public Double energyEscalationRate; // Annual energy cost increase (e.g., 0.035 = 3.5%)
+    public Double carbonTaxProjected; // Carbon tax projection ($/ton CO2)
+    public Double climateChangeOffsetC; // Temperature increase per year (°C/year)
+    
+    /*
+     * =====================================================
+     * CLOUDSIM INTEGRATION (AI WORKLOAD MODELING)
+     * =====================================================
+     */
+    public Boolean enableCloudSim; // Enable CloudSim workload generation
+    public String aiWorkloadMode; // AI_TRAINING, AI_INFERENCE, MIXED, ENTERPRISE
+    public Double computeIntensityFactor; // AI/HPC power multiplier (1.0-1.5)
+    public Integer coresPerServer; // CPU cores per server (default: 4)
+    public Long mipsPerCore; // MIPS per core (default: 1000)
 
     /*
      * =====================================================
@@ -103,15 +124,22 @@ public class SimulationRequest {
      */
     public static class WeatherData {
         public String timestamp;
+        
+        // Support both naming conventions from frontend
         public double dryBulb; // °C
+        public double temperature; // °C (alternative name)
+        
         public double relativeHumidity; // %
+        public double humidity; // % (alternative name)
 
         @Override
         public String toString() {
             return "WeatherData{" +
                     "timestamp='" + timestamp + '\'' +
                     ", dryBulb=" + dryBulb +
+                    ", temperature=" + temperature +
                     ", relativeHumidity=" + relativeHumidity +
+                    ", humidity=" + humidity +
                     '}';
         }
     }

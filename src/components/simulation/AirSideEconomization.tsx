@@ -161,6 +161,12 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
 
   const [localLocationData, setLocalLocationData] = useState<any[]>([]);
 
+  // ========================================================================
+  // CLOUDSIM PARAMETERS (enableCloudSim hardcoded to true in store)
+  // ========================================================================
+  const [aiWorkloadMode, setAiWorkloadMode] = useState<string>("AI_TRAINING");
+  const [computeIntensityFactor, setComputeIntensityFactor] = useState(1.2);
+
   // Advanced Economizer Controls (Optional)
   const [economizerMaxOutdoorTemp, setEconomizerMaxOutdoorTemp] = useState(24); // °C, default 24
   const [economizerMaxHumidity, setEconomizerMaxHumidity] = useState(60); // %, default 60
@@ -173,12 +179,14 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   const [capexPerCFM] = useState(2.5); // $/CFM, default 2.5
   const [fixedEconomizerCapex] = useState(20000); // $, default 20000
 
-  // AI & Future-Proofing
-  const [workloadProfile, setWorkloadProfile] = useState<string>("standard"); // 'standard', 'inference', 'training'
-  const [forecastHorizon, setForecastHorizon] = useState<number>(1); // Years 1-10
-  const [utilityEscalation, setUtilityEscalation] = useState<number>(3.5); // %
-  const [enableCarbonTax, setEnableCarbonTax] = useState<boolean>(false);
-  const [climateOffset, setClimateOffset] = useState<number>(0.5); // +0.5 to +3.5 deg C
+  // ========================================================================
+  // FINANCIAL PROJECTION PARAMETERS (2025-2030)
+  // ========================================================================
+  const [annualElectricityInflation, setAnnualElectricityInflation] = useState<number>(3.5); // %, default 3.5%
+  const [carbonPrice, setCarbonPrice] = useState<number>(126.0); // $/ton CO2, EU 2030 target
+  const [carbonPriceGrowth, setCarbonPriceGrowth] = useState<number>(15.0); // %/year, default 15%
+  const [temperatureOffset, setTemperatureOffset] = useState<number>(0.0); // °C over 5 years, climate change impact
+  const [forecastYears] = useState<number>(5); // Fixed 5-year projection (2025-2030)
 
   const lastSentRef = useRef<string>("");
   const updateTimeoutRef = useRef<NodeJS.Timeout>();
@@ -250,15 +258,15 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   const fetchAllData = async () => {
     try {
       setIsLoading(true);
-      setError("");
+      setError(""); // Clear any previous errors
       await Promise.all([
         fetchServers(),
         fetchCountries(),
         fetchFanParameters(),
       ]);
     } catch (error) {
-      setError("Failed to load configuration data. Please refresh the page.");
       console.error("Error fetching data:", error);
+      // Don't set error here - let individual fetch functions handle it
     } finally {
       setIsLoading(false);
     }
@@ -293,12 +301,119 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
           }
         }
       } else {
-        setError("No server configurations found in database");
+        console.warn("⚠️ No servers in database, using fallback defaults");
+        useFallbackData();
       }
     } catch (error) {
-      console.error("Error fetching servers:", error);
-      setError("Unable to load server configurations");
+      console.error("❌ Error fetching servers, using fallback defaults:", error);
+      useFallbackData();
     }
+  };
+  
+  const useFallbackData = () => {
+    // Safe default server configurations
+    const fallbackServers: Server[] = [
+      {
+        id: "fallback-1",
+        name: "Standard Server",
+        manufacturer: "Generic",
+        model: "2U Rack Server",
+        max_power_w: 750,
+        idle_power_w: 150,
+        typical_power_w: 450,
+        form_factor: "2U",
+        cooling_type: "Air-cooled",
+        typical_utilization: 45,
+        cpu_type: "Intel Xeon",
+        memory_gb: 256,
+        storage_tb: 4,
+        release_year: 2022,
+        efficiency_rating: "80 Plus Platinum",
+        avg_utilization_percent: 45,
+        peak_utilization_percent: 85,
+      },
+      {
+        id: "fallback-2",
+        name: "High-Performance Server",
+        manufacturer: "Generic",
+        model: "2U HPC Server",
+        max_power_w: 1200,
+        idle_power_w: 200,
+        typical_power_w: 700,
+        form_factor: "2U",
+        cooling_type: "Air-cooled",
+        typical_utilization: 60,
+        cpu_type: "Intel Xeon Scalable",
+        memory_gb: 512,
+        storage_tb: 8,
+        release_year: 2023,
+        efficiency_rating: "80 Plus Titanium",
+        avg_utilization_percent: 60,
+        peak_utilization_percent: 95,
+      },
+    ];
+    
+    const fallbackCountries: CountryTariff[] = [
+      { id: "fallback-us", country_name: "United States", electricity_tariff: 0.15, co2_grid_factor: 0.055 },
+      { id: "fallback-de", country_name: "Germany", electricity_tariff: 0.35, co2_grid_factor: 0.045 },
+      { id: "fallback-cn", country_name: "China", electricity_tariff: 0.08, co2_grid_factor: 0.065 },
+    ];
+    
+    const fallbackFanParams: FanParameter[] = [
+      {
+        id: "fallback-best",
+        param_group: "fan_efficiency",
+        param_key: "best_fan",
+        display_name: "Best-in-class Fans",
+        min_value: 0.30,
+        max_value: 0.40,
+        unit: "W/CFM",
+        status_label: "Excellent",
+        description: "High-efficiency EC fans with VFD",
+      },
+      {
+        id: "fallback-avg",
+        param_group: "fan_efficiency",
+        param_key: "average_fan",
+        display_name: "Average Fans",
+        min_value: 0.50,
+        max_value: 0.70,
+        unit: "W/CFM",
+        status_label: "Good",
+        description: "Standard fans with VFD",
+      },
+      {
+        id: "fallback-legacy",
+        param_group: "fan_efficiency",
+        param_key: "legacy_fan",
+        display_name: "Legacy Fans",
+        min_value: 0.80,
+        max_value: 1.20,
+        unit: "W/CFM",
+        status_label: "Poor",
+        description: "Old constant-speed fans",
+      },
+    ];
+    
+    setServers(fallbackServers);
+    setCountries(fallbackCountries);
+    setFanParameters(fallbackFanParams);
+    
+    // Auto-select first server and country
+    if (fallbackServers.length > 0) {
+      setLocalServerType(fallbackServers[0].id);
+      setSelectedServer(fallbackServers[0]);
+    }
+    if (fallbackCountries.length > 0) {
+      setSelectedCountryId(fallbackCountries[0].id);
+    }
+    
+    // Set fan efficiencies
+    setBestFanEfficiency(0.35);
+    setAvgFanEfficiency(0.6);
+    setOldFanEfficiency(1.0);
+    
+    console.log("✅ Loaded fallback data successfully");
   };
 
   const fetchCountries = async () => {
@@ -308,9 +423,12 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         .select("id, country_name, electricity_tariff, co2_grid_factor")
         .order("country_name");
 
-      if (error) throw error;
+      if (error) {
+        console.warn("⚠️ Supabase countries error, will use fallback if needed:", error);
+        return; // Let useFallbackData handle it
+      }
 
-      if (data) {
+      if (data && data.length > 0) {
         const normalized: CountryTariff[] = data.map((row) => ({
           id: String(row.id),
           country_name: row.country_name,
@@ -334,7 +452,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         console.warn("⚠️ No countries found in tariff_carbon table");
       }
     } catch (error) {
-      console.error("Error fetching countries:", error);
+      console.warn("⚠️ Error fetching countries, will use fallback if needed:", error);
     }
   };
 
@@ -349,8 +467,8 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         .order("id");
 
       if (error) {
-        console.error("Supabase error:", error);
-        throw new Error(`Failed to fetch fan parameters: ${error.message}`);
+        console.warn("⚠️ Supabase fan parameters error, will use fallback if needed:", error);
+        return; // Let useFallbackData handle it
       }
 
       if (data && data.length > 0) {
@@ -389,7 +507,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
         });
       }
     } catch (error) {
-      console.error("Error fetching fan parameters:", error);
+      console.warn("⚠️ Error fetching fan parameters, will use fallback if needed:", error);
     }
   };
 
@@ -716,17 +834,14 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       // Economic Parameters (CAPEX)
       capexPerCFM,
       fixedEconomizerCapex,
-      // AI & Future Proofing Parameters
-      computeIntensityFactor:
-        workloadProfile === "training"
-          ? 8.0
-          : workloadProfile === "inference"
-            ? 2.5
-            : 1.0,
-      forecastYears: forecastHorizon,
-      energyEscalationRate: utilityEscalation / 100.0,
-      carbonTaxProjected: enableCarbonTax ? 126.0 : 0.0,
-      climateChangeOffsetC: climateOffset,
+      // CloudSim Parameters (enableCloudSim hardcoded to true in store)
+      aiWorkloadMode,
+      computeIntensityFactor,
+      // Financial Projection Parameters (2025-2030)
+      forecastYears,
+      energyEscalationRate: annualElectricityInflation / 100, // Convert % to decimal
+      carbonTaxProjected: carbonPrice,
+      climateChangeOffsetC: temperatureOffset / forecastYears, // Annual rate
     };
 
     try {
@@ -774,11 +889,19 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     returnAirTemp,
     airflowCFM,
     deltaT,
-    workloadProfile,
-    forecastHorizon,
-    utilityEscalation,
-    enableCarbonTax,
-    climateOffset,
+    aiWorkloadMode,
+    computeIntensityFactor,
+    annualElectricityInflation,
+    carbonPrice,
+    carbonPriceGrowth,
+    temperatureOffset,
+    forecastYears,
+    economizerMaxOutdoorTemp,
+    economizerMaxHumidity,
+    minOutdoorAirFraction,
+    mechanicalCOP,
+    capexPerCFM,
+    fixedEconomizerCapex,
   ]);
 
   // Initialize location data from props
@@ -1074,29 +1197,35 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   }
 
   if (error) {
-    return (
-      <div className={wrapperClass}>
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center space-y-4">
-            <AlertCircle className="w-12 h-12 text-red-500 mx-auto" />
-            <div className="space-y-2">
-              <div className="text-red-600 font-medium">Error loading data</div>
-              <div className="text-sm text-gray-600">{error}</div>
-              <button
-                onClick={fetchAllData}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Retry Loading Data
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    // Show warning banner instead of blocking the entire UI
+    console.warn("⚠️ Using fallback data due to database error:", error);
   }
 
   return (
     <div className={wrapperClass}>
+      {error && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-yellow-900">Using Default Configuration</p>
+              <p className="text-xs text-yellow-700 mt-1">
+                Database connection unavailable. Using fallback server and country data.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setError("");
+                fetchAllData();
+              }}
+              className="text-xs text-yellow-700 hover:text-yellow-900 underline"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
+      
       <div className="text-center space-y-4 mb-12">
         <h2
           className={`text-4xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
@@ -1588,187 +1717,6 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
           </div>
         </div>
 
-        {/* Workload Intensity & AI Scaling */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
-            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
-              <Zap className="w-5 h-5 text-purple-600" />
-            </div>
-            <div>
-              <h4 className="font-bold text-lg text-gray-900">
-                Workload Intensity & AI Scaling
-              </h4>
-              <p className="text-sm text-gray-500">
-                Simulate GPU-heavy AI clusters and density
-              </p>
-            </div>
-          </div>
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">
-                Workload Profile Type
-              </label>
-              <select
-                value={workloadProfile}
-                onChange={(e) => setWorkloadProfile(e.target.value)}
-                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3.5 focus:outline-none focus:border-purple-500 bg-white text-gray-900 font-medium"
-              >
-                <option value="standard">Standard IT (Current) - 1.0x</option>
-                <option value="inference">
-                  AI Inference (2027) - 2.5x-3.0x
-                </option>
-                <option value="training">
-                  AI Training (2030) - 8.0x-10.0x
-                </option>
-              </select>
-              <p className="text-xs text-gray-500 mt-2">
-                adjusts the backend power multipliers for AI density simulation.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Lifecycle & Cost Projection */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
-            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
-              <TrendingDown className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <h4 className="font-bold text-lg text-gray-900">
-                Lifecycle & Cost Projection
-              </h4>
-              <p className="text-sm text-gray-500">
-                Predictive Multi-Year TCO Modeling
-              </p>
-            </div>
-          </div>
-          <div className="space-y-6">
-            {/* Forecast Horizon */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-sm font-semibold text-gray-900">
-                  Forecast Horizon (Years)
-                </label>
-                <span className="text-xl font-bold text-green-600">
-                  {forecastHorizon} Years
-                </span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={10}
-                step={1}
-                value={forecastHorizon}
-                onChange={(e) => setForecastHorizon(Number(e.target.value))}
-                className="w-full h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>1 Year</span>
-                <span>10 Years</span>
-              </div>
-            </div>
-
-            {/* Annual Utility Escalation */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-1">
-                Annual Utility Escalation (%)
-              </label>
-              <div className="flex items-center gap-4">
-                <input
-                  type="range"
-                  min={0}
-                  max={10}
-                  step={0.1}
-                  value={utilityEscalation}
-                  onChange={(e) => setUtilityEscalation(Number(e.target.value))}
-                  className="flex-1 h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  max={10}
-                  step={0.1}
-                  value={utilityEscalation}
-                  onChange={(e) => setUtilityEscalation(Number(e.target.value))}
-                  className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-center"
-                />
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                Projected rise in grid fees and electricity volatility (Avg
-                3.5%).
-              </p>
-            </div>
-
-            {/* Carbon Tax */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-200">
-              <div>
-                <div className="font-semibold text-gray-900">
-                  Enable 2030 Carbon Tax
-                </div>
-                <div className="text-sm text-gray-500">
-                  Apply projected €126/ton CO₂ tax
-                </div>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={enableCarbonTax}
-                  onChange={(e) => setEnableCarbonTax(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Environmental Future-Proofing */}
-        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
-            <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center">
-              <ThermometerSun className="w-5 h-5 text-orange-600" />
-            </div>
-            <div>
-              <h4 className="font-bold text-lg text-gray-900">
-                Environmental Future-Proofing
-              </h4>
-              <p className="text-sm text-gray-500">
-                Climate Change Impact Simulation
-              </p>
-            </div>
-          </div>
-          <div className="space-y-6">
-            {/* Climate Offset */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-sm font-semibold text-gray-900">
-                  Climate Change Temperature Offset (°C)
-                </label>
-                <span className="text-xl font-bold text-orange-600">
-                  +{climateOffset}°C
-                </span>
-              </div>
-              <input
-                type="range"
-                min={0.5}
-                max={3.5}
-                step={0.1}
-                value={climateOffset}
-                onChange={(e) => setClimateOffset(Number(e.target.value))}
-                className="w-full h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>+0.5°C</span>
-                <span>+3.5°C</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Simulates reduced free cooling hours due to global warming.
-              </p>
-            </div>
-          </div>
-        </div>
-
         {/* Advanced Economizer Controls (Optional) */}
         <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
@@ -1890,6 +1838,170 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Financial Projection (2025-2030) */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
+            <DollarSign className="w-6 h-6 text-green-600" />
+            <div>
+              <h4 className="font-bold text-lg text-gray-900">
+                Financial Projection (2025–2030)
+              </h4>
+              <p className="text-sm text-gray-500">
+                Multi-year cost and emissions forecasting with escalation rates
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {/* Annual Electricity Inflation */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-1">
+                Annual Electricity Inflation (%)
+              </label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="range"
+                  min={0}
+                  max={15}
+                  step={0.1}
+                  value={annualElectricityInflation}
+                  onChange={(e) =>
+                    setAnnualElectricityInflation(Number(e.target.value))
+                  }
+                  className="flex-1 h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={15}
+                  step={0.1}
+                  value={annualElectricityInflation}
+                  onChange={(e) =>
+                    setAnnualElectricityInflation(Number(e.target.value))
+                  }
+                  className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-center"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Range: 0-15% | Default: 3.5% | Annual electricity cost escalation rate for 5-year projection
+              </p>
+            </div>
+
+            {/* Carbon Price */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-1">
+                Carbon Price ($ per ton CO₂)
+              </label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="range"
+                  min={0}
+                  max={200}
+                  step={1}
+                  value={carbonPrice}
+                  onChange={(e) => setCarbonPrice(Number(e.target.value))}
+                  className="flex-1 h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={200}
+                  step={1}
+                  value={carbonPrice}
+                  onChange={(e) => setCarbonPrice(Number(e.target.value))}
+                  className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-center"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Range: 0-200 | Default: $126 | EU 2030 target carbon tax applied to emissions
+              </p>
+            </div>
+
+            {/* Carbon Price Growth */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-1">
+                Carbon Price Growth (% per year)
+              </label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="range"
+                  min={0}
+                  max={20}
+                  step={0.1}
+                  value={carbonPriceGrowth}
+                  onChange={(e) =>
+                    setCarbonPriceGrowth(Number(e.target.value))
+                  }
+                  className="flex-1 h-2 bg-green-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={20}
+                  step={0.1}
+                  value={carbonPriceGrowth}
+                  onChange={(e) =>
+                    setCarbonPriceGrowth(Number(e.target.value))
+                  }
+                  className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-center"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Range: 0-20% | Default: 15% | Annual carbon price escalation rate
+              </p>
+            </div>
+
+            {/* Temperature Offset (Climate Change) */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-1">
+                Temperature Offset (°C)
+              </label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="range"
+                  min={0}
+                  max={5}
+                  step={0.1}
+                  value={temperatureOffset}
+                  onChange={(e) =>
+                    setTemperatureOffset(Number(e.target.value))
+                  }
+                  className="flex-1 h-2 bg-orange-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  max={5}
+                  step={0.1}
+                  value={temperatureOffset}
+                  onChange={(e) =>
+                    setTemperatureOffset(Number(e.target.value))
+                  }
+                  className="w-20 border border-gray-300 rounded-lg px-3 py-2 text-center"
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Range: 0-5°C | Default: 0°C | Climate change temperature increase over 5 years (reduces economizer effectiveness by ~3% per °C)
+              </p>
+            </div>
+
+            {/* Info Box */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-900">
+                  <p className="font-semibold mb-1">5-Year Projection (2025-2030)</p>
+                  <p className="text-xs text-blue-700">
+                    These parameters model future cost escalation, carbon pricing policies, and climate change impacts on cooling effectiveness. 
+                    The backend calculates NPV (Net Present Value) and adjusted payback period considering these factors.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
             <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
@@ -1974,7 +2086,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 Drag & drop a CSV file here, or click to browse
               </p>
               <p className="text-xs text-gray-500">
-                CSV should contain timestamp, temperature, and humidity columns
+                CSV should contain temperature (dry_bulb) and humidity (relative_humidity) columns
               </p>
               <button
                 onClick={() => {
@@ -2000,7 +2112,8 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                               h === "timestamp" ||
                               h === "id" ||
                               h.includes("time") ||
-                              h.includes("date"),
+                              h.includes("date") ||
+                              h.includes("hour"),
                           );
                           const temperatureIdx = headers.findIndex(
                             (h) =>
@@ -2016,25 +2129,26 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                               h.includes("rh"),
                           );
 
+                          // Only temperature and humidity are required, timestamp is optional
                           if (
-                            timestampIdx === -1 ||
                             temperatureIdx === -1 ||
                             humidityIdx === -1
                           ) {
                             alert(
-                              "CSV must contain a timestamp (or id), temperature (or dry_bulb), and humidity (or relative_humidity) column",
+                              "CSV must contain temperature (or dry_bulb) and humidity (or relative_humidity) columns",
                             );
                             return;
                           }
 
                           const data = lines
                             .slice(1)
-                            .map((line) => {
+                            .map((line, index) => {
                               const values = line
                                 .split(",")
                                 .map((v) => v.trim());
                               return {
-                                timestamp: values[timestampIdx],
+                                // Auto-generate timestamp if not present
+                                timestamp: timestampIdx !== -1 ? values[timestampIdx] : String(index),
                                 temperature: parseFloat(values[temperatureIdx]),
                                 humidity: parseFloat(values[humidityIdx]),
                               };
@@ -2078,6 +2192,129 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* CloudSim Workload Configuration */}
+        <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-200">
+            <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+              <Cpu className="w-5 h-5 text-purple-600" />
+            </div>
+            <div>
+              <h4 className="font-bold text-lg text-gray-900">
+                CloudSim Workload Engine
+              </h4>
+              <p className="text-sm text-gray-500">
+                AI-aware dynamic workload generation (Always Enabled)
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {/* Info Banner */}
+            <div className="p-4 bg-purple-50 rounded-xl border-l-4 border-purple-500">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-purple-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-purple-900 mb-1">
+                    CloudSim Integration Active
+                  </p>
+                  <p className="text-xs text-purple-700">
+                    CloudSim Plus generates realistic AI-aware workload patterns based on your selected mode and intensity factor.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Workload Mode */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-900 mb-3">
+                AI Workload Mode
+              </label>
+              <select
+                value={aiWorkloadMode}
+                onChange={(e) => setAiWorkloadMode(e.target.value)}
+                className="w-full border-2 border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500 bg-white text-gray-900 font-medium"
+              >
+                <option value="AI_TRAINING">AI Training (85-95% sustained utilization)</option>
+                <option value="AI_INFERENCE">AI Inference (20%→95% bursty spikes)</option>
+                <option value="MIXED">Mixed (70% enterprise + 30% AI)</option>
+                <option value="ENTERPRISE">Enterprise (30-70% traditional)</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-2">
+                {aiWorkloadMode === "AI_TRAINING" && "Sustained high utilization for model training workloads"}
+                {aiWorkloadMode === "AI_INFERENCE" && "Bursty spikes for inference serving workloads"}
+                {aiWorkloadMode === "MIXED" && "Combination of enterprise and AI workloads"}
+                {aiWorkloadMode === "ENTERPRISE" && "Traditional enterprise server utilization patterns"}
+              </p>
+            </div>
+
+            {/* Compute Intensity Factor */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold text-gray-900">
+                  Compute Intensity Factor
+                </label>
+                <span className="text-xl font-bold text-purple-600">
+                  {computeIntensityFactor.toFixed(2)}x
+                </span>
+              </div>
+              <input
+                type="range"
+                value={computeIntensityFactor}
+                onChange={(e) => setComputeIntensityFactor(Number(e.target.value))}
+                min={1.0}
+                max={1.5}
+                step={0.05}
+                className="w-full h-2 bg-gradient-to-r from-purple-200 to-purple-600 rounded-lg appearance-none cursor-pointer"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>1.0x (Standard)</span>
+                <span>1.5x (AI/HPC)</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Power multiplier for AI/HPC workloads (GPU/accelerator uplift)
+              </p>
+            </div>
+
+            {/* CloudSim Configuration Summary */}
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">
+                    Workload Mode
+                  </div>
+                  <div className="text-sm font-bold text-gray-900">
+                    {aiWorkloadMode.replace(/_/g, ' ')}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">
+                    Intensity Factor
+                  </div>
+                  <div className="text-sm font-bold text-gray-900">
+                    {computeIntensityFactor.toFixed(2)}x
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">
+                    Total Servers
+                  </div>
+                  <div className="text-sm font-bold text-gray-900">
+                    {localNumberOfRacks * localServersPerRack}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">
+                    Simulation Hours
+                  </div>
+                  <div className="text-sm font-bold text-gray-900">
+                    {localLocationData.length > 0 ? localLocationData.length : 24}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -2162,158 +2399,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             </div>
           )}
         </div>
-        <div className="flex justify-end mt-8">
-          <button
-            onClick={async () => {
-              const latestBestFans = localFans.bestFans;
-              const latestAverageFans = localFans.averageFans;
-              const latestOldFans = localFans.oldFans;
-              const latestBestFanEfficiency = bestFanEfficiency;
-              const latestAvgFanEfficiency = avgFanEfficiency;
-              const latestOldFanEfficiency = oldFanEfficiency;
-              const latestTotalFans =
-                latestBestFans + latestAverageFans + latestOldFans;
-
-              let weightedEfficiency = 0;
-              if (latestTotalFans > 0) {
-                weightedEfficiency =
-                  (latestBestFans * latestBestFanEfficiency +
-                    latestAverageFans * latestAvgFanEfficiency +
-                    latestOldFans * latestOldFanEfficiency) /
-                  latestTotalFans;
-              }
-
-              console.log("[DEBUG] Fan state before payload (latest):", {
-                bestFans: latestBestFans,
-                bestFanEfficiency: latestBestFanEfficiency,
-                averageFans: latestAverageFans,
-                avgFanEfficiency: latestAvgFanEfficiency,
-                oldFans: latestOldFans,
-                oldFanEfficiency: latestOldFanEfficiency,
-              });
-
-              const serverFanPowerPercent = weightedEfficiency;
-              const fans = {
-                bestQuantity: Number(latestBestFans) || 0,
-                bestEfficiency: Number(latestBestFanEfficiency) || 0,
-                averageQuantity: Number(latestAverageFans) || 0,
-                averageEfficiency: Number(latestAvgFanEfficiency) || 0,
-                legacyQuantity: Number(latestOldFans) || 0,
-                legacyEfficiency: Number(latestOldFanEfficiency) || 0,
-              };
-              console.log("[DEBUG] Fans object for payload (latest):", fans);
-
-              const variableFanSpeed = true;
-              const minFanSpeed = 0.4;
-
-              const payload = {
-                // Server & rack config
-                numberOfRacks: localNumberOfRacks,
-                serversPerRack: localServersPerRack,
-                serverMaxPowerW: selectedServer?.max_power_w,
-                serverIdlePowerW: selectedServer?.idle_power_w,
-                serverTypicalPowerW: selectedServer?.typical_power_w,
-                serverType: localServerType,
-                serverName: selectedServer?.name,
-                manufacturer: selectedServer?.manufacturer,
-                model: selectedServer?.model,
-                formFactor: selectedServer?.form_factor,
-                coolingType: selectedServer?.cooling_type,
-                cpuType: selectedServer?.cpu_type,
-                memoryGB: selectedServer?.memory_gb,
-                storageTB: selectedServer?.storage_tb,
-                releaseYear: selectedServer?.release_year,
-                efficiencyRating: selectedServer?.efficiency_rating,
-                averageUtilization: localAvgUtil,
-                peakUtilization: localPeakUtil,
-                // Fan fields for backend
-                ...fans,
-                serverFanPowerPercent,
-                variableFanSpeed,
-                minFanSpeed,
-                // Country & tariff
-                country: selectedCountry?.country_name,
-                countryId: selectedCountry?.id,
-                electricityTariff: selectedCountry?.electricity_tariff,
-                carbonIntensity: selectedCountry?.co2_grid_factor,
-                // Weather data
-                weatherData: localLocationData,
-                // Physical fields
-                supplyAirTemp,
-                returnAirTemp,
-                airflowCFM,
-                deltaT,
-                // Advanced Economizer Controls
-                economizerMaxOutdoorTemp,
-                economizerMaxHumidity,
-                minOutdoorAirFraction,
-                // Mechanical Cooling COP
-                mechanicalCOP,
-                // Economic Parameters (CAPEX)
-                capexPerCFM,
-                fixedEconomizerCapex,
-                // AI & Future-Proofing
-                computeIntensityFactor:
-                  workloadProfile === "training"
-                    ? 8.0
-                    : workloadProfile === "inference"
-                      ? 2.5
-                      : 1.0,
-                forecastYears: forecastHorizon,
-                energyEscalationRate: utilityEscalation / 100.0,
-                carbonTaxProjected: enableCarbonTax ? 126.0 : 0.0,
-                climateChangeOffsetC: climateOffset,
-                // Timestamp for traceability
-                timestamp: new Date().toISOString(),
-              };
-
-              try {
-                console.log("[DEBUG] Final payload before API call:", payload);
-                console.log("[DEBUG] Fan values in payload:", {
-                  bestQuantity: payload.bestQuantity,
-                  bestEfficiency: payload.bestEfficiency,
-                  averageQuantity: payload.averageQuantity,
-                  averageEfficiency: payload.averageEfficiency,
-                  legacyQuantity: payload.legacyQuantity,
-                  legacyEfficiency: payload.legacyEfficiency,
-                });
-                console.log(
-                  "[RunSimulation] Triggering AI-Enhanced Simulation API with payload:",
-                  payload,
-                );
-                const response = await fetch(
-                  "http://localhost:8080/api/simulation/run",
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(payload),
-                  },
-                );
-                console.log(
-                  "[RunSimulation] Response status:",
-                  response.status,
-                );
-                if (!response.ok) throw new Error("Simulation API error");
-                const results = await response.json();
-                console.log("[RunSimulation] Results from API:", results);
-                localStorage.setItem(
-                  "lastSimulationResults",
-                  JSON.stringify(results),
-                );
-                console.log(
-                  "[RunSimulation] Saved results to localStorage. Navigating to /raw-results",
-                );
-                navigate("/raw-results", { state: results });
-              } catch (err: any) {
-                console.error("[RunSimulation] Error:", err);
-                alert("Failed to run simulation: " + err.message);
-              }
-            }}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Run Simulation
-          </button>
-        </div>
+        {/* REMOVED: Run Simulation button - now only on Review page (Step 4) */}
       </div>
     </div>
   );

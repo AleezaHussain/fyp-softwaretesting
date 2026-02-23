@@ -31,6 +31,12 @@ public class SimulationState {
     private int capacityViolations = 0;
     private List<Integer> criticalHours = new ArrayList<>();
     
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 1: Thermal mass tracking and dynamic fan control
+    // ═══════════════════════════════════════════════════════════════════════════
+    private double previousInletTemp = 22.0; // Initialize to typical supply temp
+    private double currentSpeedRatio = 1.0; // Initialize to full speed
+    
     public void addHourlyData(int hour, EvaporativeCoolingService.WeatherPoint weather, 
                              double itLoadKW, double totalElectricalKW, double fanPowerKW,
                              double dxPowerKW, double pumpPowerKW, 
@@ -166,21 +172,33 @@ public class SimulationState {
     public int getCapacityViolations() { return capacityViolations; }
     public List<Integer> getCriticalHours() { return criticalHours; }
     
-    private static class HourlyData {
-        int hour;
-        double ambientTempC;
-        double ambientHumidity;
-        double itLoadKW;
-        double totalElectricalKW;
-        double fanPowerKW;
-        double dxPowerKW;
-        double pumpPowerKW;
-        double coolingCapacityKW;
-        double waterEvaporationLph;
-        double pue;
-        double inletTempC;
-        String coolingMode;
-        double supplyTempC;
-        double supplyHumidity;
+    // ═══════════════════════════════════════════════════════════════════════════
+    // PHASE 1: Thermal mass and dynamic fan control getters/setters
+    // ═══════════════════════════════════════════════════════════════════════════
+    public double getPreviousInletTemp() { return previousInletTemp; }
+    public void setPreviousInletTemp(double temp) { this.previousInletTemp = temp; }
+    
+    public double getCurrentSpeedRatio() { return currentSpeedRatio; }
+    public void setCurrentSpeedRatio(double ratio) { this.currentSpeedRatio = ratio; }
+    
+    // Get hourly data for detailed analysis
+    public List<HourlyData> getHourlyData() { return hourlyData; }
+    
+    public static class HourlyData {
+        public int hour;
+        public double ambientTempC;
+        public double ambientHumidity;
+        public double itLoadKW;
+        public double totalElectricalKW;
+        public double fanPowerKW;
+        public double dxPowerKW;
+        public double pumpPowerKW;
+        public double coolingCapacityKW;
+        public double waterEvaporationLph;
+        public double pue;
+        public double inletTempC;
+        public String coolingMode;
+        public double supplyTempC;
+        public double supplyHumidity;
     }
 }

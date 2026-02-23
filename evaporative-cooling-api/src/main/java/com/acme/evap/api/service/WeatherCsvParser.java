@@ -97,8 +97,21 @@ public class WeatherCsvParser {
             }
             
             // Convert units if needed
-            if (pressure > 200) {
+            // ✅ FIX: Handle pressure in Pa (101325) or kPa (101.325)
+            if (pressure > 200000) {
+                // Pressure is in Pa (e.g., 101325000 - bug in data)
+                pressure = pressure / 1000000.0; // Convert to kPa
+                System.out.println("⚠️ WARNING: Pressure was in Pa (very large), converted to kPa: " + pressure);
+            } else if (pressure > 200) {
+                // Pressure is in Pa (e.g., 101325)
                 pressure = pressure / 1000.0; // Convert Pa to kPa
+            }
+            // else: pressure is already in kPa (e.g., 101.325)
+            
+            // Validate pressure is reasonable (should be ~101.3 kPa at sea level)
+            if (pressure < 80 || pressure > 110) {
+                throw new IllegalArgumentException(
+                    String.format("Pressure %.1f kPa is out of range (80-110 kPa). Check units!", pressure));
             }
             
             if (relativeHumidity > 1.0 && relativeHumidity <= 100.0) {
