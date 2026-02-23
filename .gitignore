@@ -25,3 +25,12 @@ target/
 
 # OS
 .DS_Store
+# JVM crash logs
+hs_err_pid*
+replay_pid*
+
+# Backup files
+*.bak
+
+# Log files
+*.log
