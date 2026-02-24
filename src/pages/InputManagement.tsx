@@ -112,6 +112,8 @@ const Step2Parameters: React.FC<Step2ParametersProps> = ({
       <ChilledWaterCooling
         isDark={isDark}
         isTransitioning={isTransitioning}
+        currentConfig={currentConfig}
+        currentInput={currentInput}
         onConfigChange={handleConfigChange}
       />
     );
@@ -1018,6 +1020,8 @@ export const InputManagement: React.FC = () => {
         airSideConfig: selectedTechnique === "air" ? completeConfig : undefined,
         evaporativeConfig:
           selectedTechnique === "evaporative" ? completeConfig : undefined,
+        chilledWaterConfig:
+          selectedTechnique === "water" ? completeConfig : undefined,
         locationData: locationData,
       } as any);
 
@@ -1044,39 +1048,84 @@ export const InputManagement: React.FC = () => {
     // Run actual simulation
     if (configRef.current) {
       try {
-        // Wrap config properly based on cooling technique
-        const simulationInput =
-          selectedTechnique === "evaporative"
-            ? {
-                ...configRef.current,
-                evaporativeConfig: configRef.current,
-                coolingTechnique: "evaporative",
-              }
-            : selectedTechnique === "air"
+        // ✅ Handle different cooling techniques
+        if (selectedTechnique === "water") {
+          // 🌊 CHILLED WATER COOLING - Call dedicated backend API
+          console.log("🌊 [CHILLED WATER] Running chilled water simulation...");
+          
+          // Import the API service dynamically
+          const { runChilledWaterSimulation, transformConfigToApiRequest } = await import(
+            "../services/chilledWaterApi"
+          );
+
+          // Transform frontend config to backend API format
+          const apiRequest = transformConfigToApiRequest(configRef.current);
+          
+          console.log("🌊 [CHILLED WATER] API Request:", apiRequest);
+
+          // Call the backend API
+          const apiResponse = await runChilledWaterSimulation(apiRequest);
+          
+          console.log("✅ [CHILLED WATER] Simulation completed:", apiResponse);
+
+          // Store results for display
+          updateSimulationInput({
+            coolingTechnique: "water",
+            chilledWaterConfig: configRef.current,
+            chilledWaterResults: apiResponse.results,
+            locationData: locationData,
+          } as any);
+
+          // Wait for simulation to complete
+          setTimeout(() => {
+            clearInterval(progressInterval);
+            setSimulationProgress(100);
+
+            // Show completion for 1 second then navigate
+            setTimeout(() => {
+              setIsSimulationRunning(false);
+              navigate("/dashboard");
+            }, 1000);
+          }, 1000);
+
+        } else {
+          // 💨 AIR-SIDE or EVAPORATIVE COOLING - Use existing flow
+          const simulationInput =
+            selectedTechnique === "evaporative"
               ? {
                   ...configRef.current,
-                  airSideConfig: configRef.current,
-                  coolingTechnique: "air",
+                  evaporativeConfig: configRef.current,
+                  coolingTechnique: "evaporative",
                 }
-              : configRef.current;
+              : selectedTechnique === "air"
+                ? {
+                    ...configRef.current,
+                    airSideConfig: configRef.current,
+                    coolingTechnique: "air",
+                  }
+                : configRef.current;
 
-        await runSimulation(simulationInput);
+          await runSimulation(simulationInput);
 
-        // Wait for simulation to complete
-        setTimeout(() => {
-          clearInterval(progressInterval);
-          setSimulationProgress(100);
-
-          // Show completion for 1 second then navigate
+          // Wait for simulation to complete
           setTimeout(() => {
-            setIsSimulationRunning(false);
-            navigate("/dashboard");
-          }, 1000);
-        }, 3000);
-      } catch (error) {
+            clearInterval(progressInterval);
+            setSimulationProgress(100);
+
+            // Show completion for 1 second then navigate
+            setTimeout(() => {
+              setIsSimulationRunning(false);
+              navigate("/dashboard");
+            }, 1000);
+          }, 3000);
+        }
+      } catch (error: any) {
         clearInterval(progressInterval);
         setIsSimulationRunning(false);
-        console.error("Simulation failed:", error);
+        console.error("❌ Simulation failed:", error);
+        
+        // Show error message to user
+        alert(`Simulation failed: ${error.message || 'Unknown error'}`);
       }
     }
   };

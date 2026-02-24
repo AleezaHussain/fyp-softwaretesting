@@ -5,6 +5,7 @@ import org.cloudsimplus.datacenters.Datacenter;
 import org.cloudsimplus.hosts.Host;
 import com.acme.chilledwatersystem.EnvironmentEngine.HourlyWeather;
 import com.acme.chilledwatersystem.ChilledWaterPhysics.CoolingMetrics;
+import com.acme.chilledwatersystem.api.util.InfrastructureEfficiency;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +25,7 @@ public class SimulationOrchestrator {
     private final EdgeDataCenterScenario scenario;
     private final CoolingCostCalculator costCalculator;
     private final List<HourlySimulationResult> results;
+    private final String workloadType; // NEW: Store workload type for utilization model
     
     // Datacenter components for power tracking
     private Datacenter datacenter;
@@ -37,10 +39,19 @@ public class SimulationOrchestrator {
                                  ChilledWaterPhysics physics,
                                  EnvironmentEngine weather,
                                  EdgeDataCenterScenario scenario) {
+        this(sim, physics, weather, scenario, "enterprise"); // Default to enterprise workload
+    }
+    
+    public SimulationOrchestrator(CloudSimPlus sim, 
+                                 ChilledWaterPhysics physics,
+                                 EnvironmentEngine weather,
+                                 EdgeDataCenterScenario scenario,
+                                 String workloadType) {
         this.simulation = sim;
         this.physics = physics;
         this.weather = weather;
         this.scenario = scenario;
+        this.workloadType = workloadType != null ? workloadType : "enterprise";
         this.costCalculator = new CoolingCostCalculator(scenario);
         this.results = new ArrayList<>();
         this.monthlyPeakDemandKW = 0.0;
@@ -62,6 +73,11 @@ public class SimulationOrchestrator {
     public void runAnnualSimulation() {
         System.out.println("=== Starting 8760-Hour Co-Simulation ===");
         System.out.println("CloudSim + Chilled Water Physics in Lockstep\n");
+        System.out.println("WORKLOAD VARIABILITY ENABLED:");
+        System.out.println("  - Diurnal Pattern: Peak at 2 PM, Low at 4 AM");
+        System.out.println("  - Weekly Pattern: 70% load on weekends");
+        System.out.println("  - Random Noise: ±5% variation");
+        System.out.println();
         
         weather.reset();
         costCalculator.reset();
@@ -120,15 +136,30 @@ public class SimulationOrchestrator {
         
         // STEP 2: IT Power Extraction - Advance CloudSim by 3600 seconds (1 hour)
         // The Host power models convert CPU utilization into numerical heat load
-        double itLoadKW = advanceCloudSimOneHour();
+        double serverPowerKW = advanceCloudSimOneHour();
+        
+        // CRITICAL FIX: Apply DYNAMIC UPS/PDU efficiency instead of static losses
+        // Calculate UPS and PDU rated capacities (assume 1.5x design load for safety)
+        double totalDesignPowerKW = scenario.getTotalDesignPowerKW();
+        double upsRatedCapacityKW = totalDesignPowerKW * 1.5;
+        double pduRatedCapacityKW = totalDesignPowerKW * 1.5;
+        
+        // Calculate dynamic UPS losses
+        double upsLosses = InfrastructureEfficiency.calculateUpsLosses(serverPowerKW, upsRatedCapacityKW);
+        
+        // Calculate dynamic PDU losses
+        double pduLosses = InfrastructureEfficiency.calculatePduLosses(serverPowerKW, pduRatedCapacityKW);
+        
+        // Total IT load including infrastructure losses
+        double itLoadKW = serverPowerKW + upsLosses + pduLosses;
         result.itLoadKW = itLoadKW;
         
         // STEP 3: Physics Computation - Apply heat load to Chiller EIR model
-        // Calculates electrical power required based on this hour's weather
+        // CRITICAL FIX: Now uses WET-BULB temperature for condenser calculations
         CoolingMetrics cooling = physics.calculateCooling(
             itLoadKW,
             hourlyWeather.ambientTempC,
-            hourlyWeather.wetbulbTempC
+            hourlyWeather.wetbulbTempC  // This is now properly calculated from humidity
         );
         
         result.chillerPowerKW = cooling.chillerPowerKW;
@@ -137,21 +168,25 @@ public class SimulationOrchestrator {
         result.totalCoolingKW = cooling.getTotalCoolingKW();
         result.chillerCOP = cooling.chillerCOP;
         result.rackInletTempC = cooling.rackInletTempC;
+        result.waterUsageLiters = cooling.waterUsageLiters;  // NEW
         
         // STEP 4: State Update - Increment degradation (coil fouling)
         // This slightly reduces efficiency for the next hour
         physics.incrementFouling(1.0); // Add 1 hour of wear
         
         // STEP 5: Cost & Carbon Logging - Calculate with time-aware tariffs
+        // Edge overhead (lighting, controls, network equipment)
+        double edgeOverheadKW = 7.2;
+        
         double hourlyCost = calculateHourlyCost(itLoadKW, result.totalCoolingKW, hour);
         result.hourlyCostUSD = hourlyCost;
         
         // Calculate carbon emissions
-        double totalFacilityKW = itLoadKW + result.totalCoolingKW;
+        double totalFacilityKW = itLoadKW + result.totalCoolingKW + edgeOverheadKW;
         result.hourlyCarbonKg = totalFacilityKW * scenario.getCarbonFactorKgKwh();
         
-        // Calculate PUE
-        result.pue = (itLoadKW > 0) ? (totalFacilityKW / itLoadKW) : 1.0;
+        // Calculate PUE (now dynamic due to variable UPS/PDU efficiency)
+        result.pue = (itLoadKW > 0) ? (totalFacilityKW / serverPowerKW) : 1.0;
         
         // STEP 6: Compliance Monitoring - Check ASHRAE thermal boundaries
         result.thermalCompliant = checkThermalCompliance(result.rackInletTempC, hour);
@@ -161,49 +196,70 @@ public class SimulationOrchestrator {
     
     /**
      * Advance CloudSim by exactly 3600 seconds (1 hour)
-     * Returns the total IT power consumption in kW
+     * Returns the SERVER power consumption in kW (without UPS/PDU losses)
+     * 
+     * CLOUDSIM DISCRETE EVENT SIMULATION: This method uses CloudSim Plus's event engine
+     * to process cloudlet execution, VM scheduling, and resource contention.
+     * 
+     * THE "NUDGE" PATTERN: Use runFor() to advance the engine in controlled bursts
+     * - simulation.start() runs to completion (WRONG)
+     * - simulation.runFor(3600) processes exactly 1 hour of events (CORRECT)
      */
     private double advanceCloudSimOneHour() {
-        // If CloudSim is running, advance it by 3600 seconds
-        if (simulation != null && simulation.isRunning()) {
-            double currentTime = simulation.clock();
-            double targetTime = currentTime + 3600.0; // 1 hour = 3600 seconds
-            
-            // Run CloudSim until target time
+        int currentHour = results.size(); // 0-based hour index
+        
+        // STEP 1: ADVANCE THE DISCRETE EVENT ENGINE
+        // This nudges the actual CloudSim engine forward by 3600 seconds.
+        // It triggers Cloudlet internal execution and updates VM/Host states.
+        if (simulation != null) {
+            // Process exactly 3600 seconds of discrete events
+            // runFor() will automatically start the simulation on first call
+            // and process events incrementally without jumping to completion
             simulation.runFor(3600.0);
         }
         
-        // Calculate total IT power from all hosts
+        // STEP 2: QUERY DYNAMIC STATE
+        // Instead of manually calculating utilization, we ask CloudSim for the
+        // current state of the hosts AFTER those 3600 seconds of events.
         double totalPowerW = 0.0;
+        int activeHosts = 0;
+        double totalUtilization = 0.0;
+        
         if (hosts != null && !hosts.isEmpty()) {
             for (Host host : hosts) {
                 if (host.isActive()) {
-                    // Get instantaneous power from CloudSim power model
+                    // Get actual CPU utilization from CloudSim's event engine
+                    // This reflects the real state after processing events
+                    double hostUtil = host.getCpuPercentUtilization();
+                    
+                    // This method automatically calls the LoopingDiurnalUtilizationModel
+                    // using the engine's internal 'simulation.clock()' value
                     double hostPowerW = host.getPowerModel().getPower();
+                    
                     totalPowerW += hostPowerW;
+                    activeHosts++;
+                    totalUtilization += hostUtil;
                 }
             }
-        } else {
-            // Fallback: use scenario-based calculation if hosts not available
-            // Simulate varying utilization pattern
-            int hourOfDay = (int) (simulation.clock() / 3600) % 24;
-            double utilization = 40.0 + 30.0 * Math.sin((hourOfDay / 24.0) * 2 * Math.PI);
-            
-            int totalServers = scenario.getTotalServers();
-            double idlePower = scenario.getServerIdlePowerW();
-            double maxPower = scenario.getServerMaxPowerW();
-            double fanPower = scenario.getServerFanPowerW();
-            
-            double powerPerServerW = idlePower + (maxPower - idlePower) * (utilization / 100.0) + fanPower;
-            totalPowerW = powerPerServerW * totalServers;
         }
         
-        // Convert to kW and add UPS/PDU losses
-        double serverPowerKW = totalPowerW / 1000.0;
-        double upsLosses = serverPowerKW * scenario.getUpsLossFraction();
-        double pduLosses = serverPowerKW * scenario.getPduLossFraction();
+        // Log every 24 hours for debugging
+        if (currentHour % 24 == 0 && activeHosts > 0) {
+            double avgUtilization = (totalUtilization / activeHosts) * 100.0;
+            int hourOfDay = currentHour % 24;
+            int dayOfYear = currentHour / 24;
+            int dayOfWeek = dayOfYear % 7;
+            String dayType = (dayOfWeek < 5) ? "Weekday" : "Weekend";
+            
+            System.out.printf("DEBUG Hour %04d (%s %02d:00): CloudSim Time=%.0fs, Active Hosts=%d, Avg Util=%.1f%%, Power=%.2f kW\n",
+                currentHour, dayType, hourOfDay, simulation.clock(), activeHosts, avgUtilization, totalPowerW / 1000.0);
+        }
         
-        return serverPowerKW + upsLosses + pduLosses;
+        // Convert to kW (return ONLY server power, UPS/PDU losses calculated separately)
+        // This is now a REAL, fluctuating variable based on CloudSim's internal CPU utilization
+        double serverPowerKW = totalPowerW / 1000.0;
+        
+        return serverPowerKW;
     }
     
     /**
@@ -276,6 +332,7 @@ public class SimulationOrchestrator {
         double totalCoolingEnergyKWh = 0.0;
         double totalCostUSD = 0.0;
         double totalCarbonKg = 0.0;
+        double totalWaterLiters = 0.0;  // NEW
         int thermalExcursions = 0;
         
         for (HourlySimulationResult result : results) {
@@ -283,6 +340,7 @@ public class SimulationOrchestrator {
             totalCoolingEnergyKWh += result.totalCoolingKW;
             totalCostUSD += result.hourlyCostUSD;
             totalCarbonKg += result.hourlyCarbonKg;
+            totalWaterLiters += result.waterUsageLiters;  // NEW
             if (!result.thermalCompliant) {
                 thermalExcursions++;
             }
@@ -291,10 +349,16 @@ public class SimulationOrchestrator {
         // Calculate annual PUE
         double annualPUE = (totalITEnergyKWh + totalCoolingEnergyKWh) / totalITEnergyKWh;
         
+        // Calculate WUE (Water Usage Effectiveness)
+        double totalEnergyKWh = totalITEnergyKWh + totalCoolingEnergyKWh;
+        double wue = totalWaterLiters / totalEnergyKWh;  // L/kWh
+        
         System.out.println("=== Annual Performance Summary ===");
         System.out.printf("Total IT Energy: %.2f MWh\n", totalITEnergyKWh / 1000.0);
         System.out.printf("Total Cooling Energy: %.2f MWh\n", totalCoolingEnergyKWh / 1000.0);
         System.out.printf("Annual PUE: %.3f\n", annualPUE);
+        System.out.printf("Total Water Usage: %.2f m³ (%.0f liters)\n", totalWaterLiters / 1000.0, totalWaterLiters);
+        System.out.printf("WUE (Water Usage Effectiveness): %.3f L/kWh\n", wue);
         System.out.printf("Total Energy Cost: $%.2f\n", totalCostUSD);
         System.out.printf("Total Carbon Emissions: %.2f metric tons CO2\n", totalCarbonKg / 1000.0);
         System.out.printf("Thermal Excursions: %d / 8760 hours (%.2f%%)\n", 
@@ -355,12 +419,13 @@ public class SimulationOrchestrator {
         public double hourlyCarbonKg;
         public double pue;
         public boolean thermalCompliant;
+        public double waterUsageLiters;  // NEW: Water usage per hour
         
         @Override
         public String toString() {
             return String.format(
-                "Hour %d: IT=%.2f kW, Cooling=%.2f kW, COP=%.2f, PUE=%.2f, Cost=$%.2f, Compliant=%s",
-                hour, itLoadKW, totalCoolingKW, chillerCOP, pue, hourlyCostUSD, thermalCompliant
+                "Hour %d: IT=%.2f kW, Cooling=%.2f kW, COP=%.2f, PUE=%.2f, Cost=$%.2f, Water=%.1f L, Compliant=%s",
+                hour, itLoadKW, totalCoolingKW, chillerCOP, pue, hourlyCostUSD, waterUsageLiters, thermalCompliant
             );
         }
     }

@@ -157,6 +157,37 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
     console.log('🔥 [SIMULATION] Cooling technique selected:', coolingTechnique);
     console.log('🔥 [SIMULATION] Input data:', input);
 
+    // ========================================================================
+    // CHILLED WATER COOLING
+    // ========================================================================
+    if (coolingTechnique === 'water') {
+      console.log('🌊 [CHILLED WATER] Using Chilled Water Cooling API');
+      
+      const chilledWaterConfig = (input as any).chilledWaterConfig;
+      
+      if (!chilledWaterConfig) {
+        throw new Error('Chilled water configuration is missing');
+      }
+
+      console.log('🌊 [CHILLED WATER] Configuration found:', chilledWaterConfig);
+
+      // Import and call the chilled water API service
+      const { simulateChilledWater } = await import('../services/chilledWaterApi');
+      
+      try {
+        const result = await simulateChilledWater(chilledWaterConfig);
+        console.log('🌊 [CHILLED WATER] API Response received:', result);
+        set({ currentResult: result });
+        return result;
+      } catch (error: any) {
+        console.error('🌊 [CHILLED WATER] API Error:', error);
+        throw new Error(`Chilled water simulation failed: ${error.message}`);
+      }
+    }
+
+    // ========================================================================
+    // EVAPORATIVE COOLING
+    // ========================================================================
     // If evaporative cooling is selected, use the new evaporative cooling API
     if (coolingTechnique === 'evaporative') {
       console.log('🌊 [EVAPORATIVE] Using Evaporative Cooling API');
@@ -343,10 +374,10 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       formData.append('weatherFile', weatherBlob, 'weather_data.csv');
       formData.append('config', JSON.stringify(evaporativePayload));
 
-      console.log('🌊 [EVAPORATIVE] Calling API: http://localhost:8080/api/simulations/evaporative-cooling');
+      console.log('🌊 [EVAPORATIVE] Calling API: http://localhost:8082/api/simulations/evaporative-cooling');
 
       // Call evaporative cooling API
-      const response = await fetch("http://localhost:8080/api/simulations/evaporative-cooling", {
+      const response = await fetch("http://localhost:8082/api/simulations/evaporative-cooling", {
         method: "POST",
         body: formData
       });

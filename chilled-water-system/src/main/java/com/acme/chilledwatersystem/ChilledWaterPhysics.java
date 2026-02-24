@@ -53,9 +53,21 @@ public class ChilledWaterPhysics {
         // 1. Calculate chiller load (heat that must be removed)
         double chillerLoadKW = itLoadKW; // IT load is the heat to be removed
         
-        // 2. Calculate condenser temperature (cooling tower approach)
-        double condenserApproachC = 5.0; // Typical cooling tower approach temperature
-        double condenserTempC = ambientTempC + condenserApproachC;
+        // 2. Calculate condenser temperature using WET-BULB (CRITICAL FIX)
+        // Cooling tower approach: difference between condenser inlet and wet-bulb
+        // Typical range: 2-7°C (tighter approach = larger/more expensive tower)
+        double coolingTowerApproachC = 5.0; // Default approach temperature
+        double condenserTempC = wetbulbTempC + coolingTowerApproachC;
+        
+        // IMPORTANT: Condenser temp is based on WET-BULB, not ambient!
+        // This is because cooling towers use evaporative cooling
+        // As humidity increases, wet-bulb approaches ambient, reducing cooling capacity
+        
+        // DEBUG: Log when wet-bulb is high (indicating high humidity)
+        if (wetbulbTempC > 25.0) {
+            System.out.printf("⚠️  High wet-bulb detected: %.1f°C (Ambient: %.1f°C) - COP will be reduced\n",
+                wetbulbTempC, ambientTempC);
+        }
         
         // 3. Calculate chiller COP using EIR framework
         double loadFraction = chillerLoadKW / referenceLoadKW;
@@ -87,10 +99,33 @@ public class ChilledWaterPhysics {
         // Apply fouling to tower fans (clogged coils increase fan power)
         towerFanPowerKW = towerFanPowerKW * Math.pow(currentFoulingFactor, 1.5);
         
-        // 7. Calculate rack inlet temperature
-        // This is the temperature of air entering the server racks
-        double supplyAirTempC = scenario.getChilledWaterSupplyTempC() + 3.0; // CRAH approach
-        double rackInletTempC = supplyAirTempC + (loadFraction * 2.0); // Load-dependent rise
+        // 6.5. Calculate water usage for cooling tower evaporation
+        // CRITICAL FIX: Cooling towers lose water through evaporation
+        // Typical evaporation rate: 1.8 L/kWh of heat rejected
+        // Heat rejected = chiller load + compressor power
+        double heatRejectedKW = chillerLoadKW + chillerPowerKW;
+        double waterUsageLitersPerHour = heatRejectedKW * 1.8; // L/hour
+        
+        // 7. Calculate rack inlet temperature with THERMOSTAT SETPOINT LOGIC
+        // CRITICAL FIX: Real data centers use thermostats, not direct chilled water temp
+        // This prevents "deep freeze" conditions that would cause condensation
+        double chilledWaterSupplyC = scenario.getChilledWaterSupplyTempC(); // 7°C
+        double crahApproach = 3.0; // CRAH heat exchanger approach temperature
+        
+        // Calculate supply air temperature from CRAH unit
+        double supplyAirTempC = chilledWaterSupplyC + crahApproach; // ~10°C
+        
+        // THERMOSTAT SETPOINT: Data centers maintain 18-27°C (ASHRAE recommended)
+        // The CRAH unit has a setpoint that prevents over-cooling
+        double thermostatSetpointC = 22.0; // Standard data center setpoint
+        
+        // Actual rack inlet temp is the higher of setpoint or supply air
+        // This simulates the CRAH unit modulating to maintain setpoint
+        double rackInletTempC = Math.max(thermostatSetpointC, supplyAirTempC);
+        
+        // Add load-dependent temperature rise (higher load = slightly warmer inlet)
+        // This accounts for hot aisle recirculation and mixing
+        rackInletTempC += (loadFraction * 2.0); // 0-2°C rise at full load
         
         // Populate metrics
         metrics.chillerPowerKW = chillerPowerKW;
@@ -103,6 +138,7 @@ public class ChilledWaterPhysics {
         metrics.condenserTempC = condenserTempC;
         metrics.loadFraction = loadFraction;
         metrics.foulingFactor = currentFoulingFactor;
+        metrics.waterUsageLiters = waterUsageLitersPerHour;  // NEW
         
         return metrics;
     }
@@ -218,6 +254,7 @@ public class ChilledWaterPhysics {
         public double condenserTempC;
         public double loadFraction;
         public double foulingFactor;
+        public double waterUsageLiters;  // NEW: Water usage per hour
         
         public double getTotalCoolingKW() {
             return chillerPowerKW + pumpPowerKW + towerFanPowerKW;
@@ -226,9 +263,9 @@ public class ChilledWaterPhysics {
         @Override
         public String toString() {
             return String.format(
-                "Chiller: %.2f kW (COP=%.2f), Pump: %.2f kW, Tower: %.2f kW, Total: %.2f kW, Inlet: %.2f°C",
+                "Chiller: %.2f kW (COP=%.2f), Pump: %.2f kW, Tower: %.2f kW, Total: %.2f kW, Inlet: %.2f°C, Water: %.1f L/h",
                 chillerPowerKW, chillerCOP, pumpPowerKW, towerFanPowerKW, 
-                getTotalCoolingKW(), rackInletTempC
+                getTotalCoolingKW(), rackInletTempC, waterUsageLiters
             );
         }
     }

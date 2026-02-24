@@ -1,5 +1,8 @@
 package com.acme.chilledwatersystem;
 
+import com.acme.chilledwatersystem.api.util.PsychrometricCalculator;
+import com.acme.chilledwatersystem.api.util.AirDensityCalculator;
+
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -214,20 +217,56 @@ public class EnvironmentEngine {
         public final double wetbulbTempC;
         public final double dewpointC;
         public final double relativeHumidity;
+        public final double pressurePa;
+        public final double airDensityKgM3;
 
         public HourlyWeather(int hour, double ambientTempC, double wetbulbTempC, 
                            double dewpointC, double relativeHumidity) {
+            this(hour, ambientTempC, wetbulbTempC, dewpointC, relativeHumidity, 101325.0);
+        }
+
+        public HourlyWeather(int hour, double ambientTempC, double wetbulbTempC, 
+                           double dewpointC, double relativeHumidity, double pressurePa) {
             this.hour = hour;
             this.ambientTempC = ambientTempC;
             this.wetbulbTempC = wetbulbTempC;
             this.dewpointC = dewpointC;
             this.relativeHumidity = relativeHumidity;
+            this.pressurePa = pressurePa;
+            
+            // Calculate air density using Ideal Gas Law
+            this.airDensityKgM3 = AirDensityCalculator.calculateDensity(pressurePa, ambientTempC);
         }
 
         @Override
         public String toString() {
-            return String.format("Hour %d: Ambient=%.1f°C, WetBulb=%.1f°C, DewPoint=%.1f°C, RH=%.1f%%",
-                hour, ambientTempC, wetbulbTempC, dewpointC, relativeHumidity);
+            return String.format("Hour %d: Ambient=%.1f°C, WetBulb=%.1f°C, DewPoint=%.1f°C, RH=%.1f%%, P=%.0f Pa, ρ=%.3f kg/m³",
+                hour, ambientTempC, wetbulbTempC, dewpointC, relativeHumidity, pressurePa, airDensityKgM3);
         }
+    }
+    
+    /**
+     * Load weather data from API request (with automatic wet bulb calculation)
+     * This method is called by the API service with pre-validated data
+     */
+    public void loadFromApiRequest(List<HourlyWeather> apiWeatherData) {
+        this.weatherData = new ArrayList<>(apiWeatherData);
+        System.out.printf("Environment loaded with %d hours of API weather data\n", weatherData.size());
+    }
+    
+    /**
+     * Create HourlyWeather with automatic wet bulb calculation if needed
+     * This is a factory method for the API service
+     */
+    public static HourlyWeather createWithCalculatedWetBulb(int hour, double dryBulbC, 
+                                                            double relativeHumidity, 
+                                                            double pressurePa) {
+        // Calculate wet bulb using Stull formula
+        double wetBulbC = PsychrometricCalculator.calculateWetBulb(dryBulbC, relativeHumidity);
+        
+        // Calculate dew point using Magnus-Tetens formula
+        double dewPointC = PsychrometricCalculator.calculateDewPoint(dryBulbC, relativeHumidity);
+        
+        return new HourlyWeather(hour, dryBulbC, wetBulbC, dewPointC, relativeHumidity, pressurePa);
     }
 }
