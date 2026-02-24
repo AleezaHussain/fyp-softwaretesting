@@ -24,7 +24,6 @@ import {
   Server,
   Activity,
   Play,
-  
   BarChart3,
   Shield,
   Leaf,
@@ -113,18 +112,7 @@ const Step2Parameters: React.FC<Step2ParametersProps> = ({
       <ChilledWaterCooling
         isDark={isDark}
         isTransitioning={isTransitioning}
-        numberOfRacks={currentInput?.numberOfRacks || 5}
-        serversPerRack={10}
-        rackPowerCapacity={10}
-        chilledWaterTemp={7}
-        supplyWaterTemp={12}
-        returnWaterTemp={18}
-        waterFlowRate={50}
-        chillerEfficiency={0.6}
-        pumpEfficiency={0.8}
-        coolingTowerEfficiency={0.7}
         onConfigChange={handleConfigChange}
-        locationData={locationData}
       />
     );
   }
@@ -952,7 +940,8 @@ export const InputManagement: React.FC = () => {
       updateSimulationInput({
         coolingTechnique: selectedTechnique || "air",
         airSideConfig: config,
-        evaporativeConfig: selectedTechnique === "evaporative" ? config : undefined,
+        evaporativeConfig:
+          selectedTechnique === "evaporative" ? config : undefined,
         locationData: locationData, // Include location data
       } as any);
     }
@@ -991,10 +980,16 @@ export const InputManagement: React.FC = () => {
   // Enhanced simulation run with loader
   const handleSubmit = async () => {
     // 🔍 DEBUG: Log weatherData at submission time
-    console.log('🔍 [SUBMIT] handleSubmit called');
-    console.log('🔍 [SUBMIT] configRef.current:', configRef.current);
-    console.log('🔍 [SUBMIT] Has weatherData in configRef?', !!configRef.current?.weatherData);
-    console.log('🔍 [SUBMIT] WeatherData length:', configRef.current?.weatherData?.length || 0);
+    console.log("🔍 [SUBMIT] handleSubmit called");
+    console.log("🔍 [SUBMIT] configRef.current:", configRef.current);
+    console.log(
+      "🔍 [SUBMIT] Has weatherData in configRef?",
+      !!configRef.current?.weatherData,
+    );
+    console.log(
+      "🔍 [SUBMIT] WeatherData length:",
+      configRef.current?.weatherData?.length || 0,
+    );
 
     // Capture config before submitting
     if (configRef.current) {
@@ -1009,13 +1004,20 @@ export const InputManagement: React.FC = () => {
         coolingTechnique: selectedTechnique || "air", // ← Add cooling technique to config
       };
 
-      console.log('🔍 [SUBMIT] completeConfig has weatherData?', !!completeConfig.weatherData);
-      console.log('🔍 [SUBMIT] completeConfig weatherData length:', completeConfig.weatherData?.length || 0);
+      console.log(
+        "🔍 [SUBMIT] completeConfig has weatherData?",
+        !!completeConfig.weatherData,
+      );
+      console.log(
+        "🔍 [SUBMIT] completeConfig weatherData length:",
+        completeConfig.weatherData?.length || 0,
+      );
 
       updateSimulationInput({
         coolingTechnique: selectedTechnique || "air",
         airSideConfig: selectedTechnique === "air" ? completeConfig : undefined,
-        evaporativeConfig: selectedTechnique === "evaporative" ? completeConfig : undefined,
+        evaporativeConfig:
+          selectedTechnique === "evaporative" ? completeConfig : undefined,
         locationData: locationData,
       } as any);
 
@@ -1043,19 +1045,20 @@ export const InputManagement: React.FC = () => {
     if (configRef.current) {
       try {
         // Wrap config properly based on cooling technique
-        const simulationInput = selectedTechnique === 'evaporative' 
-          ? { 
-              ...configRef.current,
-              evaporativeConfig: configRef.current,
-              coolingTechnique: 'evaporative'
-            }
-          : selectedTechnique === 'air'
-          ? {
-              ...configRef.current,
-              airSideConfig: configRef.current,
-              coolingTechnique: 'air'
-            }
-          : configRef.current;
+        const simulationInput =
+          selectedTechnique === "evaporative"
+            ? {
+                ...configRef.current,
+                evaporativeConfig: configRef.current,
+                coolingTechnique: "evaporative",
+              }
+            : selectedTechnique === "air"
+              ? {
+                  ...configRef.current,
+                  airSideConfig: configRef.current,
+                  coolingTechnique: "air",
+                }
+              : configRef.current;
 
         await runSimulation(simulationInput);
 
@@ -1085,11 +1088,17 @@ export const InputManagement: React.FC = () => {
       configRef.current = config;
 
       // 🔍 DEBUG: Log weatherData when config changes
-      console.log('🔍 [CONFIG] handleConfigChange called');
-      console.log('🔍 [CONFIG] Has weatherData?', !!config.weatherData);
-      console.log('🔍 [CONFIG] WeatherData length:', config.weatherData?.length || 0);
+      console.log("🔍 [CONFIG] handleConfigChange called");
+      console.log("🔍 [CONFIG] Has weatherData?", !!config.weatherData);
+      console.log(
+        "🔍 [CONFIG] WeatherData length:",
+        config.weatherData?.length || 0,
+      );
       if (config.weatherData && config.weatherData.length > 0) {
-        console.log('✅ [CONFIG] Weather data present:', config.weatherData.slice(0, 2));
+        console.log(
+          "✅ [CONFIG] Weather data present:",
+          config.weatherData.slice(0, 2),
+        );
       }
 
       // ✅ FIX: Store serverId and countryId from config
