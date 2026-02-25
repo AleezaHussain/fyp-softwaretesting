@@ -71,6 +71,12 @@ public class EvaporativeCoolingService {
         // Validate frontend configuration
         validateSimulationRequest(request);
         
+        // Default DES mode to true if not specified by frontend
+        if (request.simulation.use_des_mode == null) {
+            request.simulation.use_des_mode = true;
+            System.out.println("⚙️ DES mode not specified - defaulting to TRUE (dynamic workload)");
+        }
+        
         // Log frontend configuration for debugging
         System.out.println("═══════════════════════════════════════════════════════════");
         System.out.println("  🔧 FRONTEND CONFIGURATION RECEIVED");
@@ -190,9 +196,22 @@ public class EvaporativeCoolingService {
                              weatherData.size(), request.simulation.time_horizon_hours));
         }
         
-        // 🚀 GENERATE CLOUDSIM WORKLOAD PROFILE
+        // Check if DES mode is enabled
+        if (request.simulation.use_des_mode) {
+            System.out.println("═══════════════════════════════════════════════════════════");
+            System.out.println("  🚀 DISCRETE EVENT SIMULATION (DES) MODE ENABLED");
+            System.out.println("═══════════════════════════════════════════════════════════");
+            System.out.println("  Using CloudSim Plus DES for dynamic workload simulation");
+            System.out.println("  This will take longer but provides realistic workload dynamics");
+            System.out.println("═══════════════════════════════════════════════════════════");
+            System.out.println();
+            
+            return runSimulationWithDES(weatherData, request);
+        }
+        
+        // 🚀 GENERATE CLOUDSIM WORKLOAD PROFILE (Pre-calculated mode)
         System.out.println("═══════════════════════════════════════════════════════════");
-        System.out.println("  CLOUDSIM AI WORKLOAD GENERATION");
+        System.out.println("  CLOUDSIM AI WORKLOAD GENERATION (Pre-calculated)");
         System.out.println("═══════════════════════════════════════════════════════════");
         double[] cloudSimWorkload = generateCloudSimWorkload(request);
         System.out.println("═══════════════════════════════════════════════════════════");
@@ -212,6 +231,109 @@ public class EvaporativeCoolingService {
         
         // Build response
         return buildSimulationResponse(state, assessment, request);
+    }
+    
+    /**
+     * Run simulation with Discrete Event Simulation (DES) mode
+     * Uses CloudSim Plus to drive workload dynamics in real-time
+     */
+    private SimulationResponse runSimulationWithDES(List<WeatherPoint> weatherData, SimulationRequest request) {
+        // Create DES orchestrator
+        EvaporativeSimulationOrchestrator orchestrator = new EvaporativeSimulationOrchestrator(request);
+        
+        // Initialize CloudSim in synchronized mode (lock-step ready)
+        orchestrator.startSync();
+        
+        // Initialize simulation state
+        SimulationState state = new SimulationState();
+        
+        // Run lock-step simulation: CloudSim advances hour-by-hour with physics
+        for (int hour = 0; hour < weatherData.size(); hour++) {
+            WeatherPoint weather = weatherData.get(hour);
+            
+            // Advance CloudSim by one hour and get current IT load
+            EvaporativeSimulationOrchestrator.HourlyResult desResult = orchestrator.advanceOneHour(hour);
+            
+            // Calculate cooling physics with the dynamic IT load
+            runHourlySimulationWithDES(hour, weather, request, state, desResult);
+        }
+        
+        // Perform cooling adequacy assessment
+        CoolingAdequacyAssessment.Assessment assessment = performCoolingAssessment(state, request);
+        
+        // Build response
+        return buildSimulationResponse(state, assessment, request);
+    }
+    
+    /**
+     * Run hourly simulation with DES result
+     */
+    private void runHourlySimulationWithDES(int hour, WeatherPoint weather, 
+                                           SimulationRequest request, SimulationState state,
+                                           EvaporativeSimulationOrchestrator.HourlyResult desResult) {
+        // Use IT load from DES
+        double itLoadKW = desResult.itLoadKW;
+        
+        // Calculate auxiliary loads
+        double upsEfficiency = 0.96;
+        double pduLossFraction = 0.02;
+        double upsLossKW = itLoadKW * (1.0 / upsEfficiency - 1.0);
+        double pduLossKW = itLoadKW * pduLossFraction;
+        
+        // Calculate required airflow
+        double deltaT_target = 15.0;
+        double requiredCFM = (itLoadKW * 3160) / (deltaT_target * 1.08);
+        double maxAirflowCapacity = request.cooling_system.max_airflow_cfm;
+        double speedRatio = Math.min(1.0, requiredCFM / maxAirflowCapacity);
+        state.setCurrentSpeedRatio(speedRatio);
+        
+        // Calculate infiltration
+        double infiltrationLoadKW = 0.0;
+        if (request.infiltration != null) {
+            double infiltrationACH = request.infiltration.infiltration_ach;
+            double enclosureVolumeM3 = request.it_load.racks * 10.0;
+            double infiltrationM3s = (enclosureVolumeM3 * infiltrationACH) / 3600.0;
+            double tempDifferential = Math.abs(weather.dryBulbTempC - 22.0);
+            infiltrationLoadKW = infiltrationM3s * 1.2 * 1.006 * tempDifferential;
+        }
+        
+        double totalHeatLoadKW = itLoadKW + upsLossKW + pduLossKW + infiltrationLoadKW;
+        
+        // Determine cooling mode
+        String coolingMode = determineCoolingMode(weather, request.cooling_system);
+        
+        // Calculate evaporative cooling (reuse existing method)
+        double referenceFaceVelocity = request.cooling_system.face_velocity_ms;
+        double currentFaceVelocity = referenceFaceVelocity * speedRatio;
+        
+        // Calculate saturation effectiveness
+        double nominalEffectiveness = request.cooling_system.saturation_effectiveness / 100.0;
+        double velocityFactor = Math.pow(referenceFaceVelocity / currentFaceVelocity, 0.15);
+        double adjustedEffectiveness = nominalEffectiveness * velocityFactor;
+        adjustedEffectiveness = Math.max(0.60, Math.min(0.95, adjustedEffectiveness));
+        
+        // Calculate wet bulb temperature
+        double wetBulbC = calculateWetBulbTemp(weather.dryBulbTempC, weather.relativeHumidity);
+        
+        // Calculate supply air temperature
+        double supplyAirTempC = weather.dryBulbTempC - 
+            (adjustedEffectiveness * (weather.dryBulbTempC - wetBulbC));
+        
+        // Calculate fan power
+        double fanPowerKW = calculateDynamicFanPower(requiredCFM, request.cooling_system, speedRatio);
+        
+        // Calculate water usage
+        double waterUsageL = 0.0;
+        if ("evaporative".equals(coolingMode) || "hybrid".equals(coolingMode)) {
+            double evaporationRateKgPerHour = totalHeatLoadKW * 3600.0 / 2260.0;
+            double blowdownRateKgPerHour = evaporationRateKgPerHour / 
+                (request.cooling_system.cycles_of_concentration - 1);
+            waterUsageL = evaporationRateKgPerHour + blowdownRateKgPerHour;
+        }
+        
+        // Store results
+        state.addHourlyResult(hour, itLoadKW, totalHeatLoadKW, fanPowerKW, 
+            waterUsageL, supplyAirTempC, coolingMode, desResult.serverUtilization);
     }
     
     /**

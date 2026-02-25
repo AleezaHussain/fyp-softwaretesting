@@ -181,6 +181,42 @@ public class SimulationState {
     public double getCurrentSpeedRatio() { return currentSpeedRatio; }
     public void setCurrentSpeedRatio(double ratio) { this.currentSpeedRatio = ratio; }
     
+    /**
+     * Simplified method for DES mode - stores basic hourly results
+     */
+    public void addHourlyResult(int hour, double itLoadKW, double totalHeatLoadKW, 
+                               double fanPowerKW, double waterUsageL, 
+                               double supplyTempC, String coolingMode, double serverUtilization) {
+        HourlyData data = new HourlyData();
+        data.hour = hour;
+        data.itLoadKW = itLoadKW;
+        data.totalElectricalKW = itLoadKW + fanPowerKW;
+        data.fanPowerKW = fanPowerKW;
+        data.dxPowerKW = 0.0;
+        data.pumpPowerKW = 0.0;
+        data.coolingCapacityKW = totalHeatLoadKW;
+        data.waterEvaporationLph = waterUsageL;
+        data.pue = (itLoadKW + fanPowerKW) / itLoadKW;
+        data.inletTempC = supplyTempC + 15.0; // Approximate
+        data.coolingMode = coolingMode;
+        data.supplyTempC = supplyTempC;
+        data.supplyHumidity = 50.0; // Default
+        data.ambientTempC = 25.0; // Default
+        data.ambientHumidity = 50.0; // Default
+        
+        hourlyData.add(data);
+        
+        // Update cumulative totals
+        totalElectricityKWh += data.totalElectricalKW;
+        totalFanKWh += fanPowerKW;
+        totalITKWh += itLoadKW;
+        totalWaterLiters += waterUsageL;
+        
+        // Update peak values
+        maxInletTempC = Math.max(maxInletTempC, data.inletTempC);
+        maxPUE = Math.max(maxPUE, data.pue);
+    }
+    
     // Get hourly data for detailed analysis
     public List<HourlyData> getHourlyData() { return hourlyData; }
     

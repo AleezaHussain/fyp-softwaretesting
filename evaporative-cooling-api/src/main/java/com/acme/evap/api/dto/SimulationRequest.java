@@ -64,6 +64,10 @@ public class SimulationRequest {
         @Min(60)
         @Max(3600)
         public int time_step_seconds = 3600;
+        
+        // Enable Discrete Event Simulation for dynamic workload (default: true)
+        // Using Boolean wrapper to detect if field is missing from JSON
+        public Boolean use_des_mode = true;
     }
     
     public static class ITLoadConfig {
