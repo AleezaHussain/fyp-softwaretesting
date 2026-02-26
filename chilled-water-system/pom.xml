@@ -84,6 +84,7 @@
                 <version>${spring.boot.version}</version>
                 <configuration>
                     <mainClass>com.acme.chilledwatersystem.api.ChilledWaterApiApplication</mainClass>
+                    <classifier>exec</classifier>
                 </configuration>
                 <executions>
                     <execution>

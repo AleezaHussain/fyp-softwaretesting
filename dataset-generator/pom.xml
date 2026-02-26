@@ -1,7 +1,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
@@ -10,43 +9,50 @@
     <version>1.0-SNAPSHOT</version>
   </parent>
 
-  <groupId>com.acme.aireconcalc</groupId>
-  <artifactId>cooling-air-economizer</artifactId>
+  <groupId>com.acme.dataset</groupId>
+  <artifactId>dataset-generator</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
+  <name>dataset-generator</name>
+  <description>Generates training dataset by running all 3 cooling simulators on random scenarios</description>
+
   <properties>
-    <junit.version>5.11.0</junit.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
 
   <dependencies>
-    <!-- ✅ Baseline DC module -->
+    <!-- Air Economizer module (contains AirEconomizerModel, EconomizerInputs, etc.) -->
+    <dependency>
+      <groupId>com.acme.aireconcalc</groupId>
+      <artifactId>cooling-air-economizer</artifactId>
+      <version>1.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- Evaporative Cooling module (contains EvaporativeCoolingModel, CoolingDispatch, etc.) -->
+    <dependency>
+      <groupId>com.acme.evap</groupId>
+      <artifactId>cooling-evaporative</artifactId>
+      <version>1.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- Chilled Water System module (contains ChilledWaterPhysics, EdgeDataCenterScenario, etc.) -->
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>chilled-water-ssytem</artifactId>
+      <version>0.1.0-SNAPSHOT</version>
+    </dependency>
+
+    <!-- dc-core for shared classes -->
     <dependency>
       <groupId>com.acme.dccore</groupId>
       <artifactId>dc-core</artifactId>
       <version>1.0-SNAPSHOT</version>
     </dependency>
-
-    <!-- ✅ CloudSim Plus -->
-    <dependency>
-      <groupId>org.cloudsimplus</groupId>
-      <artifactId>cloudsimplus</artifactId>
-      <version>${cloudsimplus.version}</version>
-    </dependency>
-
-    <!-- ✅ JUnit for testing -->
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter</artifactId>
-      <version>${junit.version}</version>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
 
   <build>
     <plugins>
-      <!-- Java 17 compiler -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
@@ -55,22 +61,13 @@
           <release>${maven.compiler.release}</release>
         </configuration>
       </plugin>
-
-      <!-- Run App.java -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
         <version>3.5.0</version>
         <configuration>
-          <mainClass>com.acme.aireconcalc.App</mainClass>
+          <mainClass>com.acme.dataset.DatasetGenerator</mainClass>
         </configuration>
-      </plugin>
-
-      <!-- JUnit runner -->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.2.5</version>
       </plugin>
     </plugins>
   </build>
