@@ -90,14 +90,14 @@ public class EconomizerController {
                 + (req.legacyQuantity * req.legacyEfficiency);
         in.fanWeightedEfficiency = (totalFans > 0) ? (weightedSum / totalFans) : 0.60; // Default to 0.60 if no fans
         // Use airflowCFM from frontend if provided, else default
-        in.maxAirflowCFM = req.airflowCFM > 0 ? req.airflowCFM : 2000.0;
+        in.maxAirflowCFM = (req.airflowCFM != null && req.airflowCFM > 0) ? req.airflowCFM : 2000.0;
         System.out.println("[EconomizerController] Used in.maxAirflowCFM in model: " + in.maxAirflowCFM);
 
         // Log usage of supplyAirTemp, returnAirTemp, deltaT in model formulas (example
         // usage)
-        double supplyAirTemp = req.supplyAirTemp > 0 ? req.supplyAirTemp : 18.0;
-        double returnAirTemp = req.returnAirTemp > 0 ? req.returnAirTemp : 30.0;
-        double deltaT = req.deltaT > 0 ? req.deltaT : (returnAirTemp - supplyAirTemp);
+        double supplyAirTemp = (req.supplyAirTemp != null && req.supplyAirTemp > 0) ? req.supplyAirTemp : 18.0;
+        double returnAirTemp = (req.returnAirTemp != null && req.returnAirTemp > 0) ? req.returnAirTemp : 30.0;
+        double deltaT = (req.deltaT != null && req.deltaT > 0) ? req.deltaT : (returnAirTemp - supplyAirTemp);
         System.out.println("[EconomizerController] Used supplyAirTemp in model: " + supplyAirTemp);
         System.out.println("[EconomizerController] Used returnAirTemp in model: " + returnAirTemp);
         System.out.println("[EconomizerController] Used deltaT in model: " + deltaT);

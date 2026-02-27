@@ -1,0 +1,74 @@
+{
+  "model_recommendation": "Evaporative",
+  "model_confidence": 0.9475476581119309,
+  "model_probabilities": {
+    "AirEconomizer": 0.020775196240099544,
+    "ChilledWater": 0.03167714564796946,
+    "Evaporative": 0.9475476581119309
+  },
+  "final_recommended_technique": "Evaporative",
+  "comparison_table": [
+    {
+      "tech": "AirEconomizer",
+      "feasible": true,
+      "energy_kwh": 1300.0,
+      "water_liters": 50.0,
+      "cost": 190.0,
+      "emissions_kg": 580.0,
+      "violations": 0,
+      "score": 0.4357142857142857,
+      "annual_cost": 1664400.0,
+      "annual_emissions_kg": 5080800.0,
+      "annual_water_liters": 438000.0
+    },
+    {
+      "tech": "Evaporative",
+      "feasible": true,
+      "energy_kwh": 1150.0,
+      "water_liters": 220.0,
+      "cost": 170.0,
+      "emissions_kg": 520.0,
+      "violations": 0,
+      "score": 0.2,
+      "annual_cost": 1489200.0,
+      "annual_emissions_kg": 4555200.0,
+      "annual_water_liters": 1927200.0
+    },
+    {
+      "tech": "ChilledWater",
+      "feasible": true,
+      "energy_kwh": 1400.0,
+      "water_liters": 160.0,
+      "cost": 205.0,
+      "emissions_kg": 640.0,
+      "violations": 0,
+      "score": 0.9294117647058824,
+      "annual_cost": 1795800.0,
+      "annual_emissions_kg": 5606400.0,
+      "annual_water_liters": 1401600.0
+    }
+  ],
+  "justification": [
+    "Model predicted Evaporative with confidence 0.948.",
+    "Evaporative selected because it has the lowest weighted score (0.2000) from cost/emissions/water.",
+    "Feasibility for Evaporative: True with violations=0.",
+    "Compared with AirEconomizer: annual cost delta=175200.00, emissions delta=525600.00 kgCO2, water delta=-1489200.00 L."
+  ],
+  "future_impact_projection": {
+    "year_1": {
+      "cost": 1489200.0,
+      "emissions_kg": 4555200.0,
+      "water_liters": 1927200.0
+    },
+    "year_3": {
+      "cost": 4467600.0,
+      "emissions_kg": 13665600.0,
+      "water_liters": 5781600.0
+    },
+    "year_5": {
+      "cost": 7446000.0,
+      "emissions_kg": 22776000.0,
+      "water_liters": 9636000.0
+    }
+  }
+}

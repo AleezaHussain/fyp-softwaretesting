@@ -31,3 +31,102 @@ First 10 hours IT load:
   Hour 9: 50.189601127103884 kW (util=0.84)
 ========================================
 
+
+========================================
+CloudSim Simulation Started: Fri Feb 27 06:36:32 PKT 2026
+========================================
+Config: 50 servers, 24 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+Submitted 198 cloudlets
+Starting simulation...
+Simulation completed at time: 9.966225600003935E9
+Finished cloudlets: 198/198
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=121825809, finishTime=589801.3614722665
+  Cloudlet 1: status=SUCCESS, length=160029698, finishTime=9.966225599263824E9
+  Cloudlet 2: status=SUCCESS, length=113645985, finishTime=797358.940945072
+  Cloudlet 3: status=SUCCESS, length=126565124, finishTime=9.966225599263824E9
+  Cloudlet 4: status=SUCCESS, length=126401746, finishTime=9.966225599263824E9
+
+Generated workload profile: 24 hours
+First 10 hours IT load:
+  Hour 0: 49.70321498744798 kW (util=0.84)
+  Hour 1: 50.27283283986889 kW (util=0.84)
+  Hour 2: 50.45364695641373 kW (util=0.84)
+  Hour 3: 50.27723432980255 kW (util=0.84)
+  Hour 4: 49.85879323771125 kW (util=0.84)
+  Hour 5: 57.1840765625377 kW (util=0.95)
+  Hour 6: 59.32345254380629 kW (util=0.97)
+  Hour 7: 59.22449574225543 kW (util=0.97)
+  Hour 8: 58.948896054208106 kW (util=0.97)
+  Hour 9: 59.06557658555201 kW (util=0.97)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Fri Feb 27 06:36:41 PKT 2026
+========================================
+Config: 50 servers, 24 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+Submitted 201 cloudlets
+Starting simulation...
+Simulation completed at time: 2.0028660055912956E10
+Finished cloudlets: 201/201
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=125657718, finishTime=734621.5393289503
+  Cloudlet 1: status=SUCCESS, length=105754527, finishTime=726152.5808160594
+  Cloudlet 2: status=SUCCESS, length=137626104, finishTime=9.730008063281416E9
+  Cloudlet 3: status=SUCCESS, length=88487320, finishTime=436819.5731791252
+  Cloudlet 4: status=SUCCESS, length=127319004, finishTime=579083.9624169193
+
+Generated workload profile: 24 hours
+First 10 hours IT load:
+  Hour 0: 52.77707136480552 kW (util=0.88)
+  Hour 1: 53.06756207478498 kW (util=0.88)
+  Hour 2: 52.71378921509963 kW (util=0.88)
+  Hour 3: 52.80252551318977 kW (util=0.88)
+  Hour 4: 52.58686613848244 kW (util=0.88)
+  Hour 5: 57.4494264761844 kW (util=0.95)
+  Hour 6: 59.105849427960216 kW (util=0.97)
+  Hour 7: 59.051132363221065 kW (util=0.97)
+  Hour 8: 58.67895598563102 kW (util=0.97)
+  Hour 9: 58.557083564782054 kW (util=0.97)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Fri Feb 27 06:36:26 PKT 2026
+========================================
+Config: 50 servers, 24 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+Submitted 197 cloudlets
+Starting simulation...
+Simulation completed at time: 9.976865781434023E9
+Finished cloudlets: 197/197
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=152920309, finishTime=630017.5774737069
+  Cloudlet 1: status=SUCCESS, length=91091610, finishTime=779128.199373654
+  Cloudlet 2: status=SUCCESS, length=119633139, finishTime=994454.4404714879
+  Cloudlet 3: status=SUCCESS, length=112063506, finishTime=473453.31341856846
+  Cloudlet 4: status=SUCCESS, length=113162646, finishTime=9.976865780819687E9
+
+Generated workload profile: 24 hours
+First 10 hours IT load:
+  Hour 0: 52.048080579088385 kW (util=0.87)
+  Hour 1: 52.241903666927286 kW (util=0.87)
+  Hour 2: 51.88586201392091 kW (util=0.87)
+  Hour 3: 51.88298919421288 kW (util=0.87)
+  Hour 4: 51.79536810398604 kW (util=0.87)
+  Hour 5: 57.24260807490383 kW (util=0.95)
+  Hour 6: 58.72012336196966 kW (util=0.97)
+  Hour 7: 58.678802782039284 kW (util=0.97)
+  Hour 8: 60.42906066153316 kW (util=1.00)
+  Hour 9: 60.36238615181126 kW (util=1.00)
+========================================
+

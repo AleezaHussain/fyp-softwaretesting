@@ -169,9 +169,8 @@ export const Advisory: React.FC = () => {
                 {techniques.map((tech) => (
                   <tr
                     key={tech.name}
-                    className={`border-b border-border-light hover:bg-bg-light transition-colors ${
-                      tech.recommended ? 'bg-secondary bg-opacity-5' : ''
-                    }`}
+                    className={`border-b border-border-light hover:bg-bg-light transition-colors ${tech.recommended ? 'bg-secondary bg-opacity-5' : ''
+                      }`}
                   >
                     <td className="px-4 py-4 font-semibold text-dark-gray">{tech.name}</td>
                     <td className="px-4 py-4 text-secondary font-bold">{tech.pue.toFixed(2)}</td>
@@ -210,9 +209,8 @@ export const Advisory: React.FC = () => {
           {techniques.map((tech) => (
             <div
               key={tech.name}
-              className={`card border-2 ${
-                tech.recommended ? 'border-primary bg-primary bg-opacity-5' : 'border-border-light'
-              }`}
+              className={`card border-2 ${tech.recommended ? 'border-primary bg-primary bg-opacity-5' : 'border-border-light'
+                }`}
             >
               <h4 className="text-lg font-bold font-poppins text-dark-gray mb-4">{tech.name}</h4>
 

@@ -1,0 +1,1 @@
+tempC,rh,itLoadKW,electricityPrice,waterPrice,carbonFactor,air_feasible,air_energyKWh,air_waterLiters,air_cost,air_emissionsKg,air_violations,evap_feasible,evap_energyKWh,evap_waterLiters,evap_cost,evap_emissionsKg,evap_violations,chill_feasible,chill_energyKWh,chill_waterLiters,chill_cost,chill_emissionsKg,chill_violations,bestTechnique

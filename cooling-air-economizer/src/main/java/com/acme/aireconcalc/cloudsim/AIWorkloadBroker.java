@@ -1,6 +1,7 @@
 package com.acme.aireconcalc.cloudsim;
 
 import org.cloudsimplus.brokers.DatacenterBrokerSimple;
+import org.cloudsimplus.brokers.DatacenterBroker;
 import org.cloudsimplus.cloudlets.Cloudlet;
 import org.cloudsimplus.core.CloudSimPlus;
 import org.cloudsimplus.vms.Vm;
@@ -64,7 +65,7 @@ public class AIWorkloadBroker extends DatacenterBrokerSimple {
      * @param vmList List of VMs to register
      */
     @Override
-    public void submitVmList(List<? extends Vm> vmList) {
+    public DatacenterBroker submitVmList(List<? extends Vm> vmList) {
         super.submitVmList(vmList);
         
         // Categorize VMs by their host's power model
@@ -94,6 +95,8 @@ public class AIWorkloadBroker extends DatacenterBrokerSimple {
         System.out.println("  Inference VMs: " + inferenceVMs.size());
         System.out.println("  Mixed VMs: " + mixedVMs.size());
         System.out.println("  Enterprise VMs: " + enterpriseVMs.size());
+
+        return this;
     }
     
     /**

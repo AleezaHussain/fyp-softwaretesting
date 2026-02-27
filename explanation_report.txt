@@ -1,0 +1,17 @@
+Cooling Technique Recommendation Report
+Generated at: 2026-02-26T21:38:13.435332Z
+
+Model Recommendation: Evaporative
+Model Confidence: 0.9475
+Final Recommended Technique: Evaporative
+
+Justification:
+1. Model predicted Evaporative with confidence 0.948.
+2. Evaporative selected because it has the lowest weighted score (0.2000) from cost/emissions/water.
+3. Feasibility for Evaporative: True with violations=0.
+4. Compared with AirEconomizer: annual cost delta=175200.00, emissions delta=525600.00 kgCO2, water delta=-1489200.00 L.
+
+Future Impact Projection:
+- year_1: cost=1489200.00, emissions_kg=4555200.00, water_liters=1927200.00
+- year_3: cost=4467600.00, emissions_kg=13665600.00, water_liters=5781600.00
+- year_5: cost=7446000.00, emissions_kg=22776000.00, water_liters=9636000.00
