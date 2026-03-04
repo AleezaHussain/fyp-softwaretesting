@@ -23,6 +23,7 @@ MODEL_PATH = os.getenv("MODEL_PATH", "cooling_recommender_rf.pkl")
 WEIGHT_COST = float(os.getenv("WEIGHT_COST", "0.5"))
 WEIGHT_EMISSIONS = float(os.getenv("WEIGHT_EMISSIONS", "0.3"))
 WEIGHT_WATER = float(os.getenv("WEIGHT_WATER", "0.2"))
+MAX_ALLOWED_VIOLATIONS = int(os.getenv("MAX_ALLOWED_VIOLATIONS", "0"))
 
 
 class ScenarioInput(BaseModel):
@@ -46,6 +47,7 @@ class TechniqueResult(BaseModel):
 
 class RecommendRequest(BaseModel):
     scenario: ScenarioInput
+    current_technique: Optional[str] = Field(default=None, description="User's currently used cooling technique")
     technique_results: Optional[list[TechniqueResult]] = None
     metrics_unit: str = Field(default="annual", description="annual or hourly")
 
@@ -107,6 +109,17 @@ def _choose_best(prepared_rows: list[dict]) -> dict:
     return min(pool, key=lambda row: row["score"])
 
 
+def _is_row_feasible(row: dict) -> bool:
+    return bool(row.get("feasible", False)) and int(row.get("violations", 0)) <= MAX_ALLOWED_VIOLATIONS
+
+
+def _find_row_by_tech(prepared_rows: list[dict], tech_name: str) -> Optional[dict]:
+    for row in prepared_rows:
+        if str(row.get("tech")) == str(tech_name):
+            return row
+    return None
+
+
 def _money(value: float) -> str:
     return f"${value:,.0f}"
 
@@ -117,18 +130,26 @@ def _num(value: float) -> str:
 
 def _build_user_reasons(scenario: dict, best: dict, alternatives: list[dict]) -> list[str]:
     reasons = [
-        f"{best['tech']} is selected because it gives the best overall balance for your current conditions.",
-        f"It is feasible for this scenario with {best['violations']} safety/performance violations.",
+        f"Based on your current conditions, the suggested cooling technique is {best['tech']}.",
+        f"Feasibility check result: {best['tech']} is valid for this scenario with {best['violations']} constraint violations.",
     ]
 
     if scenario["carbonFactor"] >= 0.5:
-        reasons.append("Carbon intensity is high, so cleaner operation is prioritized to reduce environmental impact.")
+        reasons.append(
+            f"Because your grid carbon level is high, this supports keeping {best['tech']} to better control environmental impact."
+        )
     if scenario["electricityPrice"] >= 0.15:
-        reasons.append("Electricity price is high, so lower running-cost operation is prioritized.")
+        reasons.append(
+            f"Because your electricity price is high, this supports keeping {best['tech']} for lower expected running cost."
+        )
     if scenario["rh"] >= 70:
-        reasons.append("Humidity is high, so the recommendation favors techniques with better stability in humid conditions.")
+        reasons.append(
+            f"Because humidity is high, {best['tech']} is preferred for more stable performance in humid conditions."
+        )
     if scenario["itLoadKW"] >= 1400:
-        reasons.append("IT load is high, so reliability under heavier thermal demand is prioritized.")
+        reasons.append(
+            f"Because IT load is high, {best['tech']} is preferred for better reliability under heavy thermal demand."
+        )
 
     for alt in alternatives:
         cost_diff = alt["annual_cost"] - best["annual_cost"]
@@ -151,7 +172,9 @@ def _build_user_reasons(scenario: dict, best: dict, alternatives: list[dict]) ->
             else f"use about {_num(abs(water_diff))} more liters of water per year"
         )
 
-        reasons.append(f"Compared to {alt['tech']}, this choice {cost_text}, {emis_text}, and {water_text}.")
+        reasons.append(
+            f"Compared with {alt['tech']}, choosing {best['tech']} {cost_text}, {emis_text}, and {water_text}."
+        )
 
     return reasons[:8]
 
@@ -227,13 +250,13 @@ def recommend(payload: RecommendRequest) -> dict:
     frame = pd.DataFrame([scenario_dict])[feature_cols]
 
     prediction = str(model.predict(frame)[0])
-
     response = {
+        "current_technique": payload.current_technique,
         "generated_at_utc": datetime.utcnow().isoformat() + "Z",
-        "recommended_technique": prediction,
+        "model_recommendation": prediction,
         "why_this_is_recommended": [
-            f"{prediction} is recommended because it best fits the current operating conditions.",
-            "The recommendation is based on practical outcomes such as cost, emissions, water usage, and feasibility."
+            f"Recommended technique: {prediction}.",
+            "This recommendation uses your scenario inputs (temperature, humidity, IT load, electricity price, water price, and carbon factor).",
         ],
         "future_impact_paragraph": (
             "Future impact details are available when technique comparison metrics are provided in the request."
@@ -246,16 +269,67 @@ def recommend(payload: RecommendRequest) -> dict:
             metrics_unit = "annual"
 
         prepared = _enrich_rows(payload.technique_results, metrics_unit)
-        best = _choose_best(prepared)
-        alternatives = sorted([row for row in prepared if row["tech"] != best["tech"]], key=lambda row: row["score"])
-
-        user_reasons = _build_user_reasons(scenario_dict, best, alternatives)
-        future_paragraph = _build_future_impact_paragraph(best)
         comparison_table = _build_comparison_table(prepared)
+
+        model_row = _find_row_by_tech(prepared, prediction)
+        feasible_rows = [row for row in prepared if _is_row_feasible(row)]
+
+        if model_row and _is_row_feasible(model_row):
+            final_choice = model_row
+            decision_source = "ml_feasible"
+        elif feasible_rows:
+            final_choice = min(feasible_rows, key=lambda row: row["score"])
+            decision_source = "fallback_scoring_due_to_infeasible_ml"
+        else:
+            final_choice = model_row if model_row else _choose_best(prepared)
+            decision_source = "ml_no_feasible_options"
+
+        alternatives = sorted(
+            [row for row in prepared if row["tech"] != final_choice["tech"]],
+            key=lambda row: row["score"],
+        )
+
+        user_reasons = _build_user_reasons(scenario_dict, final_choice, alternatives)
+        if payload.current_technique:
+            if payload.current_technique == final_choice["tech"]:
+                user_reasons.insert(
+                    0,
+                    f"Your current technique is {payload.current_technique}, and the recommendation is to continue using the same technique.",
+                )
+                user_reasons.insert(
+                    1,
+                    f"No switch is needed right now because {payload.current_technique} already matches the best option for your current conditions.",
+                )
+                user_reasons.insert(
+                    2,
+                    f"Recommended action: keep {payload.current_technique} and focus on optimization (setpoints, control tuning, and maintenance) to improve performance further.",
+                )
+            else:
+                user_reasons.insert(
+                    0,
+                    f"Your current technique is {payload.current_technique}, but the suggested technique is {final_choice['tech']} for better overall performance.",
+                )
+        if decision_source == "fallback_scoring_due_to_infeasible_ml":
+            user_reasons.insert(
+                0,
+                f"The initial recommendation was {prediction}, but that option was not feasible for this case, so the best feasible alternative was selected.",
+            )
+        elif decision_source == "ml_feasible":
+            user_reasons.insert(
+                0,
+                f"Recommended technique is {prediction}, and it is feasible for this case, so it remains the final recommendation.",
+            )
+        else:
+            user_reasons.insert(
+                0,
+                f"Recommended technique is {prediction}. No feasible alternatives were available, so it is retained.",
+            )
+
+        future_paragraph = _build_future_impact_paragraph(final_choice)
 
         response.update(
             {
-                "recommended_technique": best["tech"],
+                "model_recommendation": final_choice["tech"],
                 "why_this_is_recommended": user_reasons,
                 "future_impact_paragraph": future_paragraph,
                 "comparison_table": comparison_table,

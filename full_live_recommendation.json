@@ -1,0 +1,54 @@
+{
+  "generated_at_utc": "2026-03-04T01:00:33.981876Z",
+  "recommended_technique": "Evaporative",
+  "model_recommendation": "Evaporative",
+  "why_this_is_recommended": [
+    "Model predicted Evaporative, and it is feasible, so it remains the final recommendation.",
+    "Evaporative is selected because it gives the best overall balance for your current conditions.",
+    "It is feasible for this scenario with 0 safety/performance violations.",
+    "Carbon intensity is high, so cleaner operation is prioritized to reduce environmental impact.",
+    "Electricity price is high, so lower running-cost operation is prioritized.",
+    "Compared to AirEconomizer, this choice may cost about $45,921 more per year, increase emissions by about 178,582 kg CO2 per year, and use about 0 more liters of water per year.",
+    "Compared to ChilledWater, this choice may cost about $18,687 more per year, increase emissions by about 76,504 kg CO2 per year, and save about 294,088 liters of water per year."
+  ],
+  "future_impact_paragraph": "If similar conditions continue, using Evaporative is expected to result in around $45,923 annual operating cost, 178,588 kg CO2 emissions, and 0 liters of water use in Year 1. Over 3 years, this becomes approximately $137,768 cost, 535,763 kg CO2, and 0 liters water. Over 5 years, it reaches approximately $229,613 cost, 892,939 kg CO2, and 0 liters water. This provides a long-term view for budget planning, sustainability targets, and cooling reliability.",
+  "decision_source": "ml_feasible",
+  "comparison_table": [
+    {
+      "tech": "AirEconomizer",
+      "feasible": true,
+      "score": 0.0,
+      "cost": 1.6094246691316179,
+      "emissions_kg": 5.364748897105393,
+      "water_liters": 0.0,
+      "violations": 0,
+      "annual_cost": 1.6094246691316179,
+      "annual_emissions_kg": 5.364748897105393,
+      "annual_water_liters": 0.0
+    },
+    {
+      "tech": "ChilledWater",
+      "feasible": true,
+      "score": 0.6680070822062045,
+      "cost": 27235.157627462628,
+      "emissions_kg": 102083.48853868755,
+      "water_liters": 294087.783851455,
+      "violations": 0,
+      "annual_cost": 27235.157627462628,
+      "annual_emissions_kg": 102083.48853868755,
+      "annual_water_liters": 294087.783851455
+    },
+    {
+      "tech": "Evaporative",
+      "feasible": true,
+      "score": 0.8,
+      "cost": 45922.56577973253,
+      "emissions_kg": 178587.75581007096,
+      "water_liters": 0.0,
+      "violations": 0,
+      "annual_cost": 45922.56577973253,
+      "annual_emissions_kg": 178587.75581007096,
+      "annual_water_liters": 0.0
+    }
+  ]
+}
