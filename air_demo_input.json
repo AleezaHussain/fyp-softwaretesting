@@ -1,0 +1,146 @@
+{
+    "bestEfficiency":  0.75,
+    "averageEfficiency":  0.6,
+    "returnAirTemp":  30,
+    "serverIdlePowerW":  150,
+    "averageUtilization":  65,
+    "economizerMaxOutdoorTemp":  30,
+    "supplyAirTemp":  18,
+    "enableCloudSim":  false,
+    "deltaT":  12,
+    "numberOfRacks":  6,
+    "serverMaxPowerW":  600,
+    "economizerMaxHumidity":  85,
+    "weatherData":  [
+                        {
+                            "timestamp":  "h0",
+                            "humidity":  60,
+                            "temperature":  24
+                        },
+                        {
+                            "timestamp":  "h1",
+                            "humidity":  57.41,
+                            "temperature":  25.55
+                        },
+                        {
+                            "timestamp":  "h2",
+                            "humidity":  55,
+                            "temperature":  27
+                        },
+                        {
+                            "timestamp":  "h3",
+                            "humidity":  52.93,
+                            "temperature":  28.24
+                        },
+                        {
+                            "timestamp":  "h4",
+                            "humidity":  51.34,
+                            "temperature":  29.2
+                        },
+                        {
+                            "timestamp":  "h5",
+                            "humidity":  50.34,
+                            "temperature":  29.8
+                        },
+                        {
+                            "timestamp":  "h6",
+                            "humidity":  50,
+                            "temperature":  30
+                        },
+                        {
+                            "timestamp":  "h7",
+                            "humidity":  50.34,
+                            "temperature":  29.8
+                        },
+                        {
+                            "timestamp":  "h8",
+                            "humidity":  51.34,
+                            "temperature":  29.2
+                        },
+                        {
+                            "timestamp":  "h9",
+                            "humidity":  52.93,
+                            "temperature":  28.24
+                        },
+                        {
+                            "timestamp":  "h10",
+                            "humidity":  55,
+                            "temperature":  27
+                        },
+                        {
+                            "timestamp":  "h11",
+                            "humidity":  57.41,
+                            "temperature":  25.55
+                        },
+                        {
+                            "timestamp":  "h12",
+                            "humidity":  60,
+                            "temperature":  24
+                        },
+                        {
+                            "timestamp":  "h13",
+                            "humidity":  62.59,
+                            "temperature":  22.45
+                        },
+                        {
+                            "timestamp":  "h14",
+                            "humidity":  65,
+                            "temperature":  21
+                        },
+                        {
+                            "timestamp":  "h15",
+                            "humidity":  67.07,
+                            "temperature":  19.76
+                        },
+                        {
+                            "timestamp":  "h16",
+                            "humidity":  68.66,
+                            "temperature":  18.8
+                        },
+                        {
+                            "timestamp":  "h17",
+                            "humidity":  69.66,
+                            "temperature":  18.2
+                        },
+                        {
+                            "timestamp":  "h18",
+                            "humidity":  70,
+                            "temperature":  18
+                        },
+                        {
+                            "timestamp":  "h19",
+                            "humidity":  69.66,
+                            "temperature":  18.2
+                        },
+                        {
+                            "timestamp":  "h20",
+                            "humidity":  68.66,
+                            "temperature":  18.8
+                        },
+                        {
+                            "timestamp":  "h21",
+                            "humidity":  67.07,
+                            "temperature":  19.76
+                        },
+                        {
+                            "timestamp":  "h22",
+                            "humidity":  65,
+                            "temperature":  21
+                        },
+                        {
+                            "timestamp":  "h23",
+                            "humidity":  62.59,
+                            "temperature":  22.45
+                        }
+                    ],
+    "electricityTariff":  0.145,
+    "peakUtilization":  85,
+    "legacyEfficiency":  0.45,
+    "bestQuantity":  2,
+    "serversPerRack":  16,
+    "averageQuantity":  2,
+    "carbonIntensity":  0.46,
+    "minOutdoorAirFraction":  0.2,
+    "airflowCFM":  10000,
+    "legacyQuantity":  1
+}
