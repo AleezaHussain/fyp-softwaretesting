@@ -1,1315 +1,400 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Sidebar } from '../components/shared/Sidebar'
 import { useAuthStore } from '../store/store'
 import { useThemeStore } from '../hooks/useTheme'
-import { 
-  User as UserIcon, 
-  Mail, 
-  Bell, 
-  Palette, 
-  Lock, 
-  Copy, 
-  Check, 
-  Shield, 
-  Trash2, 
-  Save, 
-  Edit3,
-  Key,
-  AlertTriangle,
-  Globe,
-  Moon,
-  Sun,
-  Download,
-  Upload,
-  ChevronRight,
-  Sparkles,
-  Building,
-  Briefcase,
-  X,
-  Camera,
-  Image as ImageIcon
+import { getUserSimulations, SimulationWithResults } from '../services/simulationService'
+import {
+  User as UserIcon, Mail, Bell, Palette, Lock, Shield, Save,
+  Key, AlertTriangle, Globe, Moon, Sun,
+  ChevronRight, Building, Briefcase, Database, FileJson,
+  FileText, Archive, Send, CheckCircle, Copy, Check, Trash2,
 } from 'lucide-react'
 
-// Define proper user type
-interface UserPreferences {
-  theme: 'light' | 'dark'
-  units: 'metric' | 'imperial'
-  notifications: boolean
-}
+const inp = (isDark: boolean) =>
+  `w-full px-4 py-3 rounded-xl border transition-all outline-none ${isDark ? 'bg-[#27304a] text-white border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-2 focus:ring-[#5ce1e5]/20' : 'bg-white text-gray-900 border-gray-300 focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20'}`
 
-interface User {
-  id: string
-  name: string
-  email: string
-  profilePicture?: string
-  organization?: string
-  role?: string
-  preferences: UserPreferences
-}
+const card = (isDark: boolean) =>
+  `rounded-2xl p-6 border ${isDark ? 'bg-[#1a1f3a] border-[#3f4a68]' : 'bg-white border-gray-200'}`
 
-// Setting Card Component
-const SettingCard: React.FC<{
-  title: string
-  description: string
-  icon: React.ReactNode
-  children: React.ReactNode
-}> = ({ title, description, icon, children }) => {
-  const isDark = useThemeStore((state) => state.isDark)
-  
+const Toggle: React.FC<{ checked: boolean; onChange: (v: boolean) => void }> = ({ checked, onChange }) => {
+  const isDark = useThemeStore(s => s.isDark)
   return (
-    <div className={`rounded-2xl p-8 transition-all duration-300 ${
-      isDark 
-        ? 'bg-gradient-to-b from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
-        : 'bg-gradient-to-b from-white to-gray-50 border border-gray-200'
-    }`}>
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex items-center gap-4">
-          <div className={`p-3 rounded-xl ${
-            isDark ? 'bg-black/30' : 'bg-gray-100'
-          }`}>
-            {icon}
-          </div>
-          <div>
-            <h3 className={`text-xl font-bold ${
-              isDark ? 'text-white' : 'text-gray-900'
-            }`}>
-              {title}
-            </h3>
-            <p className={`text-sm mt-1 ${
-              isDark ? 'text-gray-400' : 'text-gray-600'
-            }`}>
-              {description}
-            </p>
-          </div>
-        </div>
+    <button role="switch" aria-checked={checked} onClick={() => onChange(!checked)}
+      className={`relative w-12 h-6 rounded-full transition-colors duration-300 ${checked ? (isDark ? 'bg-[#5ce1e5]' : 'bg-[#0ea5e9]') : (isDark ? 'bg-[#3f4a68]' : 'bg-gray-300')}`}>
+      <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-300 ${checked ? 'translate-x-6' : 'translate-x-0.5'}`} />
+    </button>
+  )
+}
+
+const TabProfile: React.FC<{ isDark: boolean }> = ({ isDark }) => {
+  const user = useAuthStore(s => s.user)
+  const updateUser = useAuthStore(s => s.updateUser)
+  const [form, setForm] = useState({ name: user?.name || '', organization: user?.organization || '', role: user?.role || '' })
+  const [saved, setSaved] = useState(false)
+  const save = () => { updateUser(form); setSaved(true); setTimeout(() => setSaved(false), 2000) }
+  return (
+    <div className={card(isDark)}>
+      <div className="flex items-center gap-3 mb-6">
+        <div className={`p-2 rounded-xl ${isDark ? 'bg-cyan-500/20' : 'bg-cyan-100'}`}><UserIcon className={`w-5 h-5 ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`} /></div>
+        <div><div className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Profile Information</div><div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Update your personal details</div></div>
       </div>
-      {children}
-    </div>
-  )
-}
-
-// Theme Toggle Button
-const ThemeToggle: React.FC<{
-  currentTheme: 'light' | 'dark'
-  onChange: (theme: 'light' | 'dark') => void
-}> = ({ currentTheme, onChange }) => {
-  const isDark = useThemeStore((state) => state.isDark)
-  const toggleTheme = useThemeStore((state) => state.toggleTheme)
-  
-  const handleThemeChange = (theme: 'light' | 'dark') => {
-    onChange(theme)
-    // Also update the global theme store
-    if (theme === 'light' && isDark) {
-      toggleTheme()
-    } else if (theme === 'dark' && !isDark) {
-      toggleTheme()
-    }
-  }
-  
-  return (
-    <div className={`flex items-center p-1 rounded-xl ${
-      isDark ? 'bg-[#27304a]' : 'bg-gray-100'
-    }`}>
-      <button
-        onClick={() => handleThemeChange('light')}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
-          currentTheme === 'light'
-            ? isDark
-              ? 'bg-[#5ce1e5] text-white'
-              : 'bg-[#0ea5e9] text-white'
-            : isDark
-              ? 'text-gray-400 hover:text-white'
-              : 'text-gray-500 hover:text-gray-900'
-        }`}
-      >
-        <Sun className="w-4 h-4" />
-        Light
-      </button>
-      <button
-        onClick={() => handleThemeChange('dark')}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
-          currentTheme === 'dark'
-            ? isDark
-              ? 'bg-[#fd5757] text-white'
-              : 'bg-[#8b5cf6] text-white'
-            : isDark
-              ? 'text-gray-400 hover:text-white'
-              : 'text-gray-500 hover:text-gray-900'
-        }`}
-      >
-        <Moon className="w-4 h-4" />
-        Dark
-      </button>
-    </div>
-  )
-}
-
-// Unit Toggle Button
-const UnitToggle: React.FC<{
-  unit: 'metric' | 'imperial'
-  onChange: (unit: 'metric' | 'imperial') => void
-}> = ({ unit, onChange }) => {
-  const isDark = useThemeStore((state) => state.isDark)
-  
-  return (
-    <div className={`flex items-center p-1 rounded-xl ${
-      isDark ? 'bg-[#27304a]' : 'bg-gray-100'
-    }`}>
-      <button
-        onClick={() => onChange('metric')}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
-          unit === 'metric'
-            ? isDark
-              ? 'bg-[#10b981] text-white'
-              : 'bg-[#10b981] text-white'
-            : isDark
-              ? 'text-gray-400 hover:text-white'
-              : 'text-gray-500 hover:text-gray-900'
-        }`}
-      >
-        <Globe className="w-4 h-4" />
-        Metric
-      </button>
-      <button
-        onClick={() => onChange('imperial')}
-        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all duration-300 ${
-          unit === 'imperial'
-            ? isDark
-              ? 'bg-[#f59e0b] text-white'
-              : 'bg-[#f59e0b] text-white'
-            : isDark
-              ? 'text-gray-400 hover:text-white'
-              : 'text-gray-500 hover:text-gray-900'
-        }`}
-      >
-        <Globe className="w-4 h-4" />
-        Imperial
-      </button>
-    </div>
-  )
-}
-
-// API Key Component
-const ApiKeyField: React.FC<{
-  value: string
-  onCopy: () => void
-  copied: boolean
-}> = ({ value, onCopy, copied }) => {
-  const isDark = useThemeStore((state) => state.isDark)
-  const [showKey, setShowKey] = useState(false)
-  
-  return (
-    <div className={`p-4 rounded-xl ${
-      isDark ? 'bg-black/20' : 'bg-gray-100/50'
-    }`}>
-      <div className="flex items-center justify-between mb-3">
-        <span className={`text-sm font-medium ${
-          isDark ? 'text-gray-400' : 'text-gray-600'
-        }`}>
-          API Key
-        </span>
-        <button
-          onClick={() => setShowKey(!showKey)}
-          className={`text-xs px-2 py-1 rounded ${
-            isDark 
-              ? 'bg-[#27304a] text-gray-300 hover:text-white' 
-              : 'bg-gray-200 text-gray-600 hover:text-gray-900'
-          }`}
-        >
-          {showKey ? 'Hide' : 'Show'}
-        </button>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Full Name</label><input className={inp(isDark)} value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} /></div>
+        <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Email</label>
+          <div className={`flex items-center gap-2 px-4 py-3 rounded-xl border ${isDark ? 'bg-[#0a0e27] border-[#3f4a68] text-gray-400' : 'bg-gray-50 border-gray-200 text-gray-500'}`}><Mail className="w-4 h-4 shrink-0" /><span className="text-sm truncate">{user?.email}</span></div></div>
+        <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}><span className="flex items-center gap-1"><Building className="w-3.5 h-3.5" /> Organization</span></label><input className={inp(isDark)} value={form.organization} onChange={e => setForm(p => ({ ...p, organization: e.target.value }))} /></div>
+        <div><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}><span className="flex items-center gap-1"><Briefcase className="w-3.5 h-3.5" /> Role</span></label><input className={inp(isDark)} value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value }))} /></div>
       </div>
-      
-      <div className="flex items-center gap-2">
-        <div className={`flex-1 font-mono px-4 py-3 rounded-lg ${
-          isDark ? 'bg-[#27304a] text-gray-300' : 'bg-gray-200 text-gray-700'
-        }`}>
-          {showKey ? value : '••••••••••••••••••••••••••••••'}
-        </div>
-        <button
-          onClick={onCopy}
-          className={`p-3 rounded-lg transition-all duration-300 hover:scale-105 ${
-            copied
-              ? isDark
-                ? 'bg-green-500/20 text-green-400'
-                : 'bg-green-500/20 text-green-600'
-              : isDark
-                ? 'bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
-          }`}
-        >
-          {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+      <div className="flex justify-end">
+        <button onClick={save} className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-105 ${saved ? isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700' : isDark ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white' : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'}`}>
+          {saved ? <><CheckCircle className="w-4 h-4" /> Saved</> : <><Save className="w-4 h-4" /> Save Changes</>}
         </button>
       </div>
     </div>
   )
 }
 
-// Upload Modal Component
-const UploadModal: React.FC<{
-  isOpen: boolean
-  onClose: () => void
-  onUpload: (file: File) => void
-  isDark: boolean
-  currentAvatar?: string
-}> = ({ isOpen, onClose, onUpload, isDark, currentAvatar }) => {
-  const [dragActive, setDragActive] = useState(false)
-  const [preview, setPreview] = useState<string | null>(null)
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+const TabPreferences: React.FC<{ isDark: boolean }> = ({ isDark }) => {
+  const user = useAuthStore(s => s.user); const updateUser = useAuthStore(s => s.updateUser); const toggleTheme = useThemeStore(s => s.toggleTheme)
+  const theme = user?.preferences?.theme ?? (isDark ? 'dark' : 'light')
+  const units = user?.preferences?.units ?? 'metric'
+  const notifs = user?.preferences?.notifications ?? false
+  const setTheme = (t: 'light' | 'dark') => { updateUser({ preferences: { theme: t, units, notifications: notifs } }); if ((t === 'dark') !== isDark) toggleTheme() }
+  const setUnits = (u: 'metric' | 'imperial') => updateUser({ preferences: { theme, units: u, notifications: notifs } })
+  const setNotifs = (n: boolean) => updateUser({ preferences: { theme, units, notifications: n } })
+  const row = `flex items-center justify-between p-4 rounded-xl border ${isDark ? 'border-[#3f4a68]' : 'border-gray-200'}`
+  return (
+    <div className="space-y-4">
+      <div className={card(isDark)}>
+        <div className={`font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Display</div>
+        <div className="space-y-3">
+          <div className={row}>
+            <div className="flex items-center gap-3">{isDark ? <Moon className="w-4 h-4 text-purple-400" /> : <Sun className="w-4 h-4 text-yellow-500" />}<div><div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Theme</div><div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Current: {theme}</div></div></div>
+            <div className={`flex p-1 rounded-lg gap-1 ${isDark ? 'bg-[#0a0e27]' : 'bg-gray-100'}`}>{(['light', 'dark'] as const).map(t => (<button key={t} onClick={() => setTheme(t)} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${theme === t ? isDark ? 'bg-[#5ce1e5] text-white' : 'bg-[#0ea5e9] text-white' : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>{t === 'light' ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}{t.charAt(0).toUpperCase() + t.slice(1)}</button>))}</div>
+          </div>
+          <div className={row}>
+            <div className="flex items-center gap-3"><Globe className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} /><div><div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Units</div><div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Measurement system</div></div></div>
+            <div className={`flex p-1 rounded-lg gap-1 ${isDark ? 'bg-[#0a0e27]' : 'bg-gray-100'}`}>{(['metric', 'imperial'] as const).map(u => (<button key={u} onClick={() => setUnits(u)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${units === u ? 'bg-[#10b981] text-white' : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>{u.charAt(0).toUpperCase() + u.slice(1)}</button>))}</div>
+          </div>
+        </div>
+      </div>
+      <div className={card(isDark)}>
+        <div className={`font-bold mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>Notifications</div>
+        <div className="space-y-3">
+          <div className={row}>
+            <div className="flex items-center gap-3"><Bell className={`w-4 h-4 ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`} /><div><div className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>Email Notifications</div><div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Receive updates about your simulations</div></div></div>
+            <Toggle checked={notifs} onChange={setNotifs} />
+          </div>
+          {notifs && (<div className={`p-4 rounded-xl border-l-4 border-cyan-500 ${isDark ? 'bg-cyan-500/10' : 'bg-cyan-50'}`}><div className={`text-sm font-semibold mb-1 ${isDark ? 'text-cyan-400' : 'text-cyan-700'}`}>Email notifications enabled</div><div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>You can now email simulation results from the <strong>Data &amp; Exports</strong> tab.</div></div>)}
+        </div>
+      </div>
+    </div>
+  )
+}
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
-    } else if (e.type === 'dragleave') {
-      setDragActive(false)
-    }
+const TabSecurity: React.FC<{ isDark: boolean }> = ({ isDark }) => {
+  const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
+  const [copied, setCopied] = useState(false); const [showKey, setShowKey] = useState(false)
+  const API_KEY = 'sk_live_coolsim_abc123xyz789def456'
+  const copyKey = () => { navigator.clipboard.writeText(API_KEY); setCopied(true); setTimeout(() => setCopied(false), 2000) }
+  return (
+    <div className="space-y-4">
+      <div className={card(isDark)}>
+        <div className="flex items-center gap-3 mb-5"><div className={`p-2 rounded-xl ${isDark ? 'bg-purple-500/20' : 'bg-purple-100'}`}><Lock className={`w-5 h-5 ${isDark ? 'text-purple-400' : 'text-purple-700'}`} /></div><div className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Change Password</div></div>
+        <div className="space-y-3 mb-4">{[{ label: 'Current Password', key: 'current' }, { label: 'New Password', key: 'next' }, { label: 'Confirm New Password', key: 'confirm' }].map(({ label, key }) => (<div key={key}><label className={`block text-sm font-medium mb-1.5 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{label}</label><input type="password" className={inp(isDark)} value={(pw as any)[key]} onChange={e => setPw(p => ({ ...p, [key]: e.target.value }))} /></div>))}</div>
+        <button className={`w-full py-2.5 rounded-xl font-semibold transition-all hover:scale-105 ${isDark ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white' : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'}`}>Update Password</button>
+      </div>
+      <div className={card(isDark)}>
+        <div className="flex items-center gap-3 mb-5"><div className={`p-2 rounded-xl ${isDark ? 'bg-yellow-500/20' : 'bg-yellow-100'}`}><Key className={`w-5 h-5 ${isDark ? 'text-yellow-400' : 'text-yellow-700'}`} /></div><div className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>API Key</div></div>
+        <div className={`flex items-center gap-2 p-3 rounded-xl mb-3 ${isDark ? 'bg-[#0a0e27]' : 'bg-gray-50'}`}><code className={`flex-1 text-sm font-mono truncate ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{showKey ? API_KEY : '••••••••••••••••••••••••••••••••'}</code><button onClick={() => setShowKey(!showKey)} className={`text-xs px-2 py-1 rounded ${isDark ? 'bg-[#27304a] text-gray-300' : 'bg-gray-200 text-gray-600'}`}>{showKey ? 'Hide' : 'Show'}</button><button onClick={copyKey} className={`p-1.5 rounded-lg transition-all ${copied ? isDark ? 'text-green-400' : 'text-green-600' : isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</button></div>
+        <div className={`flex items-start gap-2 p-3 rounded-xl text-xs mb-3 ${isDark ? 'bg-red-500/10 border border-red-500/20 text-red-400' : 'bg-red-50 border border-red-200 text-red-600'}`}><AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />Never share your API key. Regenerate immediately if exposed.</div>
+        <button className={`w-full py-2.5 rounded-xl font-semibold transition-all hover:scale-105 ${isDark ? 'bg-[#27304a] text-gray-300 hover:bg-[#3f4a68]' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>Regenerate API Key</button>
+      </div>
+      <div className={`rounded-2xl p-6 border ${isDark ? 'bg-red-900/10 border-red-800/30' : 'bg-red-50 border-red-200'}`}>
+        <div className="flex items-center gap-3 mb-4"><AlertTriangle className={`w-5 h-5 ${isDark ? 'text-red-400' : 'text-red-600'}`} /><div className={`font-bold ${isDark ? 'text-red-400' : 'text-red-700'}`}>Danger Zone</div></div>
+        <button className={`w-full flex items-center justify-between p-4 rounded-xl transition-all ${isDark ? 'bg-[#27304a] text-red-400 hover:bg-red-500/10' : 'bg-white text-red-600 hover:bg-red-50'}`}><div className="flex items-center gap-3"><Trash2 className="w-4 h-4" /><div className="text-left"><div className="font-semibold text-sm">Delete Account</div><div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Permanently delete your account and all data</div></div></div><ChevronRight className="w-4 h-4" /></button>
+      </div>
+    </div>
+  )
+}
+
+const TabDataExports: React.FC<{ isDark: boolean; userId: string; userEmail: string; notificationsEnabled: boolean }> = ({
+  isDark, userId, userEmail, notificationsEnabled,
+}) => {
+  const [simulations, setSimulations] = useState<SimulationWithResults[]>([])
+  const [loading, setLoading] = useState(false)
+  const [busy, setBusy] = useState<Record<string, boolean>>({})
+  const [emailStatus, setEmailStatus] = useState<Record<number, 'idle' | 'sending' | 'sent'>>({})
+
+  useEffect(() => {
+    if (!userId) return
+    setLoading(true)
+    getUserSimulations(userId).then(r => { if (r.success && r.data) setSimulations(r.data.simulations || []) }).finally(() => setLoading(false))
+  }, [userId])
+
+  const completed = simulations.filter(s => s.status === 'completed' && s.result?.result_data)
+
+  const setBusyKey = (k: string, v: boolean) => setBusy(p => ({ ...p, [k]: v }))
+
+  // Single JSON of all simulations
+  const exportAllJson = () => {
+    setBusyKey('json', true)
+    try {
+      const blob = new Blob([JSON.stringify({ exported_at: new Date().toISOString(), user_email: userEmail, simulations }, null, 2)], { type: 'application/json' })
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+      a.download = `coolsim_all_${new Date().toISOString().slice(0, 10)}.json`; a.click()
+    } finally { setBusyKey('json', false) }
   }
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0]
-      if (file.type.startsWith('image/')) {
-        handleFile(file)
+  // ZIP of individual JSON files
+  const exportJsonZip = async () => {
+    setBusyKey('jsonzip', true)
+    try {
+      const JSZip = (await import('jszip')).default
+      const zip = new JSZip(); const folder = zip.folder('coolsim_json')!
+      simulations.forEach(s => {
+        const safe = s.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50)
+        folder.file(`${safe}_${s.id}.json`, JSON.stringify({ id: s.id, name: s.name, simulation_type: s.simulation_type, status: s.status, created_at: s.created_at, result: s.result ?? null }, null, 2))
+      })
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+      a.download = `coolsim_json_${new Date().toISOString().slice(0, 10)}.zip`; a.click()
+      const { logActivity } = await import('../services/activityService')
+      await logActivity(userId, 'report_exported_zip', { metadata: { type: 'json', count: simulations.length } })
+    } finally { setBusyKey('jsonzip', false) }
+  }
+
+  // ZIP of all PDFs
+  const exportPdfZip = async () => {
+    if (!completed.length) return
+    setBusyKey('pdfzip', true)
+    try {
+      const JSZip = (await import('jszip')).default
+      const jsPDF = (await import('jspdf')).default
+      const autoTable = (await import('jspdf-autotable')).default
+      const zip = new JSZip(); const folder = zip.folder('coolsim_reports')!
+
+      for (const sim of completed) {
+        if (!sim.result) continue
+        const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+        const rd = sim.result.result_data ?? {}
+        const metrics = rd?.results?.metrics ?? {}; const annual = rd?.results?.annual ?? rd?.summary ?? {}; const econ = rd?.results?.economics ?? {}
+
+        // Cover page
+        doc.setFillColor(26, 31, 58); doc.rect(0, 0, 210, 297, 'F')
+        doc.setFillColor(92, 225, 229); doc.rect(0, 0, 6, 297, 'F')
+        doc.setFontSize(22); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold')
+        doc.text('CoolSim Technical Report', 20, 50)
+        doc.setFontSize(14); doc.setTextColor(92, 225, 229); doc.text(sim.name, 20, 65)
+        doc.setFontSize(10); doc.setTextColor(200, 210, 230); doc.setFont('helvetica', 'normal')
+        doc.text(`Type: ${sim.simulation_type?.toUpperCase()}`, 20, 80)
+        doc.text(`Completed: ${sim.result.completed_at ? new Date(sim.result.completed_at).toLocaleString() : '—'}`, 20, 88)
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 20, 96)
+
+        // Metrics page
+        doc.addPage()
+        doc.setFillColor(26, 31, 58); doc.rect(0, 0, 210, 297, 'F')
+        doc.setFontSize(14); doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.text('Performance Metrics', 14, 20)
+        const rows: [string, string][] = [
+          ['PUE', String(metrics.pue ?? rd?.summary?.averagePUE ?? '—')],
+          ['COP', String(metrics.averageCOP ?? rd?.summary?.averageCOP ?? '—')],
+          ['WUE (L/kWh)', String(metrics.wue ?? '—')],
+          ['Total Energy (kWh)', String(annual.energyConsumption_kWh ?? rd?.summary?.totalEnergy_kWh ?? '—')],
+          ['Carbon (kg)', String(annual.carbonEmissions_kg ?? rd?.summary?.totalCarbonEmissions_kg ?? '—')],
+          ['Annual Cost (USD)', String(annual.cost_USD ?? econ.opex_annual_USD ?? rd?.summary?.annualOpExUSD ?? '—')],
+          ['NPV (USD)', String(econ.npv_USD ?? '—')],
+          ['Payback (yrs)', String(econ.paybackPeriod_years ?? rd?.summary?.paybackPeriodYears ?? '—')],
+          ['Energy Consumed', `${sim.result.energy_consumed_kwh?.toFixed(2) ?? '—'} kWh`],
+          ['Cost Savings', `${sim.result.cost_saving_percent?.toFixed(1) ?? '—'}%`],
+        ].filter(([, v]) => v !== '—') as [string, string][]
+        autoTable(doc, {
+          startY: 28, head: [['Metric', 'Value']], body: rows, theme: 'grid', margin: { left: 14, right: 14 },
+          styles: { fontSize: 9, cellPadding: 2.5, textColor: [220, 230, 245] },
+          headStyles: { fillColor: [63, 74, 104], textColor: [255, 255, 255], fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [20, 25, 50] }, tableLineColor: [63, 74, 104], tableLineWidth: 0.3,
+        })
+        const mlRec = rd?.mlRecommendation
+        if (mlRec?.model_recommendation) {
+          const y = (doc as any).lastAutoTable.finalY + 10
+          doc.setFontSize(12); doc.setFont('helvetica', 'bold'); doc.setTextColor(92, 225, 229); doc.text('ML Recommendation', 14, y)
+          doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor(220, 230, 245)
+          doc.text(`Recommended: ${mlRec.model_recommendation}`, 14, y + 8)
+          if (mlRec.why_this_is_recommended?.length) {
+            const why = doc.splitTextToSize(mlRec.why_this_is_recommended.join(' '), 182)
+            doc.text(why, 14, y + 16)
+          }
+        }
+        const safe = sim.name.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50)
+        folder.file(`${safe}_${sim.id}.pdf`, doc.output('arraybuffer'))
       }
-    }
+
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } })
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+      a.download = `coolsim_reports_${new Date().toISOString().slice(0, 10)}.zip`; a.click()
+      const { logActivity } = await import('../services/activityService')
+      await logActivity(userId, 'report_exported_zip', { metadata: { type: 'pdf', count: completed.length } })
+    } finally { setBusyKey('pdfzip', false) }
   }
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      handleFile(file)
-    }
+  // Email via Gmail compose
+  const emailSim = async (sim: SimulationWithResults) => {
+    if (!sim.result) return
+    setEmailStatus(p => ({ ...p, [sim.id]: 'sending' }))
+    try {
+      const { generateSimulationPDF } = await import('../utils/pdfExport')
+      generateSimulationPDF({
+        simulation: { id: sim.id, name: sim.name, description: sim.description, simulation_type: sim.simulation_type, created_at: sim.created_at, status: sim.status },
+        result: { energy_consumed_kwh: sim.result.energy_consumed_kwh ?? 0, cooling_efficiency: sim.result.cooling_efficiency ?? 0, cost_saving_percent: sim.result.cost_saving_percent ?? 0, runtime_minutes: sim.result.runtime_minutes ?? 0, completed_at: sim.result.completed_at, result_data: sim.result.result_data ?? {} },
+      })
+      const rd = sim.result.result_data ?? {}
+      const metrics = rd?.results?.metrics ?? {}; const annual = rd?.results?.annual ?? rd?.summary ?? {}; const mlRec = rd?.mlRecommendation
+      const body = [
+        `Hi,`, ``, `Simulation results for: ${sim.name}`, ``,
+        `Type: ${sim.simulation_type?.toUpperCase()}`,
+        `Completed: ${sim.result.completed_at ? new Date(sim.result.completed_at).toLocaleString() : '—'}`, ``,
+        `KEY METRICS`, `─────────────────────────────`,
+        `PUE:              ${metrics.pue ?? rd?.summary?.averagePUE ?? '—'}`,
+        `COP:              ${metrics.averageCOP ?? rd?.summary?.averageCOP ?? '—'}`,
+        `Total Energy:     ${annual.energyConsumption_kWh ?? rd?.summary?.totalEnergy_kWh ?? '—'} kWh`,
+        `Carbon Emissions: ${annual.carbonEmissions_kg ?? rd?.summary?.totalCarbonEmissions_kg ?? '—'} kg`,
+        `Annual Cost:      $${annual.cost_USD ?? rd?.summary?.annualOpExUSD ?? '—'}`,
+        `Cost Savings:     ${sim.result.cost_saving_percent?.toFixed(1) ?? '—'}%`, ``,
+        ...(mlRec?.model_recommendation ? [`ML RECOMMENDATION: ${mlRec.model_recommendation}`, ``] : []),
+        `NOTE: PDF report downloaded to your device — please attach before sending.`,
+        ``, `— CoolSim Platform`,
+      ].join('\n')
+      const subject = encodeURIComponent(`CoolSim Report: ${sim.name}`)
+      const bodyEnc = encodeURIComponent(body)
+      // Open Gmail compose in new tab
+      window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(userEmail)}&su=${subject}&body=${bodyEnc}`, '_blank', 'noopener,noreferrer')
+      const { logActivity } = await import('../services/activityService')
+      await logActivity(userId, 'report_emailed', { entity_id: String(sim.id), metadata: { name: sim.name } })
+      setEmailStatus(p => ({ ...p, [sim.id]: 'sent' }))
+      setTimeout(() => setEmailStatus(p => ({ ...p, [sim.id]: 'idle' })), 3000)
+    } catch { setEmailStatus(p => ({ ...p, [sim.id]: 'idle' })) }
   }
 
-  const handleFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file')
-      return
-    }
-
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      alert('File size must be less than 5MB')
-      return
-    }
-
-    setSelectedFile(file)
-    
-    // Create preview
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setPreview(e.target?.result as string)
-    }
-    reader.readAsDataURL(file)
-  }
-
-  const handleUpload = () => {
-    if (selectedFile) {
-      onUpload(selectedFile)
-      onClose()
-    }
-  }
-
-  const handleRemove = () => {
-    setSelectedFile(null)
-    setPreview(null)
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-  }
-
-  const handleCameraClick = () => {
-    // This would trigger camera access in a real app
-    alert('Camera access would be requested here. For demo, please upload a file.')
-  }
-
-  if (!isOpen) return null
+  const btn = `flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed`
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className={`relative w-full max-w-md rounded-3xl overflow-hidden ${
-        isDark 
-          ? 'bg-gradient-to-b from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
-          : 'bg-gradient-to-b from-white to-gray-50 border border-gray-200'
-      } shadow-2xl`}>
-        {/* Header */}
-        <div className="p-6 border-b border-gray-800/50">
-          <div className="flex items-center justify-between">
-            <h3 className={`text-xl font-bold ${
-              isDark ? 'text-white' : 'text-gray-900'
-            }`}>
-              Upload Profile Picture
-            </h3>
-            <button
-              onClick={onClose}
-              className={`p-2 rounded-lg transition-colors ${
-                isDark 
-                  ? 'hover:bg-[#27304a] text-gray-400 hover:text-white' 
-                  : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <p className={`text-sm mt-1 ${
-            isDark ? 'text-gray-400' : 'text-gray-600'
-          }`}>
-            Upload a new profile picture (Max 5MB)
-          </p>
+    <div className="space-y-4">
+      <div className={card(isDark)}>
+        <div className="flex items-center gap-3 mb-5">
+          <div className={`p-2 rounded-xl ${isDark ? 'bg-blue-500/20' : 'bg-blue-100'}`}><Database className={`w-5 h-5 ${isDark ? 'text-blue-400' : 'text-blue-700'}`} /></div>
+          <div><div className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Export All Data</div><div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{simulations.length} simulations · {completed.length} with results</div></div>
         </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <button onClick={exportAllJson} disabled={busy.json || !simulations.length} className={`${btn} ${isDark ? 'bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            <FileJson className="w-4 h-4 text-yellow-500" />{busy.json ? 'Exporting…' : 'All Data (JSON)'}
+          </button>
+          <button onClick={exportJsonZip} disabled={busy.jsonzip || !simulations.length} className={`${btn} ${isDark ? 'bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+            <Archive className="w-4 h-4 text-orange-500" />{busy.jsonzip ? 'Zipping…' : `JSONs ZIP (${simulations.length})`}
+          </button>
+          <button onClick={exportPdfZip} disabled={busy.pdfzip || !completed.length} className={`${btn} ${isDark ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'}`}>
+            <FileText className="w-4 h-4" />{busy.pdfzip ? 'Building ZIP…' : `PDFs ZIP (${completed.length})`}
+          </button>
+        </div>
+        {(busy.pdfzip || busy.jsonzip) && (
+          <div className={`mt-3 flex items-center gap-2 text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            <div className="w-3 h-3 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+            Building ZIP archive — may take a moment for large datasets…
+          </div>
+        )}
+      </div>
 
-        {/* Content */}
-        <div className="p-6">
-          {/* Current Avatar Preview */}
-          <div className="mb-8 text-center">
-            <h4 className={`text-sm font-medium mb-4 ${
-              isDark ? 'text-gray-300' : 'text-gray-700'
-            }`}>
-              Current Avatar
-            </h4>
-            <div className="relative inline-block">
-              {currentAvatar ? (
-                <img 
-                  src={currentAvatar} 
-                  alt="Current Avatar" 
-                  className="w-20 h-20 rounded-full object-cover"
-                />
-              ) : (
-                <div className={`w-20 h-20 rounded-full flex items-center justify-center ${
-                  isDark 
-                    ? 'bg-gradient-to-br from-[#5ce1e5] to-[#fd5757]' 
-                    : 'bg-gradient-to-br from-[#0ea5e9] to-[#5ce1e5]'
-                }`}>
-                  <UserIcon className="w-8 h-8 text-white" />
+      <div className={card(isDark)}>
+        <div className="flex items-center gap-3 mb-3">
+          <div className={`p-2 rounded-xl ${isDark ? 'bg-green-500/20' : 'bg-green-100'}`}><Send className={`w-5 h-5 ${isDark ? 'text-green-400' : 'text-green-700'}`} /></div>
+          <div><div className={`font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Email Simulation Results</div>
+            <div className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{notificationsEnabled ? `Opens Gmail compose to ${userEmail} · PDF auto-downloaded` : 'Enable Email Notifications in Preferences first'}</div></div>
+        </div>
+        {!notificationsEnabled ? (
+          <div className={`p-3 rounded-xl text-sm ${isDark ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-400' : 'bg-yellow-50 border border-yellow-200 text-yellow-700'}`}>
+            Go to <strong>Preferences</strong> and enable <strong>Email Notifications</strong> to unlock this.
+          </div>
+        ) : loading ? (
+          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Loading…</div>
+        ) : !completed.length ? (
+          <div className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>No completed simulations to email.</div>
+        ) : (
+          <div className="space-y-2">
+            {completed.map(sim => {
+              const st = emailStatus[sim.id] ?? 'idle'
+              return (
+                <div key={sim.id} className={`flex items-center justify-between p-3 rounded-xl border ${isDark ? 'border-[#3f4a68] bg-[#0a0e27]' : 'border-gray-200 bg-gray-50'}`}>
+                  <div className="min-w-0 mr-3">
+                    <div className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>{sim.name}</div>
+                    <div className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{sim.simulation_type?.toUpperCase()} · {sim.result?.completed_at ? new Date(sim.result.completed_at).toLocaleDateString() : '—'}</div>
+                  </div>
+                  <button onClick={() => emailSim(sim)} disabled={st === 'sending'}
+                    className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${st === 'sent' ? isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700' : st === 'sending' ? isDark ? 'bg-gray-500/20 text-gray-400' : 'bg-gray-100 text-gray-500' : isDark ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30' : 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200'}`}>
+                    {st === 'sent' ? <><CheckCircle className="w-3.5 h-3.5" /> Gmail Opened</> : st === 'sending' ? <><div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> Opening…</> : <><Send className="w-3.5 h-3.5" /> Email + PDF</>}
+                  </button>
                 </div>
-              )}
+              )
+            })}
+            <div className={`text-xs pt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+              Clicking "Email + PDF" downloads the PDF and opens Gmail compose pre-filled with results. Attach the PDF before sending.
             </div>
           </div>
-
-          {/* Upload Area */}
-          <div
-            className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all duration-300 ${
-              dragActive
-                ? isDark
-                  ? 'border-[#5ce1e5] bg-[#5ce1e5]/5'
-                  : 'border-[#0ea5e9] bg-[#0ea5e9]/5'
-                : isDark
-                  ? 'border-[#3f4a68] hover:border-[#5ce1e5] bg-[#27304a]/50'
-                  : 'border-gray-300 hover:border-[#0ea5e9] bg-gray-100/50'
-            }`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileInput}
-              className="hidden"
-            />
-            
-            <div className="space-y-4">
-              {preview ? (
-                <>
-                  <div className="relative inline-block">
-                    <img 
-                      src={preview} 
-                      alt="Preview" 
-                      className="w-32 h-32 rounded-full object-cover mx-auto"
-                    />
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRemove()
-                      }}
-                      className={`absolute -top-2 -right-2 p-1.5 rounded-full ${
-                        isDark 
-                          ? 'bg-red-500 text-white' 
-                          : 'bg-red-500 text-white'
-                      }`}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <p className={`text-sm ${
-                    isDark ? 'text-gray-300' : 'text-gray-600'
-                  }`}>
-                    {selectedFile?.name} ({(selectedFile?.size! / 1024 / 1024).toFixed(2)} MB)
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${
-                    isDark 
-                      ? 'bg-[#27304a] text-[#5ce1e5]' 
-                      : 'bg-gray-200 text-[#0ea5e9]'
-                  }`}>
-                    <Upload className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <p className={`font-medium ${
-                      isDark ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      Drop your image here, or{' '}
-                      <span className={isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'}>
-                        click to browse
-                      </span>
-                    </p>
-                    <p className={`text-sm mt-1 ${
-                      isDark ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
-                      PNG, JPG, GIF up to 5MB
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Camera Option */}
-          <div className="mt-6">
-            <button
-              onClick={handleCameraClick}
-              className={`w-full flex items-center justify-center gap-3 py-3 rounded-xl font-medium transition-all duration-300 hover:scale-105 ${
-                isDark
-                  ? 'bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
-              }`}
-            >
-              <Camera className="w-5 h-5" />
-              Take Photo with Camera
-            </button>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex gap-3 mt-8">
-            <button
-              onClick={onClose}
-              className={`flex-1 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
-                isDark
-                  ? 'bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
-              }`}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleUpload}
-              disabled={!selectedFile}
-              className={`flex-1 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
-                selectedFile
-                  ? isDark
-                    ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
-                    : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
-                  : isDark
-                    ? 'bg-[#27304a] text-gray-500 cursor-not-allowed'
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-              }`}
-            >
-              Upload Photo
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )
 }
 
 export const Profile: React.FC = () => {
-  const user = useAuthStore((state) => state.user)
-  const updateUser = useAuthStore((state) => state.updateUser)
-  const isDark = useThemeStore((state) => state.isDark)
-  const [copied, setCopied] = useState(false)
+  const user = useAuthStore(s => s.user)
+  const isDark = useThemeStore(s => s.isDark)
   const [activeTab, setActiveTab] = useState('profile')
-  const [formData, setFormData] = useState({
-    name: user?.name || '',
-    email: user?.email || '',
-    organization: user?.organization || '',
-    role: user?.role || ''
-  })
-  const [showUploadModal, setShowUploadModal] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
+  const notificationsEnabled = user?.preferences?.notifications ?? false
 
-  const handleCopyApiKey = () => {
-    navigator.clipboard.writeText('sk_test_abc123xyz789')
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-
-  const handleSaveProfile = () => {
-    updateUser(formData)
-  }
-
-  const handleFormChange = (field: string, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }))
-  }
-
-  const handleUploadPhoto = async (file: File) => {
-    setUploading(true)
-    setUploadProgress(0)
-    
-    // Simulate upload progress
-    const interval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval)
-          return 100
-        }
-        return prev + 10
-      })
-    }, 200)
-    
-    try {
-      // In a real app, you would upload to your server here
-      await new Promise(resolve => setTimeout(resolve, 2000)) // Simulate API call
-      
-      // Create a local URL for the uploaded image
-      const imageUrl = URL.createObjectURL(file)
-      
-      // Update user with new avatar URL
-      updateUser({ profilePicture: imageUrl })
-      
-      // In a real app, you would send the file to your server
-      // and get back a URL from the server
-      
-    } catch (error) {
-      console.error('Upload failed:', error)
-      alert('Failed to upload image. Please try again.')
-    } finally {
-      setUploading(false)
-      setUploadProgress(0)
-      clearInterval(interval)
-    }
-  }
-
-  const handleRemovePhoto = () => {
-    if (confirm('Are you sure you want to remove your profile picture?')) {
-      updateUser({ profilePicture: undefined })
-    }
-  }
-
-  const tabs = [
-    { id: 'profile', label: 'Profile', icon: UserIcon },
-    { id: 'preferences', label: 'Preferences', icon: Palette },
-    { id: 'security', label: 'Security', icon: Shield },
-    { id: 'integrations', label: 'Integrations', icon: Key }
+  const TABS = [
+    { id: 'profile',     label: 'Profile',       icon: UserIcon  },
+    { id: 'preferences', label: 'Preferences',   icon: Palette   },
+    { id: 'security',    label: 'Security',       icon: Shield    },
+    { id: 'exports',     label: 'Data & Exports', icon: Database  },
   ]
-
-  const stats = [
-    { label: 'Simulations Run', value: '24', icon: Sparkles },
-    { label: 'Projects', value: '5', icon: Download },
-    { label: 'Reports Generated', value: '18', icon: Upload },
-    { label: 'Days Active', value: '45', icon: Bell }
-  ]
-
-  // Get current theme from user preferences or default to current theme store
-  const currentTheme = user?.preferences?.theme || (isDark ? 'dark' : 'light')
-  const currentUnit = user?.preferences?.units || 'metric'
-  const currentNotifications = user?.preferences?.notifications || false
-
-  const handleThemeChange = (theme: 'light' | 'dark') => {
-    updateUser({ 
-      preferences: { 
-        theme,
-        units: currentUnit,
-        notifications: currentNotifications
-      } 
-    })
-  }
-
-  const handleUnitChange = (units: 'metric' | 'imperial') => {
-    updateUser({ 
-      preferences: { 
-        theme: currentTheme,
-        units,
-        notifications: currentNotifications
-      } 
-    })
-  }
-
-  const handleNotificationsChange = (notifications: boolean) => {
-    updateUser({ 
-      preferences: { 
-        theme: currentTheme,
-        units: currentUnit,
-        notifications
-      } 
-    })
-  }
 
   return (
-    <div className={`min-h-screen transition-colors duration-500 ${
-      isDark 
-        ? 'bg-gradient-to-b from-[#0a0e27] via-[#1a1f3a] to-[#0a0e27]' 
-        : 'bg-gradient-to-b from-slate-50 via-white to-slate-50'
-    }`}>
+    <div className={`min-h-screen ${isDark ? 'bg-[#0a0e27]' : 'bg-gray-50'}`}>
       <Sidebar />
-
-      {/* Upload Modal */}
-      <UploadModal
-        isOpen={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
-        onUpload={handleUploadPhoto}
-        isDark={isDark}
-        currentAvatar={user?.profilePicture}
-      />
-
-      {/* Animated Background Elements */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${
-          isDark ? 'bg-[#5ce1e5]/5' : 'bg-[#0ea5e9]/5'
-        }`} style={{ animation: 'float 8s ease-in-out infinite' }} />
-      </div>
-
-      <main className="lg:ml-64 p-4 lg:p-8">
-        {/* Header */}
-        <div className="relative mb-8 lg:mb-12">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
-            <div>
-              <h1 className={`text-3xl lg:text-4xl font-bold mb-2 ${
-                isDark ? 'text-white' : 'text-gray-900'
-              }`}>
-                Account <span className={isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'}>Settings</span>
-              </h1>
-              <p className={`text-lg ${
-                isDark ? 'text-gray-400' : 'text-gray-600'
-              }`}>
-                Manage your profile, preferences, and security settings
-              </p>
-            </div>
-            
-            {/* Quick Stats */}
-            <div className={`flex items-center gap-4 px-4 py-3 rounded-xl ${
-              isDark ? 'bg-[#1a1f3a] border border-[#3f4a68]' : 'bg-white border border-gray-200'
-            }`}>
-              {stats.map((stat, index) => (
-                <div key={index} className="text-center">
-                  <div className={`text-xl font-bold ${
-                    isDark ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    {stat.value}
-                  </div>
-                  <div className={`text-xs mt-1 ${
-                    isDark ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    {stat.label}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className={`flex overflow-x-auto gap-1 p-1 rounded-xl ${
-            isDark ? 'bg-[#1a1f3a]' : 'bg-gray-100'
-          }`}>
-            {tabs.map((tab) => {
-              const Icon = tab.icon
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-lg font-medium transition-all duration-300 whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? isDark
-                        ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
-                        : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
-                      : isDark
-                        ? 'text-gray-400 hover:text-white'
-                        : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              )
-            })}
-          </div>
+      <main className="lg:ml-64 p-6">
+        <div className="mb-8">
+          <h1 className={`text-3xl font-bold mb-1 ${isDark ? 'text-white' : 'text-gray-900'}`}>Account <span className={isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'}>Settings</span></h1>
+          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Manage your profile, preferences, security, and data exports.</p>
         </div>
-
-        {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Profile Sidebar */}
-          <div className="space-y-8">
-            {/* Profile Card */}
-            <div className={`rounded-2xl p-8 text-center ${
-              isDark 
-                ? 'bg-gradient-to-b from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
-                : 'bg-gradient-to-b from-white to-gray-50 border border-gray-200'
-            }`}>
-              <div className="relative inline-block mb-6 group">
-                {/* Avatar Container */}
-                <div className="relative">
-                  {user?.profilePicture ? (
-                    <>
-                      <img 
-                        src={user.profilePicture} 
-                        alt={user.name || 'User'} 
-                        className="w-24 h-24 rounded-full object-cover shadow-lg"
-                      />
-                      {/* Hover Overlay */}
-                      <div className="absolute inset-0 w-24 h-24 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                        <Camera className="w-8 h-8 text-white" />
-                      </div>
-                    </>
-                  ) : (
-                    <div className={`relative w-24 h-24 rounded-full flex items-center justify-center ${
-                      isDark 
-                        ? 'bg-gradient-to-br from-[#5ce1e5] to-[#fd5757]' 
-                        : 'bg-gradient-to-br from-[#0ea5e9] to-[#5ce1e5]'
-                    } shadow-lg`}>
-                      <UserIcon className="w-12 h-12 text-white" />
-                    </div>
-                  )}
-                  {/* Glow Effect */}
-                  <div className={`absolute -inset-2 rounded-full blur-xl opacity-30 group-hover:opacity-50 transition-opacity duration-300 ${
-                    isDark 
-                      ? 'bg-gradient-to-br from-[#5ce1e5] to-[#fd5757]' 
-                      : 'bg-gradient-to-br from-[#0ea5e9] to-[#5ce1e5]'
-                  }`} />
-                </div>
-
-                {/* Upload Progress */}
-                {uploading && (
-                  <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-28">
-                    <div className={`h-2 rounded-full overflow-hidden ${
-                      isDark ? 'bg-[#27304a]' : 'bg-gray-200'
-                    }`}>
-                      <div 
-                        className={`h-full transition-all duration-300 ${
-                          isDark 
-                            ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9]' 
-                            : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5]'
-                        }`}
-                        style={{ width: `${uploadProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="space-y-4">
+            <div className={`rounded-2xl p-6 text-center border ${isDark ? 'bg-[#1a1f3a] border-[#3f4a68]' : 'bg-white border-gray-200'}`}>
+              <div className={`w-20 h-20 rounded-full mx-auto mb-3 flex items-center justify-center ${isDark ? 'bg-gradient-to-br from-[#5ce1e5] to-[#8b5cf6]' : 'bg-gradient-to-br from-[#0ea5e9] to-[#5ce1e5]'}`}>
+                {user?.profilePicture ? <img src={user.profilePicture} alt="" className="w-20 h-20 rounded-full object-cover" /> : <UserIcon className="w-10 h-10 text-white" />}
               </div>
-              
-              <h2 className={`text-2xl font-bold mb-1 ${
-                isDark ? 'text-white' : 'text-gray-900'
-              }`}>
-                {user?.name}
-              </h2>
-              <div className={`flex items-center justify-center gap-2 mb-4 ${
-                isDark ? 'text-gray-400' : 'text-gray-600'
-              }`}>
-                <Mail className="w-4 h-4" />
-                {user?.email}
+              <div className={`font-bold text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>{user?.name || 'User'}</div>
+              <div className={`text-xs mt-0.5 truncate ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{user?.email}</div>
+              {user?.organization && <div className={`text-xs mt-1 ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{user.organization}</div>}
+              <div className={`mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-100 text-green-700'}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />Active
               </div>
-              
-              <div className={`px-4 py-2 rounded-lg inline-flex items-center gap-2 mb-6 ${
-                isDark ? 'bg-[#27304a] text-gray-300' : 'bg-gray-100 text-gray-700'
-              }`}>
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-sm">Active Member</span>
-              </div>
-              
-              {/* Photo Actions */}
-              <div className="space-y-3">
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  disabled={uploading}
-                  className={`w-full py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
-                    isDark
-                      ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white hover:from-[#4ad0d4] hover:to-[#0d99d9]'
-                      : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white hover:from-[#0d99d9] hover:to-[#4ad0d4]'
-                  }`}
-                >
-                  <div className="flex items-center justify-center gap-2">
-                    {uploading ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Uploading... {uploadProgress}%</span>
-                      </>
-                    ) : (
-                      <>
-                        <Upload className="w-5 h-5" />
-                        {user?.profilePicture ? 'Change Photo' : 'Upload Photo'}
-                      </>
-                    )}
-                  </div>
+            </div>
+            <nav className={`rounded-2xl border overflow-hidden ${isDark ? 'bg-[#1a1f3a] border-[#3f4a68]' : 'bg-white border-gray-200'}`}>
+              {TABS.map(({ id, label, icon: Icon }) => (
+                <button key={id} onClick={() => setActiveTab(id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-all border-b last:border-b-0 ${isDark ? 'border-[#3f4a68]' : 'border-gray-100'} ${activeTab === id ? isDark ? 'bg-cyan-500/15 text-cyan-400' : 'bg-cyan-50 text-cyan-700' : isDark ? 'text-gray-400 hover:text-white hover:bg-[#27304a]' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'}`}>
+                  <Icon className="w-4 h-4 shrink-0" />{label}
+                  {id === 'exports' && notificationsEnabled && <span className={`ml-auto text-xs px-1.5 py-0.5 rounded-full ${isDark ? 'bg-cyan-500/20 text-cyan-400' : 'bg-cyan-100 text-cyan-700'}`}>Email</span>}
                 </button>
-                
-                {user?.profilePicture && (
-                  <button
-                    onClick={handleRemovePhoto}
-                    disabled={uploading}
-                    className={`w-full py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed ${
-                      isDark
-                        ? 'bg-[#27304a] text-red-400 hover:bg-red-500/10 hover:text-red-300'
-                        : 'bg-gray-100 text-red-600 hover:bg-red-50 hover:text-red-700'
-                    }`}
-                  >
-                    Remove Photo
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Account Type */}
-            <div className={`rounded-2xl p-6 ${
-              isDark 
-                ? 'bg-gradient-to-b from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
-                : 'bg-gradient-to-b from-white to-gray-50 border border-gray-200'
-            }`}>
-              <h3 className={`text-lg font-bold mb-4 ${
-                isDark ? 'text-white' : 'text-gray-900'
-              }`}>
-                Account Type
-              </h3>
-              
-              <div className={`p-4 rounded-xl ${
-                isDark ? 'bg-black/20' : 'bg-gray-100/50'
-              }`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`font-medium ${
-                    isDark ? 'text-white' : 'text-gray-900'
-                  }`}>
-                    Professional Plan
-                  </span>
-                  <span className={`px-2 py-1 rounded text-xs font-bold ${
-                    isDark ? 'bg-[#5ce1e5]/20 text-[#5ce1e5]' : 'bg-[#0ea5e9]/20 text-[#0ea5e9]'
-                  }`}>
-                    ACTIVE
-                  </span>
-                </div>
-                <p className={`text-sm ${
-                  isDark ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  Unlimited simulations • Advanced analytics • Priority support
-                </p>
-              </div>
-              
-              <button className={`w-full mt-4 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
-                isDark
-                  ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
-                  : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
-              }`}>
-                <div className="flex items-center justify-center gap-2">
-                  Upgrade Plan
-                  <ChevronRight className="w-5 h-5" />
-                </div>
-              </button>
-            </div>
+              ))}
+            </nav>
           </div>
-
-          {/* Main Settings */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Profile Settings */}
-            {activeTab === 'profile' && (
-              <SettingCard
-                title="Profile Information"
-                description="Update your personal details and contact information"
-                icon={<UserIcon className="w-6 h-6" />}
-              >
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${
-                        isDark ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.name}
-                        onChange={(e) => handleFormChange('name', e.target.value)}
-                        className={`w-full px-4 py-3 rounded-xl transition-all ${
-                          isDark
-                            ? 'bg-[#27304a] text-white border border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-2 focus:ring-[#5ce1e5]/20'
-                            : 'bg-white text-gray-900 border border-gray-300 focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20'
-                        }`}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${
-                        isDark ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Email Address
-                      </label>
-                      <div className={`flex items-center gap-3 px-4 py-3 rounded-xl ${
-                        isDark
-                          ? 'bg-[#27304a] text-gray-300 border border-[#3f4a68]'
-                          : 'bg-gray-100 text-gray-600 border border-gray-300'
-                      }`}>
-                        <Mail className="w-5 h-5" />
-                        <span className="flex-1">{user?.email}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${
-                        isDark ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <Building className="w-4 h-4" />
-                          Organization
-                        </div>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.organization}
-                        onChange={(e) => handleFormChange('organization', e.target.value)}
-                        className={`w-full px-4 py-3 rounded-xl transition-all ${
-                          isDark
-                            ? 'bg-[#27304a] text-white border border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-2 focus:ring-[#5ce1e5]/20'
-                            : 'bg-white text-gray-900 border border-gray-300 focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20'
-                        }`}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${
-                        isDark ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          <Briefcase className="w-4 h-4" />
-                          Role
-                        </div>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.role}
-                        onChange={(e) => handleFormChange('role', e.target.value)}
-                        className={`w-full px-4 py-3 rounded-xl transition-all ${
-                          isDark
-                            ? 'bg-[#27304a] text-white border border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-2 focus:ring-[#5ce1e5]/20'
-                            : 'bg-white text-gray-900 border border-gray-300 focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20'
-                        }`}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end gap-4 pt-4">
-                    <button
-                      onClick={() => setFormData({
-                        name: user?.name || '',
-                        email: user?.email || '',
-                        organization: user?.organization || '',
-                        role: user?.role || ''
-                      })}
-                      className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
-                        isDark
-                          ? 'bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
-                      }`}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveProfile}
-                      className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
-                        isDark
-                          ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
-                          : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
-                      }`}
-                    >
-                      <div className="flex items-center justify-center gap-2">
-                        <Save className="w-5 h-5" />
-                        Save Changes
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </SettingCard>
-            )}
-
-            {/* Preferences */}
-            {activeTab === 'preferences' && (
-              <div className="space-y-8">
-                <SettingCard
-                  title="Display Preferences"
-                  description="Customize your interface appearance and behavior"
-                  icon={<Palette className="w-6 h-6" />}
-                >
-                  <div className="space-y-6">
-                    <div>
-                      <label className={`block text-sm font-medium mb-3 ${
-                        isDark ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Theme
-                      </label>
-                      <ThemeToggle
-                        currentTheme={currentTheme}
-                        onChange={handleThemeChange}
-                      />
-                    </div>
-                    
-                    <div>
-                      <label className={`block text-sm font-medium mb-3 ${
-                        isDark ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Measurement Units
-                      </label>
-                      <UnitToggle
-                        unit={currentUnit}
-                        onChange={handleUnitChange}
-                      />
-                    </div>
-                    
-                    <div className={`p-4 rounded-xl ${
-                      isDark ? 'bg-black/20' : 'bg-gray-100/50'
-                    }`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Bell className={`w-5 h-5 ${isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'}`} />
-                          <div>
-                            <div className={`font-medium ${
-                              isDark ? 'text-white' : 'text-gray-900'
-                            }`}>
-                              Email Notifications
-                            </div>
-                            <div className={`text-sm ${
-                              isDark ? 'text-gray-400' : 'text-gray-600'
-                            }`}>
-                              Receive updates about your simulations
-                            </div>
-                          </div>
-                        </div>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={currentNotifications}
-                            onChange={(e) => handleNotificationsChange(e.target.checked)}
-                            className="sr-only peer"
-                          />
-                          <div className={`w-12 h-6 rounded-full peer ${
-                            isDark 
-                              ? 'bg-[#3f4a68] peer-checked:bg-[#5ce1e5]' 
-                              : 'bg-gray-300 peer-checked:bg-[#0ea5e9]'
-                          } peer-focus:ring-2 peer-focus:ring-opacity-20 transition-colors duration-300`}>
-                            <div className={`w-5 h-5 rounded-full transform transition-transform duration-300 ${
-                              currentNotifications 
-                                ? 'translate-x-7 bg-white' 
-                                : 'translate-x-1 bg-white'
-                            }`} />
-                          </div>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </SettingCard>
-              </div>
-            )}
-
-            {/* Security */}
-            {activeTab === 'security' && (
-              <div className="space-y-8">
-                <SettingCard
-                  title="Password Security"
-                  description="Update your password and secure your account"
-                  icon={<Lock className="w-6 h-6" />}
-                >
-                  <div className="space-y-6">
-                    <div>
-                      <label className={`block text-sm font-medium mb-2 ${
-                        isDark ? 'text-gray-300' : 'text-gray-700'
-                      }`}>
-                        Current Password
-                      </label>
-                      <input
-                        type="password"
-                        className={`w-full px-4 py-3 rounded-xl transition-all ${
-                          isDark
-                            ? 'bg-[#27304a] text-white border border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-2 focus:ring-[#5ce1e5]/20'
-                            : 'bg-white text-gray-900 border border-gray-300 focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20'
-                        }`}
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className={`block text-sm font-medium mb-2 ${
-                          isDark ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
-                          New Password
-                        </label>
-                        <input
-                          type="password"
-                          className={`w-full px-4 py-3 rounded-xl transition-all ${
-                            isDark
-                              ? 'bg-[#27304a] text-white border border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-2 focus:ring-[#5ce1e5]/20'
-                              : 'bg-white text-gray-900 border border-gray-300 focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20'
-                          }`}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className={`block text-sm font-medium mb-2 ${
-                          isDark ? 'text-gray-300' : 'text-gray-700'
-                        }`}>
-                          Confirm Password
-                        </label>
-                        <input
-                          type="password"
-                          className={`w-full px-4 py-3 rounded-xl transition-all ${
-                            isDark
-                              ? 'bg-[#27304a] text-white border border-[#3f4a68] focus:border-[#5ce1e5] focus:ring-2 focus:ring-[#5ce1e5]/20'
-                              : 'bg-white text-gray-900 border border-gray-300 focus:border-[#0ea5e9] focus:ring-2 focus:ring-[#0ea5e9]/20'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                    
-                    <button className={`w-full py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
-                      isDark
-                        ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
-                        : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
-                    }`}>
-                      Update Password
-                    </button>
-                  </div>
-                </SettingCard>
-
-                <SettingCard
-                  title="API Keys"
-                  description="Manage your API keys for integrations"
-                  icon={<Key className="w-6 h-6" />}
-                >
-                  <div className="space-y-6">
-                    <ApiKeyField
-                      value="sk_test_abc123xyz789"
-                      onCopy={handleCopyApiKey}
-                      copied={copied}
-                    />
-                    
-                    <div className={`p-4 rounded-xl ${
-                      isDark ? 'bg-red-500/10 border border-red-500/20' : 'bg-red-50 border border-red-200'
-                    }`}>
-                      <div className="flex items-start gap-3">
-                        <AlertTriangle className={`w-5 h-5 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
-                        <div>
-                          <div className={`font-bold mb-1 ${
-                            isDark ? 'text-red-400' : 'text-red-600'
-                          }`}>
-                            ⚠️ Keep your API key secure
-                          </div>
-                          <div className={`text-sm ${
-                            isDark ? 'text-gray-400' : 'text-gray-600'
-                          }`}>
-                            Never share your API key publicly. Regenerate immediately if exposed.
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <button className={`w-full py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
-                      isDark
-                        ? 'bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
-                    }`}>
-                      Regenerate API Key
-                    </button>
-                  </div>
-                </SettingCard>
-              </div>
-            )}
-
-            {/* Danger Zone */}
-            <div className={`rounded-2xl p-8 ${
-              isDark 
-                ? 'bg-gradient-to-b from-red-900/20 to-red-900/10 border border-red-800/30' 
-                : 'bg-gradient-to-b from-red-50 to-white border border-red-200'
-            }`}>
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex items-center gap-4">
-                  <div className={`p-3 rounded-xl ${
-                    isDark ? 'bg-red-500/20' : 'bg-red-100'
-                  }`}>
-                    <AlertTriangle className={`w-6 h-6 ${isDark ? 'text-red-400' : 'text-red-600'}`} />
-                  </div>
-                  <div>
-                    <h3 className={`text-xl font-bold ${
-                      isDark ? 'text-white' : 'text-red-900'
-                    }`}>
-                      Danger Zone
-                    </h3>
-                    <p className={`text-sm mt-1 ${
-                      isDark ? 'text-gray-400' : 'text-red-600'
-                    }`}>
-                      These actions are permanent and cannot be undone
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <button className={`w-full flex items-center justify-between p-4 rounded-xl transition-all duration-300 hover:scale-105 ${
-                  isDark
-                    ? 'bg-[#27304a] text-red-400 hover:bg-red-500/10 hover:text-red-300'
-                    : 'bg-white text-red-600 hover:bg-red-50 hover:text-red-700'
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <Trash2 className="w-5 h-5" />
-                    <div>
-                      <div className="font-bold">Delete Account</div>
-                      <div className={`text-sm ${
-                        isDark ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        Permanently delete your account and all data
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-                
-                <button className={`w-full flex items-center justify-between p-4 rounded-xl transition-all duration-300 hover:scale-105 ${
-                  isDark
-                    ? 'bg-[#27304a] text-orange-400 hover:bg-orange-500/10 hover:text-orange-300'
-                    : 'bg-white text-orange-600 hover:bg-orange-50 hover:text-orange-700'
-                }`}>
-                  <div className="flex items-center gap-3">
-                    <Download className="w-5 h-5" />
-                    <div>
-                      <div className="font-bold">Export All Data</div>
-                      <div className={`text-sm ${
-                        isDark ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        Download all your simulations and reports
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+          <div className="lg:col-span-3">
+            {activeTab === 'profile'     && <TabProfile isDark={isDark} />}
+            {activeTab === 'preferences' && <TabPreferences isDark={isDark} />}
+            {activeTab === 'security'    && <TabSecurity isDark={isDark} />}
+            {activeTab === 'exports'     && <TabDataExports isDark={isDark} userId={user?.id ?? ''} userEmail={user?.email ?? ''} notificationsEnabled={notificationsEnabled} />}
           </div>
         </div>
       </main>
-
-      {/* Custom Animations */}
-      <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
-        }
-      `}</style>
     </div>
   )
 }

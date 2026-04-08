@@ -35,12 +35,14 @@ import {
   Calendar,
   ThermometerSun,
   Droplets,
+  Mountain,
 } from "lucide-react";
 import AirSideEconomization from "../components/simulation/AirSideEconomization";
 import ChilledWaterCooling from "../components/simulation/ChilledWaterCooling";
 import EvaporativeCooling from "../components/simulation/EvaporativeCooling";
+import { SimulationProgressModal } from "../components/simulation/SimulationProgressModal";
 import { useNavigate } from "react-router-dom";
-
+import DigitalTwin3D from "../components/digitaltwin/DigitalTwin3D";
 const steps = [
   { id: "welcome", label: "Welcome", icon: Sparkles },
   { id: "technique", label: "Cooling Technique", icon: Wind },
@@ -928,6 +930,7 @@ export const InputManagement: React.FC = () => {
     setCurrentInput,
     updateSimulationInput,
     runSimulation,
+    setSimulationStatus,
   } = useSimulationStore();
   const isDark = useThemeStore((state) => state.isDark);
 
@@ -1049,83 +1052,49 @@ export const InputManagement: React.FC = () => {
     if (configRef.current) {
       try {
         // ✅ Handle different cooling techniques
-        if (selectedTechnique === "water") {
-          // 🌊 CHILLED WATER COOLING - Call dedicated backend API
-          console.log("🌊 [CHILLED WATER] Running chilled water simulation...");
-          
-          // Import the API service dynamically
-          const { runChilledWaterSimulation, transformConfigToApiRequest } = await import(
-            "../services/chilledWaterApi"
-          );
-
-          // Transform frontend config to backend API format
-          const apiRequest = transformConfigToApiRequest(configRef.current);
-          
-          console.log("🌊 [CHILLED WATER] API Request:", apiRequest);
-
-          // Call the backend API
-          const apiResponse = await runChilledWaterSimulation(apiRequest);
-          
-          console.log("✅ [CHILLED WATER] Simulation completed:", apiResponse);
-
-          // Store results for display
-          updateSimulationInput({
-            coolingTechnique: "water",
+        // Always use runSimulation for all techniques (ensures DB storage and modal loading)
+        let simulationInput;
+        if (selectedTechnique === "evaporative") {
+          simulationInput = {
+            ...configRef.current,
+            evaporativeConfig: configRef.current,
+            coolingTechnique: "evaporative",
+          };
+        } else if (selectedTechnique === "air") {
+          simulationInput = {
+            ...configRef.current,
+            airSideConfig: configRef.current,
+            coolingTechnique: "air",
+          };
+        } else if (selectedTechnique === "water") {
+          simulationInput = {
+            ...configRef.current,
             chilledWaterConfig: configRef.current,
-            chilledWaterResults: apiResponse.results,
-            locationData: locationData,
-          } as any);
-
-          // Wait for simulation to complete
-          setTimeout(() => {
-            clearInterval(progressInterval);
-            setSimulationProgress(100);
-
-            // Show completion for 1 second then navigate
-            setTimeout(() => {
-              setIsSimulationRunning(false);
-              navigate("/dashboard");
-            }, 1000);
-          }, 1000);
-
+            coolingTechnique: "water",
+          };
         } else {
-          // 💨 AIR-SIDE or EVAPORATIVE COOLING - Use existing flow
-          const simulationInput =
-            selectedTechnique === "evaporative"
-              ? {
-                  ...configRef.current,
-                  evaporativeConfig: configRef.current,
-                  coolingTechnique: "evaporative",
-                }
-              : selectedTechnique === "air"
-                ? {
-                    ...configRef.current,
-                    airSideConfig: configRef.current,
-                    coolingTechnique: "air",
-                  }
-                : configRef.current;
-
-          await runSimulation(simulationInput);
-
-          // Wait for simulation to complete
-          setTimeout(() => {
-            clearInterval(progressInterval);
-            setSimulationProgress(100);
-
-            // Show completion for 1 second then navigate
-            setTimeout(() => {
-              setIsSimulationRunning(false);
-              navigate("/dashboard");
-            }, 1000);
-          }, 3000);
+          simulationInput = configRef.current;
         }
+
+        await runSimulation(simulationInput);
+
+        // Wait for simulation to complete
+        setTimeout(() => {
+          clearInterval(progressInterval);
+          setSimulationProgress(100);
+
+          // Show completion for 1 second then navigate
+          setTimeout(() => {
+            setIsSimulationRunning(false);
+            navigate("/dashboard");
+          }, 1000);
+        }, 3000);
       } catch (error: any) {
         clearInterval(progressInterval);
         setIsSimulationRunning(false);
+        setSimulationStatus(`Failed: ${error.message || "Unknown error"}`);
+        // The SimulationProgressModal will now show the error as a modal
         console.error("❌ Simulation failed:", error);
-        
-        // Show error message to user
-        alert(`Simulation failed: ${error.message || 'Unknown error'}`);
       }
     }
   };
@@ -1752,123 +1721,287 @@ export const InputManagement: React.FC = () => {
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {[
-                  {
-                    label: "Server ID",
-                    value: serverId || "Not set",
-                    icon: Server,
-                    description: "Database server identifier",
-                  },
-                  {
-                    label: "Country ID",
-                    value: countryId || "Not set",
-                    icon: MapPin,
-                    description: "Database country identifier",
-                  },
-                  {
-                    label: "Total Racks",
-                    value:
-                      currentConfig?.numberOfRacks ||
-                      currentInput?.numberOfRacks ||
-                      5,
-                    icon: Server,
-                    description: "Number of server racks",
-                  },
-                  {
-                    label: "Total Servers",
-                    value:
-                      (currentConfig?.numberOfRacks ||
+                {/* Technique-specific configuration details */}
+                {selectedTechnique === "air" &&
+                  [
+                    {
+                      label: "Server ID",
+                      value: serverId || "Not set",
+                      icon: Server,
+                      description: "Database server identifier",
+                    },
+                    {
+                      label: "Country ID",
+                      value: countryId || "Not set",
+                      icon: MapPin,
+                      description: "Database country identifier",
+                    },
+                    {
+                      label: "Total Racks",
+                      value:
+                        currentConfig?.numberOfRacks ||
                         currentInput?.numberOfRacks ||
-                        5) * 10,
-                    icon: Cpu,
-                    description: "Based on racks × 10",
-                  },
-                  {
-                    label: "Fan Configuration",
-                    value: currentConfig?.fans
-                      ? "Mixed Efficiency"
-                      : "Standard",
-                    icon: Wind,
-                    description: currentConfig?.fans
-                      ? `${currentConfig.fans.bestFans} Best / ${currentConfig.fans.averageFans} Avg / ${currentConfig.fans.oldFans} Old`
-                      : "Default",
-                  },
-                  {
-                    label: "Server Utilization",
-                    value: currentConfig?.averageUtilization
-                      ? `${currentConfig.averageUtilization}% Avg`
-                      : "45% Avg",
-                    icon: BarChart3,
-                    description: currentConfig?.peakUtilization
-                      ? `${currentConfig.peakUtilization}% Peak`
-                      : "85% Peak",
-                  },
-                  {
-                    label: "Server Type",
-                    value: currentConfig?.serverType || "Dell PowerEdge R750",
-                    icon: Server,
-                    description: "Hardware specification",
-                  },
-                  {
-                    label: "Region",
-                    value: currentConfig?.region || "US Northeast",
-                    icon: Cloud,
-                    description: "Geographic location",
-                  },
-                  {
-                    label: "IT Load",
-                    value: currentInput?.itLoad
-                      ? `${currentInput.itLoad} kW`
-                      : "Not set",
-                    icon: Zap,
-                    description: "Total IT equipment load",
-                  },
-                  {
-                    label: "Supply Air Temp",
-                    value: currentInput?.supplyAirTemp
-                      ? `${currentInput.supplyAirTemp}°C`
-                      : "20°C",
-                    icon: Thermometer,
-                    description: "Cooling supply temperature",
-                  },
-                ].map((item, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${
-                      isDark ? "bg-black/20" : "bg-gray-100/50"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      <item.icon
-                        className="w-5 h-5"
-                        style={{
-                          color: selectedTech?.color,
-                        }}
-                      />
+                        5,
+                      icon: Server,
+                      description: "Number of server racks",
+                    },
+                    {
+                      label: "Servers Per Rack",
+                      value: currentConfig?.serversPerRack || 10,
+                      icon: Cpu,
+                      description: "Servers per rack",
+                    },
+                    {
+                      label: "Fan Configuration",
+                      value: currentConfig?.fans
+                        ? "Mixed Efficiency"
+                        : "Standard",
+                      icon: Wind,
+                      description: currentConfig?.fans
+                        ? `${currentConfig.fans.bestFans} Best / ${currentConfig.fans.averageFans} Avg / ${currentConfig.fans.oldFans} Old`
+                        : "Default",
+                    },
+                    {
+                      label: "Server Utilization",
+                      value: currentConfig?.averageUtilization
+                        ? `${currentConfig.averageUtilization}% Avg`
+                        : "45% Avg",
+                      icon: BarChart3,
+                      description: currentConfig?.peakUtilization
+                        ? `${currentConfig.peakUtilization}% Peak`
+                        : "85% Peak",
+                    },
+                    {
+                      label: "Server Type",
+                      value: currentConfig?.serverType || "Dell PowerEdge R750",
+                      icon: Server,
+                      description: "Hardware specification",
+                    },
+                    {
+                      label: "Region",
+                      value: currentConfig?.region || "US Northeast",
+                      icon: Cloud,
+                      description: "Geographic location",
+                    },
+                  ].map((item, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${isDark ? "bg-black/20" : "bg-gray-100/50"}`}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <item.icon
+                          className="w-5 h-5"
+                          style={{ color: selectedTech?.color }}
+                        />
+                        <div
+                          className={`text-xs font-medium uppercase tracking-wide ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                        >
+                          {item.label}
+                        </div>
+                      </div>
                       <div
-                        className={`text-xs font-medium uppercase tracking-wide ${
-                          isDark ? "text-gray-400" : "text-gray-600"
-                        }`}
+                        className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
                       >
-                        {item.label}
+                        {item.value}
+                      </div>
+                      <div
+                        className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                      >
+                        {item.description}
                       </div>
                     </div>
+                  ))}
+                {selectedTechnique === "evaporative" &&
+                  [
+                    {
+                      label: "Total Servers",
+                      value:
+                        currentConfig?.totalServers ||
+                        currentInput?.totalServers ||
+                        50,
+                      icon: Cpu,
+                      description: "Total number of servers",
+                    },
+                    {
+                      label: "Servers Per Rack",
+                      value: currentConfig?.serversPerRack || 10,
+                      icon: Cpu,
+                      description: "Servers per rack",
+                    },
+                    {
+                      label: "Rack Height (U)",
+                      value: currentConfig?.rackHeightU || 42,
+                      icon: Server,
+                      description: "Rack height in U",
+                    },
+                    {
+                      label: "Airflow Quality Preset",
+                      value: currentConfig?.airflowQualityPreset || "typical",
+                      icon: Wind,
+                      description: "Airflow distribution quality",
+                    },
+                    {
+                      label: "Enclosure Type",
+                      value:
+                        currentConfig?.enclosureType || "outdoor_container",
+                      icon: Server,
+                      description: "Type of enclosure",
+                    },
+                    {
+                      label: "Cooling Architecture",
+                      value: currentConfig?.coolingArchitecture || "iec",
+                      icon: Cloud,
+                      description: "Cooling system architecture",
+                    },
+                    {
+                      label: "Media Type",
+                      value: currentConfig?.mediaType || "cellulose",
+                      icon: Droplets,
+                      description: "Evaporative media type",
+                    },
+                    {
+                      label: "Fan Efficiency",
+                      value: currentConfig?.fanEfficiency
+                        ? `${currentConfig.fanEfficiency}%`
+                        : "65%",
+                      icon: Wind,
+                      description: "Fan efficiency",
+                    },
+                    {
+                      label: "Electricity Rate",
+                      value: currentConfig?.electricityRate
+                        ? `$${currentConfig.electricityRate}/kWh`
+                        : "$0.12/kWh",
+                      icon: Zap,
+                      description: "Electricity cost",
+                    },
+                    {
+                      label: "Water Rate",
+                      value: currentConfig?.waterRate
+                        ? `$${currentConfig.waterRate}/L`
+                        : "$0.001/L",
+                      icon: Droplet,
+                      description: "Water cost",
+                    },
+                  ].map((item, idx) => (
                     <div
-                      className={`text-lg font-bold mb-1 ${
-                        isDark ? "text-white" : "text-gray-900"
-                      }`}
+                      key={idx}
+                      className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${isDark ? "bg-black/20" : "bg-gray-100/50"}`}
                     >
-                      {item.value}
+                      <div className="flex items-center gap-3 mb-2">
+                        <item.icon
+                          className="w-5 h-5"
+                          style={{ color: selectedTech?.color }}
+                        />
+                        <div
+                          className={`text-xs font-medium uppercase tracking-wide ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                        >
+                          {item.label}
+                        </div>
+                      </div>
+                      <div
+                        className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
+                      >
+                        {item.value}
+                      </div>
+                      <div
+                        className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                      >
+                        {item.description}
+                      </div>
                     </div>
+                  ))}
+                {selectedTechnique === "water" &&
+                  [
+                    {
+                      label: "Number of Racks",
+                      value:
+                        currentConfig?.numberOfRacks ||
+                        currentInput?.numberOfRacks ||
+                        5,
+                      icon: Server,
+                      description: "Number of server racks",
+                    },
+                    {
+                      label: "Servers Per Rack",
+                      value: currentConfig?.serversPerRack || 10,
+                      icon: Cpu,
+                      description: "Servers per rack",
+                    },
+                    {
+                      label: "Chiller Type",
+                      value: currentConfig?.chillerType || "air_cooled_scroll",
+                      icon: Cloud,
+                      description: "Type of chiller",
+                    },
+                    {
+                      label: "Supply Water Temp (°C)",
+                      value: currentConfig?.supplyWaterTempC || 7.0,
+                      icon: Thermometer,
+                      description: "Supply water temperature",
+                    },
+                    {
+                      label: "Warming Delta (ΔT)",
+                      value: currentConfig?.warmingDelta || 0.0,
+                      icon: Thermometer,
+                      description: "Climate scenario warming delta",
+                    },
+                    {
+                      label: "Altitude",
+                      value: currentConfig?.altitude || 0,
+                      icon: Mountain,
+                      description: "Site altitude",
+                    },
+                    {
+                      label: "Water Stress Level",
+                      value: currentConfig?.waterStressLevel || "low",
+                      icon: Droplet,
+                      description: "Water stress level",
+                    },
+                    {
+                      label: "Electricity Rate",
+                      value: currentConfig?.baseElectricityRate
+                        ? `$${currentConfig.baseElectricityRate}/kWh`
+                        : "$0.12/kWh",
+                      icon: Zap,
+                      description: "Electricity cost",
+                    },
+                    {
+                      label: "Carbon Intensity",
+                      value: currentConfig?.carbonIntensity
+                        ? `${currentConfig.carbonIntensity} kgCO2/kWh`
+                        : "0.5 kgCO2/kWh",
+                      icon: Leaf,
+                      description: "Grid carbon intensity",
+                    },
+                  ].map((item, idx) => (
                     <div
-                      className={`text-xs ${
-                        isDark ? "text-gray-500" : "text-gray-500"
-                      }`}
+                      key={idx}
+                      className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${isDark ? "bg-black/20" : "bg-gray-100/50"}`}
                     >
-                      {item.description}
+                      <div className="flex items-center gap-3 mb-2">
+                        <item.icon
+                          className="w-5 h-5"
+                          style={{ color: selectedTech?.color }}
+                        />
+                        <div
+                          className={`text-xs font-medium uppercase tracking-wide ${isDark ? "text-gray-400" : "text-gray-600"}`}
+                        >
+                          {item.label}
+                        </div>
+                      </div>
+                      <div
+                        className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
+                      >
+                        {item.value}
+                      </div>
+                      <div
+                        className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}
+                      >
+                        {item.description}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
 
@@ -2003,6 +2136,9 @@ export const InputManagement: React.FC = () => {
       handleSubmit,
     ],
   );
+
+  // --- 3D Visualization Modal State ---
+  const [show3DModal, setShow3DModal] = useState(false);
 
   return (
     <div
@@ -2160,7 +2296,42 @@ export const InputManagement: React.FC = () => {
                     locationData={locationData}
                   />
                 )}
-                {currentStep === 3 && <Step3ReviewSubmit />}
+                {currentStep === 3 && (
+                  <>
+                    <Step3ReviewSubmit />
+                    <div className="flex justify-center mt-8">
+                      <button
+                        className="px-8 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white shadow-lg"
+                        onClick={() => setShow3DModal(true)}
+                        type="button"
+                      >
+                        Visualize Configuration (3D)
+                      </button>
+                    </div>
+                    {show3DModal && (
+                      <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "#050810" }}>
+                        {/* Modal header */}
+                        <div className={`flex items-center justify-between px-6 py-3 border-b ${isDark ? "border-[#3f4a68] bg-[#0a0e27]" : "border-gray-700 bg-[#0a0e27]"}`}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-[#5ce1e5] animate-pulse" />
+                            <span className="text-white font-bold tracking-wide">Digital Twin — 3D Visualization</span>
+                            <span className="text-xs text-gray-400 ml-2">360° interactive view · click any component for details</span>
+                          </div>
+                          <button
+                            onClick={() => setShow3DModal(false)}
+                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-[#27304a] transition-all"
+                          >
+                            ✕ Close
+                          </button>
+                        </div>
+                        {/* Full-screen canvas */}
+                        <div className="flex-1 overflow-hidden">
+                          <DigitalTwin3D config={currentConfig} isDark={true} />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </ErrorBoundary>
           </div>
@@ -2241,8 +2412,9 @@ export const InputManagement: React.FC = () => {
           }
         }
       `}</style>
+
+      {/* Progress Modal */}
+      <SimulationProgressModal />
     </div>
   );
 };
-
-export default InputManagement;

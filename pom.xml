@@ -17,9 +17,8 @@
   <modules>
     <module>dc-core</module>
     <module>cooling-air-economizer</module>
-    <module>dataset-generator</module>
     <module>cooling-evaporative</module>
-    <module>chilled-water-ssytem</module>
+    <module>chilled-water-system</module>
     <module>evaporative-cooling-api</module>
   </modules>
 

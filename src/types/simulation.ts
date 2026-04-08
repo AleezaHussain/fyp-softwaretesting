@@ -1,5 +1,5 @@
 export type CoolingTechnique = 'air' | 'water' | 'evaporative'
-export type ComponentType = 'server_rack' | 'router' | 'cooling_pump' | 'pdu' | 'storage_array' | 'backup_generator'
+export type ComponentType = 'server_rack' | 'router' | 'cooling_pump' | 'pdu' | 'storage_array' | 'backup_generator' | 'fan' | 'chiller'
 export type ServerRackSize = '1U' | '2U' | '4U'
 
 export interface DataCenterComponent {
@@ -99,7 +99,6 @@ export interface ThermalData {
   position: { x: number; y: number; z: number }
 }
 
-export interface ComponentLibrary {
   [key in ComponentType]: {
     name: string
     color: string

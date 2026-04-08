@@ -130,3 +130,498 @@ First 10 hours IT load:
   Hour 9: 60.36238615181126 kW (util=1.00)
 ========================================
 
+
+========================================
+CloudSim Simulation Started: Thu Mar 05 07:03:43 PKT 2026
+========================================
+Config: 50 servers, 8760 hours, mode=MIXED
+Created datacenter with 50 hosts
+Submitted 50 VMs
+Submitted 50 cloudlets
+Starting simulation...
+Simulation completed at time: 1.5767872054601693E8
+Finished cloudlets: 50/50
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=63072000000, finishTime=1.2536075646493693E8
+  Cloudlet 1: status=SUCCESS, length=63072000000, finishTime=1.1300804540221463E8
+  Cloudlet 2: status=SUCCESS, length=63072000000, finishTime=1.027916419215857E8
+  Cloudlet 3: status=SUCCESS, length=63072000000, finishTime=1.1649649082849845E8
+  Cloudlet 4: status=SUCCESS, length=63072000000, finishTime=1.0281986338622329E8
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 79.35823173507592 kW (util=0.79)
+  Hour 1: 79.42131424646696 kW (util=0.80)
+  Hour 2: 78.97986626631528 kW (util=0.79)
+  Hour 3: 79.01963970278969 kW (util=0.79)
+  Hour 4: 78.73890785830001 kW (util=0.79)
+  Hour 5: 79.17030553061032 kW (util=0.79)
+  Hour 6: 78.95004954070356 kW (util=0.79)
+  Hour 7: 78.95581562702965 kW (util=0.79)
+  Hour 8: 78.7543129885278 kW (util=0.79)
+  Hour 9: 78.76962825739369 kW (util=0.79)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Thu Mar 05 07:45:36 PKT 2026
+========================================
+Config: 50 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+Submitted 193 cloudlets
+Starting simulation...
+Simulation completed at time: 2.096096473735476E10
+Finished cloudlets: 193/193
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=93729059, finishTime=113691.01002593257
+  Cloudlet 1: status=SUCCESS, length=109027395, finishTime=1.0630067404508023E7
+  Cloudlet 2: status=SUCCESS, length=146769186, finishTime=2.1189072128715627E7
+  Cloudlet 3: status=SUCCESS, length=163272879, finishTime=200424.29655250898
+  Cloudlet 4: status=SUCCESS, length=88836671, finishTime=6414529.248695622
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 156.7016575907804 kW (util=0.83)
+  Hour 1: 156.81717731149195 kW (util=0.83)
+  Hour 2: 156.49186006015103 kW (util=0.83)
+  Hour 3: 155.93821502996755 kW (util=0.83)
+  Hour 4: 157.37695931958922 kW (util=0.83)
+  Hour 5: 155.02011218189568 kW (util=0.83)
+  Hour 6: 155.88453419209682 kW (util=0.83)
+  Hour 7: 156.2631102563788 kW (util=0.83)
+  Hour 8: 156.51922743119263 kW (util=0.83)
+  Hour 9: 156.24934068585833 kW (util=0.83)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Thu Mar 05 08:00:34 PKT 2026
+========================================
+Config: 50 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+Submitted 208 cloudlets
+Starting simulation...
+Simulation completed at time: 2.057136502960873E10
+Finished cloudlets: 208/208
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=147383380, finishTime=524771.710372372
+  Cloudlet 1: status=SUCCESS, length=140991778, finishTime=6471567.681411779
+  Cloudlet 2: status=SUCCESS, length=94062335, finishTime=1.2720113193699157E7
+  Cloudlet 3: status=SUCCESS, length=125716491, finishTime=1.9075634994361263E7
+  Cloudlet 4: status=SUCCESS, length=109661654, finishTime=2.5347522560667753E7
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 6.545821077924124 kW (util=0.83)
+  Hour 1: 6.4989526633349 kW (util=0.83)
+  Hour 2: 6.547390546082896 kW (util=0.84)
+  Hour 3: 6.578939838960232 kW (util=0.84)
+  Hour 4: 6.571525858182 kW (util=0.83)
+  Hour 5: 6.565751600561478 kW (util=0.83)
+  Hour 6: 6.543234935738801 kW (util=0.83)
+  Hour 7: 6.552013721477568 kW (util=0.84)
+  Hour 8: 6.561592187733932 kW (util=0.83)
+  Hour 9: 6.542388011748849 kW (util=0.84)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Sun Mar 08 21:55:15 PKT 2026
+========================================
+Config: 143 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 143 hosts
+Submitted 143 VMs
+Submitted 592 cloudlets
+Starting simulation...
+Simulation completed at time: 1.0534250028488369E10
+Finished cloudlets: 592/592
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=140912846, finishTime=151245.54741900563
+  Cloudlet 1: status=SUCCESS, length=136401067, finishTime=8031467.537489321
+  Cloudlet 2: status=SUCCESS, length=124120155, finishTime=1.5906601943046378E7
+  Cloudlet 3: status=SUCCESS, length=90478056, finishTime=2.374871832008002E7
+  Cloudlet 4: status=SUCCESS, length=154189760, finishTime=184257.87611711648
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 441.99751730370235 kW (util=0.82)
+  Hour 1: 443.3718651724199 kW (util=0.82)
+  Hour 2: 442.85830243205737 kW (util=0.82)
+  Hour 3: 443.2983789247153 kW (util=0.83)
+  Hour 4: 441.2533177611597 kW (util=0.82)
+  Hour 5: 443.5968550968545 kW (util=0.83)
+  Hour 6: 441.8396465102287 kW (util=0.82)
+  Hour 7: 442.60317934418134 kW (util=0.82)
+  Hour 8: 442.0509776871413 kW (util=0.82)
+  Hour 9: 443.2518646447023 kW (util=0.83)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Mon Mar 09 03:31:52 PKT 2026
+========================================
+Config: 50 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+Submitted 199 cloudlets
+Starting simulation...
+Simulation completed at time: 1.0176481005132746E10
+Finished cloudlets: 199/199
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=100895264, finishTime=238625.24539358442
+  Cloudlet 1: status=SUCCESS, length=143390474, finishTime=8227597.652070033
+  Cloudlet 2: status=SUCCESS, length=153924018, finishTime=1.6051404931061717E7
+  Cloudlet 3: status=SUCCESS, length=130696381, finishTime=2.3972087661697023E7
+  Cloudlet 4: status=SUCCESS, length=114678994, finishTime=402851.1555349296
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 39.875186595472115 kW (util=0.81)
+  Hour 1: 39.77214785679053 kW (util=0.81)
+  Hour 2: 39.70097670846994 kW (util=0.81)
+  Hour 3: 39.4930086957486 kW (util=0.81)
+  Hour 4: 39.6722842095982 kW (util=0.81)
+  Hour 5: 39.69275127222936 kW (util=0.81)
+  Hour 6: 39.43689149927441 kW (util=0.81)
+  Hour 7: 39.632763639876075 kW (util=0.81)
+  Hour 8: 39.531920950630955 kW (util=0.81)
+  Hour 9: 39.85806700535763 kW (util=0.81)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Tue Mar 17 01:51:23 PKT 2026
+========================================
+Config: 50 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+Submitted 216 cloudlets
+Starting simulation...
+Simulation completed at time: 2.554866454576294E7
+Finished cloudlets: 216/216
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=103245023, finishTime=232889.61785897496
+  Cloudlet 1: status=SUCCESS, length=144741341, finishTime=6616442.353526956
+  Cloudlet 2: status=SUCCESS, length=93180522, finishTime=1.283772061465864E7
+  Cloudlet 3: status=SUCCESS, length=161197857, finishTime=1.9265202871327855E7
+  Cloudlet 4: status=SUCCESS, length=162106954, finishTime=2.550002871114351E7
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 68.74218544324795 kW (util=0.80)
+  Hour 1: 68.89189519749968 kW (util=0.81)
+  Hour 2: 68.64368943108676 kW (util=0.81)
+  Hour 3: 68.75404323514904 kW (util=0.81)
+  Hour 4: 68.52412758363413 kW (util=0.80)
+  Hour 5: 68.60049672033098 kW (util=0.81)
+  Hour 6: 68.81282231640563 kW (util=0.81)
+  Hour 7: 69.14861745938707 kW (util=0.81)
+  Hour 8: 68.91969383979962 kW (util=0.81)
+  Hour 9: 68.9484638112851 kW (util=0.80)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Tue Mar 17 02:41:48 PKT 2026
+========================================
+Config: 50 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+Submitted 195 cloudlets
+Starting simulation...
+Simulation completed at time: 2.5528448504097924E7
+Finished cloudlets: 195/195
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=150556068, finishTime=376352.6923627848
+  Cloudlet 1: status=SUCCESS, length=136572435, finishTime=1.066396288665708E7
+  Cloudlet 2: status=SUCCESS, length=158331957, finishTime=2.1219257797059495E7
+  Cloudlet 3: status=SUCCESS, length=154385315, finishTime=173899.1830678953
+  Cloudlet 4: status=SUCCESS, length=147906049, finishTime=8043345.82858811
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 44.22618985487527 kW (util=0.87)
+  Hour 1: 44.338175253207986 kW (util=0.86)
+  Hour 2: 44.24116993346273 kW (util=0.86)
+  Hour 3: 44.36836424018699 kW (util=0.86)
+  Hour 4: 44.37719793936505 kW (util=0.86)
+  Hour 5: 44.49972736705792 kW (util=0.86)
+  Hour 6: 44.37644949323047 kW (util=0.86)
+  Hour 7: 44.46627450357858 kW (util=0.86)
+  Hour 8: 44.279919589458416 kW (util=0.86)
+  Hour 9: 44.47000840765678 kW (util=0.86)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Tue Mar 17 03:10:02 PKT 2026
+========================================
+Config: 50 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+Submitted 204 cloudlets
+Starting simulation...
+Simulation completed at time: 2.125937609426322E10
+Finished cloudlets: 204/204
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=168814428, finishTime=375279.7477469794
+  Cloudlet 1: status=SUCCESS, length=110338388, finishTime=8012702.538608737
+  Cloudlet 2: status=SUCCESS, length=140249149, finishTime=1.591648274593182E7
+  Cloudlet 3: status=SUCCESS, length=145451241, finishTime=2.3806073202158917E7
+  Cloudlet 4: status=SUCCESS, length=122258468, finishTime=130547.96637677781
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 38.137427619128424 kW (util=0.79)
+  Hour 1: 38.21000055887818 kW (util=0.78)
+  Hour 2: 38.26161309854388 kW (util=0.79)
+  Hour 3: 38.024809334687255 kW (util=0.79)
+  Hour 4: 38.27492459955499 kW (util=0.78)
+  Hour 5: 37.94345053303504 kW (util=0.79)
+  Hour 6: 37.99838545830165 kW (util=0.79)
+  Hour 7: 38.161372433468145 kW (util=0.79)
+  Hour 8: 38.08523556790624 kW (util=0.79)
+  Hour 9: 38.29085950059586 kW (util=0.79)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Tue Apr 07 17:14:06 PKT 2026
+========================================
+Config: 220 servers, 8760 hours, mode=MIXED
+Created datacenter with 220 hosts
+Submitted 220 VMs
+Submitted 220 cloudlets
+Starting simulation...
+Simulation completed at time: 1.5766998401402882E8
+Finished cloudlets: 220/220
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=63072000000, finishTime=1.2144605382251944E8
+  Cloudlet 1: status=SUCCESS, length=63072000000, finishTime=1.0123933900418603E8
+  Cloudlet 2: status=SUCCESS, length=63072000000, finishTime=1.0909199862250623E8
+  Cloudlet 3: status=SUCCESS, length=63072000000, finishTime=1.1432027860251878E8
+  Cloudlet 4: status=SUCCESS, length=63072000000, finishTime=1.0294352873236598E8
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 186.5993713042731 kW (util=0.79)
+  Hour 1: 186.81417254210785 kW (util=0.79)
+  Hour 2: 186.99246117888492 kW (util=0.79)
+  Hour 3: 186.678693230194 kW (util=0.79)
+  Hour 4: 186.76969903504263 kW (util=0.79)
+  Hour 5: 187.12223294357932 kW (util=0.79)
+  Hour 6: 187.3297051815207 kW (util=0.79)
+  Hour 7: 187.01143983273133 kW (util=0.79)
+  Hour 8: 187.33316371963167 kW (util=0.79)
+  Hour 9: 187.45106924492285 kW (util=0.78)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Tue Apr 07 19:54:54 PKT 2026
+========================================
+Config: 56 servers, 8760 hours, mode=MIXED
+Created datacenter with 56 hosts
+Submitted 56 VMs
+Submitted 56 cloudlets
+Starting simulation...
+Simulation completed at time: 1.5676308648449734E8
+Finished cloudlets: 56/56
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=63072000000, finishTime=1.0771553552065818E8
+  Cloudlet 1: status=SUCCESS, length=63072000000, finishTime=1.2291131031481567E8
+  Cloudlet 2: status=SUCCESS, length=63072000000, finishTime=1.1896316349254692E8
+  Cloudlet 3: status=SUCCESS, length=63072000000, finishTime=1.0868612027453142E8
+  Cloudlet 4: status=SUCCESS, length=63072000000, finishTime=1.0247198710457769E8
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 58.67810141699551 kW (util=0.78)
+  Hour 1: 58.31041295791732 kW (util=0.78)
+  Hour 2: 58.26345696315309 kW (util=0.78)
+  Hour 3: 58.822523508106876 kW (util=0.78)
+  Hour 4: 58.4968254831687 kW (util=0.78)
+  Hour 5: 58.25345759221915 kW (util=0.78)
+  Hour 6: 58.469880387597506 kW (util=0.78)
+  Hour 7: 58.48552270409063 kW (util=0.78)
+  Hour 8: 58.715860574333604 kW (util=0.79)
+  Hour 9: 58.28712451454102 kW (util=0.78)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Tue Apr 07 20:21:17 PKT 2026
+========================================
+Config: 192 servers, 8760 hours, mode=ENTERPRISE
+Created datacenter with 192 hosts
+Submitted 192 VMs
+Submitted 192 cloudlets
+Starting simulation...
+Simulation completed at time: 1.2600842658107625E8
+Finished cloudlets: 192/192
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=63072000000, finishTime=1.2145892553427625E8
+  Cloudlet 1: status=SUCCESS, length=63072000000, finishTime=1.0266226683724979E8
+  Cloudlet 2: status=SUCCESS, length=63072000000, finishTime=1.1797125648936342E8
+  Cloudlet 3: status=SUCCESS, length=63072000000, finishTime=1.1832383816590333E8
+  Cloudlet 4: status=SUCCESS, length=63072000000, finishTime=1.0132146230283906E8
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 152.2272649929389 kW (util=0.48)
+  Hour 1: 152.63783490528547 kW (util=0.48)
+  Hour 2: 152.07138922729865 kW (util=0.48)
+  Hour 3: 152.55036488507454 kW (util=0.48)
+  Hour 4: 152.32111840455607 kW (util=0.48)
+  Hour 5: 152.3015033300135 kW (util=0.48)
+  Hour 6: 152.60504815554697 kW (util=0.48)
+  Hour 7: 152.59134642180666 kW (util=0.48)
+  Hour 8: 151.8492113386078 kW (util=0.48)
+  Hour 9: 152.67009991212075 kW (util=0.48)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Tue Apr 07 20:21:40 PKT 2026
+========================================
+Config: 192 servers, 8760 hours, mode=ENTERPRISE
+Created datacenter with 192 hosts
+Submitted 192 VMs
+Submitted 192 cloudlets
+Starting simulation...
+Simulation completed at time: 1.2605767100163223E8
+Finished cloudlets: 192/192
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=63072000000, finishTime=1.1898945498810416E8
+  Cloudlet 1: status=SUCCESS, length=63072000000, finishTime=1.0171637555336879E8
+  Cloudlet 2: status=SUCCESS, length=63072000000, finishTime=9.992072153422515E7
+  Cloudlet 3: status=SUCCESS, length=63072000000, finishTime=1.0322543067005281E8
+  Cloudlet 4: status=SUCCESS, length=63072000000, finishTime=1.1558417693666786E8
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 151.58656618291738 kW (util=0.47)
+  Hour 1: 151.67027792756858 kW (util=0.47)
+  Hour 2: 151.6006873171038 kW (util=0.47)
+  Hour 3: 152.37605520196672 kW (util=0.48)
+  Hour 4: 152.06444686843196 kW (util=0.48)
+  Hour 5: 151.71737911190732 kW (util=0.48)
+  Hour 6: 151.94700585071075 kW (util=0.48)
+  Hour 7: 151.2208587705912 kW (util=0.47)
+  Hour 8: 151.9104865155718 kW (util=0.48)
+  Hour 9: 151.83767218589173 kW (util=0.48)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Tue Apr 07 23:25:57 PKT 2026
+========================================
+Config: 260 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 260 hosts
+Submitted 260 VMs
+Submitted 1014 cloudlets
+Starting simulation...
+Simulation completed at time: 1.148188792714587E10
+Finished cloudlets: 1014/1014
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=109774363, finishTime=372492.96563333215
+  Cloudlet 1: status=SUCCESS, length=121053222, finishTime=6595728.608952002
+  Cloudlet 2: status=SUCCESS, length=134216454, finishTime=1.2910093246077536E7
+  Cloudlet 3: status=SUCCESS, length=137728614, finishTime=1.919428958965273E7
+  Cloudlet 4: status=SUCCESS, length=132027030, finishTime=2.5546306450408578E7
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 353.90029813295405 kW (util=0.77)
+  Hour 1: 354.3943930223521 kW (util=0.78)
+  Hour 2: 355.2769509413831 kW (util=0.77)
+  Hour 3: 354.2613264193306 kW (util=0.77)
+  Hour 4: 354.063004298492 kW (util=0.77)
+  Hour 5: 353.5412423431183 kW (util=0.77)
+  Hour 6: 353.1264406910511 kW (util=0.77)
+  Hour 7: 354.4331452017414 kW (util=0.78)
+  Hour 8: 354.35098693658733 kW (util=0.78)
+  Hour 9: 354.42773771009223 kW (util=0.78)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Wed Apr 08 15:40:00 PKT 2026
+========================================
+Config: 110 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 110 hosts
+Submitted 110 VMs
+Submitted 450 cloudlets
+Starting simulation...
+Simulation completed at time: 1.1157822249350098E10
+Finished cloudlets: 450/450
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=140675589, finishTime=476682.7606675664
+  Cloudlet 1: status=SUCCESS, length=149972554, finishTime=8229850.103958551
+  Cloudlet 2: status=SUCCESS, length=170951101, finishTime=1.6161152247478489E7
+  Cloudlet 3: status=SUCCESS, length=157630513, finishTime=2.395148128326901E7
+  Cloudlet 4: status=SUCCESS, length=166107927, finishTime=391330.0250203951
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 13.690429231769242 kW (util=0.79)
+  Hour 1: 13.678225080277787 kW (util=0.79)
+  Hour 2: 13.711308890344142 kW (util=0.79)
+  Hour 3: 13.665530336592685 kW (util=0.79)
+  Hour 4: 13.734140247152613 kW (util=0.79)
+  Hour 5: 13.594446103552869 kW (util=0.79)
+  Hour 6: 13.639318600763021 kW (util=0.79)
+  Hour 7: 13.682282934280682 kW (util=0.79)
+  Hour 8: 13.655925532574676 kW (util=0.79)
+  Hour 9: 13.707125177846354 kW (util=0.79)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Thu Apr 09 00:46:26 PKT 2026
+========================================
+Config: 180 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 180 hosts
+Submitted 180 VMs
+Submitted 710 cloudlets
+Starting simulation...
+Simulation completed at time: 1.0995752025633228E10
+Finished cloudlets: 710/710
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=115701799, finishTime=138882.38356148597
+  Cloudlet 1: status=SUCCESS, length=135293723, finishTime=1.0679945890323842E7
+  Cloudlet 2: status=SUCCESS, length=168890943, finishTime=2.120896523039698E7
+  Cloudlet 3: status=SUCCESS, length=143645813, finishTime=154897.179386627
+  Cloudlet 4: status=SUCCESS, length=98680560, finishTime=8004300.138907216
+
+Generated workload profile: 8760 hours
+First 10 hours IT load:
+  Hour 0: 391.22239462308295 kW (util=0.75)
+  Hour 1: 391.8579196385111 kW (util=0.75)
+  Hour 2: 392.988190085595 kW (util=0.75)
+  Hour 3: 392.46054493345986 kW (util=0.75)
+  Hour 4: 392.43820963947945 kW (util=0.75)
+  Hour 5: 394.1645477752218 kW (util=0.75)
+  Hour 6: 392.89273357239966 kW (util=0.75)
+  Hour 7: 393.1548297160414 kW (util=0.75)
+  Hour 8: 393.9587143467123 kW (util=0.75)
+  Hour 9: 393.83596196722397 kW (util=0.75)
+========================================
+

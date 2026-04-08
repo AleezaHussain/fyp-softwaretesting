@@ -87,6 +87,9 @@ public class SimulationRequest {
         public String power_utilization_model = "linear"; // linear, nonlinear
         
         public String workload_type = "traditional"; // traditional, ai_training, ai_inference, mixed_ai
+
+        // Accept advanced CloudSim config from frontend
+        public CloudSimConfig cloudsim_config;
     }
     
     public static class CoolingSystemConfig {

@@ -1,163 +1,197 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Sidebar } from '../components/shared/Sidebar'
-import { useAuthStore, useSimulationStore } from '../store/store'
-import { useThemeStore } from '../hooks/useTheme'  
-import { 
-  Play, 
-  Eye, 
-  GitCompare, 
-  TrendingUp, 
-  Zap, 
-  Leaf, 
-  Thermometer, 
-  Wind, 
-  Cpu, 
-  Server, 
-  Clock, 
-  Download,
-  Activity,
+import React, { useState, useEffect, useMemo } from "react";
+
+import { useNavigate } from "react-router-dom";
+import {
   BarChart3,
-  Calendar,
-  AlertCircle,
-  ChevronRight,
-  Sparkles,
+  GitCompare,
+  Play,
   Cloud,
-  Droplets,
+  Wind,
+  Cpu,
+  Server,
+  Activity,
   Shield,
-  Users
-} from 'lucide-react'
+  Calendar,
+  Thermometer,
+  MapPin,
+  Eye,
+  Download,
+  ChevronRight,
+  Droplets,
+  Clock,
+  FileText,
+  User,
+  LogIn,
+} from "lucide-react";
+import { getRecentActivity, activityLabel, ActivityEntry } from "../services/activityService";
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+} from "recharts";
 
-// Animated Counter for Stats
-const AnimatedCounter: React.FC<{ value: number; label: string; suffix?: string }> = ({ value, label, suffix = '' }) => {
-  const [count, setCount] = useState(0)
-  const isDark = useThemeStore((state) => state.isDark)  // This should now work
+// Custom hooks and services
+import { useThemeStore } from "../hooks/useTheme";
+import { useAuthStore } from "../store/store";
+import { getCurrentUserProfile } from "../services/authService";
+import { useSimulationStore } from "../store/store";
+import { getTariffCarbonLocations } from "../services/tariffLocationService";
+import {
+  getUserSimulations,
+  SimulationWithResults,
+} from "../services/simulationService";
 
-  useEffect(() => {
-    let start = 0
-    const increment = value / 40
-    const timer = setInterval(() => {
-      start += increment
-      if (start >= value) {
-        setCount(value)
-        clearInterval(timer)
-      } else {
-        setCount(Math.floor(start))
-      }
-    }, 30)
-    return () => clearInterval(timer)
-  }, [value])
+// Components
+import { Sidebar } from "../components/shared/Sidebar";
+import CarbonTariffChart from "../components/CarbonTariffChart";
+import LocationMap from "../components/LocationMap";
+
+// Types
+type Tariff = {
+  id: number;
+  country_name: string;
+  co2_grid_factor: number;
+  electricity_tariff: number;
+  created_at: string;
+};
+
+type Location = {
+  id: number;
+  city: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  elevation: number;
+  wmo_station: string;
+  source: string;
+};
+
+type ChartDatum = {
+  name: string;
+  energy: number;
+  cost: number;
+  color: string;
+};
+
+// Constants
+const TECH_COLORS = ["#5ce1e5", "#0ea5e9", "#fd5757", "#8b5cf6", "#10b981"];
+const SERVER_COLORS = ["#0ea5e9", "#5ce1e5", "#8b5cf6", "#fd5757", "#10b981"];
+
+// Helper functions
+const groupByTechnique = (simulations: SimulationWithResults[]) => {
+  const grouped: Record<string, SimulationWithResults[]> = {};
+  simulations.forEach((sim) => {
+    const tech = sim.coolingTechnique || "unknown";
+    if (!grouped[tech]) grouped[tech] = [];
+    grouped[tech].push(sim);
+  });
+  return grouped;
+};
+
+const groupByServer = (simulations: SimulationWithResults[]) => {
+  const grouped: Record<string, SimulationWithResults[]> = {};
+  simulations.forEach((sim) => {
+    // Use simulation_type for server grouping
+    const server = sim.simulation_type || "unknown";
+    if (!grouped[server]) grouped[server] = [];
+    grouped[server].push(sim);
+  });
+  return grouped;
+};
+
+// Stat Card Component
+const StatCard: React.FC<{
+  icon: React.ElementType;
+  label: string;
+  value: string | number;
+  change?: string;
+  color: string;
+  delay: number;
+}> = ({ icon: Icon, label, value, change, color, delay }) => {
+  const isDark = useThemeStore().isDark;
+  const [isHovering, setIsHovering] = useState(false);
 
   return (
-    <div className="flex flex-col">
-      <div className={`text-3xl font-bold ${
-        isDark ? 'text-white' : 'text-gray-900'
-      }`}>
-        {count}{suffix}
-      </div>
-      <div className={`text-sm mt-1 ${
-        isDark ? 'text-gray-400' : 'text-gray-600'
-      }`}>
-        {label}
-      </div>
-    </div>
-  )
-}
-
-// Enhanced Stat Card with 3D Effect
-const EnhancedStatCard: React.FC<{
-  label: string
-  value: string | number
-  icon: React.ElementType
-  change?: string
-  isPositive?: boolean
-  color: string
-}> = ({ label, value, icon: Icon, change, isPositive, color }) => {
-  const isDark = useThemeStore((state) => state.isDark)  
-  const [isHovering, setIsHovering] = useState(false)
-
-  return (
-    <div 
-      className={`relative group rounded-2xl p-6 transition-all duration-300 transform hover:scale-105 cursor-pointer ${
-        isDark 
-          ? 'bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68] hover:border-[#5ce1e5]/30' 
-          : 'bg-gradient-to-br from-white to-gray-50 border border-gray-200 hover:border-[#0ea5e9]/30'
+    <div
+      className={`relative rounded-2xl p-6 transition-all duration-500 transform hover:scale-105 animate-in fade-in ${
+        isDark
+          ? "bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]"
+          : "bg-gradient-to-br from-white to-gray-50 border border-gray-200"
       }`}
+      style={{ animationDelay: `${delay}ms` }}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
-      {/* Glow Effect */}
-      <div 
-        className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-        style={{
-          background: `radial-gradient(circle at center, ${color}20, transparent 70%)`
-        }}
-      />
-
-      <div className="relative z-10">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className={`text-sm font-medium mb-1 ${
-              isDark ? 'text-gray-400' : 'text-gray-600'
-            }`}>
-              {label}
-            </div>
-            <div className="flex items-baseline gap-2">
-              <div className={`text-3xl font-bold ${
-                isDark ? 'text-white' : 'text-gray-900'
-              }`}>
-                {value}
-              </div>
-              {change && (
-                <div className={`flex items-center gap-1 text-sm font-semibold px-2 py-1 rounded-full ${
-                  isPositive 
-                    ? isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-500/20 text-green-600'
-                    : isDark ? 'bg-red-500/20 text-red-400' : 'bg-red-500/20 text-red-600'
-                }`}>
-                  {isPositive ? '↑' : '↓'} {change}
-                </div>
-              )}
-            </div>
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <div
+            className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
+          >
+            {label}
           </div>
-          
-          {/* Animated Icon */}
-          <div className={`p-3 rounded-xl ${
-            isDark ? 'bg-black/30' : 'bg-white/50'
-          } group-hover:scale-110 transition-transform duration-300`}>
-            <Icon className={`w-6 h-6`} style={{ color }} />
+          <div className="flex items-baseline gap-2">
+            <div
+              className={`text-2xl font-bold ${
+                isDark ? "text-white" : "text-gray-900"
+              }`}
+            >
+              {value}
+            </div>
+            {change && (
+              <span
+                className={`text-xs font-medium ${
+                  change.startsWith("+")
+                    ? "text-green-500"
+                    : change.startsWith("-")
+                      ? "text-red-500"
+                      : "text-gray-500"
+                }`}
+              >
+                {change}
+              </span>
+            )}
           </div>
         </div>
-        
-        {/* Progress Bar */}
-        {isHovering && (
-          <div className={`h-1 rounded-full overflow-hidden ${
-            isDark ? 'bg-gray-800' : 'bg-gray-200'
-          }`}>
-            <div 
-              className="h-full rounded-full transition-all duration-1000"
-              style={{ 
-                width: `${Math.min(100, typeof value === 'number' ? value : parseInt(value as string) * 2)}%`,
-                background: color
-              }}
-            />
-          </div>
-        )}
+        <div
+          className={`p-3 rounded-xl transition-all duration-300 ${
+            isHovering ? "scale-110" : ""
+          }`}
+          style={{ backgroundColor: `${color}20` }}
+        >
+          <Icon className="w-6 h-6" style={{ color }} />
+        </div>
       </div>
+      {/* Glow effect on hover */}
+      {isHovering && (
+        <div
+          className="absolute inset-0 rounded-2xl opacity-20"
+          style={{
+            background: `radial-gradient(circle at top right, ${color}, transparent 70%)`,
+          }}
+        />
+      )}
     </div>
-  )
-}
+  );
+};
 
-// Quick Action Card with Hover Effects
+// Quick Action Card Component
 const QuickActionCard: React.FC<{
-  title: string
-  description: string
-  icon: React.ElementType
-  action: () => void
-  gradient: string
-  delay: number
+  title: string;
+  description: string;
+  icon: React.ElementType;
+  action: () => void;
+  gradient: string;
+  delay: number;
 }> = ({ title, description, icon: Icon, action, gradient, delay }) => {
-  const isDark = useThemeStore((state) => state.isDark)  
-  const [isHovering, setIsHovering] = useState(false)
+  const isDark = useThemeStore().isDark;
+  const [isHovering, setIsHovering] = useState(false);
 
   return (
     <button
@@ -165,15 +199,17 @@ const QuickActionCard: React.FC<{
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
       className={`relative group rounded-2xl p-8 overflow-hidden transition-all duration-500 transform hover:scale-105 animate-in fade-in ${
-        isDark ? 'text-white' : 'text-white'
+        isDark ? "text-white" : "text-white"
       }`}
       style={{ animationDelay: `${delay}ms` }}
     >
       {/* Animated Gradient Background */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${gradient} transition-all duration-500 ${
-        isHovering ? 'opacity-100' : 'opacity-90'
-      }`} />
-      
+      <div
+        className={`absolute inset-0 bg-gradient-to-br ${gradient} transition-all duration-500 ${
+          isHovering ? "opacity-100" : "opacity-90"
+        }`}
+      />
+
       {/* Particle Effect on Hover */}
       {isHovering && (
         <div className="absolute inset-0">
@@ -186,7 +222,7 @@ const QuickActionCard: React.FC<{
                 top: `${Math.random() * 100}%`,
                 animation: `float ${1 + Math.random()}s ease-in-out infinite`,
                 animationDelay: `${i * 0.2}s`,
-                opacity: 0.3
+                opacity: 0.3,
               }}
             />
           ))}
@@ -196,16 +232,20 @@ const QuickActionCard: React.FC<{
       {/* Content */}
       <div className="relative z-10">
         <div className="flex items-start justify-between mb-6">
-          <div className={`p-3 rounded-xl ${
-            isDark ? 'bg-black/20' : 'bg-white/20'
-          } backdrop-blur-sm`}>
+          <div
+            className={`p-3 rounded-xl ${
+              isDark ? "bg-black/20" : "bg-white/20"
+            } backdrop-blur-sm`}
+          >
             <Icon className="w-6 h-6" />
           </div>
-          
+
           {/* Animated Arrow */}
-          <ChevronRight className={`w-5 h-5 transform transition-transform duration-300 ${
-            isHovering ? 'translate-x-2' : ''
-          }`} />
+          <ChevronRight
+            className={`w-5 h-5 transform transition-transform duration-300 ${
+              isHovering ? "translate-x-2" : ""
+            }`}
+          />
         </div>
 
         <h3 className="text-xl font-bold mb-3 text-left">{title}</h3>
@@ -215,124 +255,155 @@ const QuickActionCard: React.FC<{
       {/* Shine Effect */}
       <div className="absolute top-0 -left-full w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent transform skew-x-12 transition-all duration-700 group-hover:left-full" />
     </button>
-  )
-}
+  );
+};
 
 // Simulation Row with Status Indicators
 const SimulationRow: React.FC<{
-  simulation: any
-  index: number
+  simulation: any;
+  index: number;
 }> = ({ simulation, index }) => {
-  const navigate = useNavigate()
-  const isDark = useThemeStore((state) => state.isDark)  // This should now work
-  const [isHovering, setIsHovering] = useState(false)
+  const navigate = useNavigate();
+  const isDark = useThemeStore().isDark;
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed':
-        return isDark ? 'bg-green-500/20 text-green-400' : 'bg-green-500/20 text-green-600'
-      case 'running':
-        return isDark ? 'bg-blue-500/20 text-blue-400' : 'bg-blue-500/20 text-blue-600'
-      case 'pending':
-        return isDark ? 'bg-yellow-500/20 text-yellow-400' : 'bg-yellow-500/20 text-yellow-600'
+      case "completed":
+        return isDark
+          ? "bg-green-500/20 text-green-400"
+          : "bg-green-500/20 text-green-600";
+      case "running":
+        return isDark
+          ? "bg-blue-500/20 text-blue-400"
+          : "bg-blue-500/20 text-blue-600";
+      case "pending":
+        return isDark
+          ? "bg-yellow-500/20 text-yellow-400"
+          : "bg-yellow-500/20 text-yellow-600";
       default:
-        return isDark ? 'bg-gray-500/20 text-gray-400' : 'bg-gray-200 text-gray-600'
+        return isDark
+          ? "bg-gray-500/20 text-gray-400"
+          : "bg-gray-200 text-gray-600";
     }
-  }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed':
-        return <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-      case 'running':
-        return <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-      case 'pending':
-        return <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+      case "completed":
+        return (
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+        );
+      case "running":
+        return (
+          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+        );
+      case "pending":
+        return (
+          <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+        );
       default:
-        return <div className="w-2 h-2 rounded-full bg-gray-500" />
+        return <div className="w-2 h-2 rounded-full bg-gray-500" />;
     }
-  }
+  };
 
   return (
-    <tr 
+    <tr
       className={`transition-all duration-300 animate-in fade-in ${
-        isDark 
-          ? 'hover:bg-[#27304a]/50 border-b border-[#3f4a68]/30' 
-          : 'hover:bg-gray-50/50 border-b border-gray-200'
+        isDark
+          ? "hover:bg-[#27304a]/50 border-b border-[#3f4a68]/30"
+          : "hover:bg-gray-50/50 border-b border-gray-200"
       }`}
       style={{ animationDelay: `${index * 50}ms` }}
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={() => setIsHovering(false)}
     >
       <td className="py-4 pl-6">
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${
-            isDark ? 'bg-[#1a1f3a]' : 'bg-gray-100'
-          }`}>
-            <Thermometer className={`w-4 h-4 ${
-              isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-            }`} />
+          <div
+            className={`p-2 rounded-lg ${
+              isDark ? "bg-[#1a1f3a]" : "bg-gray-100"
+            }`}
+          >
+            <Thermometer
+              className={`w-4 h-4 ${
+                isDark ? "text-[#5ce1e5]" : "text-[#0ea5e9]"
+              }`}
+            />
           </div>
           <div>
-            <div className={`font-semibold ${
-              isDark ? 'text-white' : 'text-gray-900'
-            }`}>
+            <div
+              className={`font-semibold ${
+                isDark ? "text-white" : "text-gray-900"
+              }`}
+            >
               {simulation.name}
             </div>
-            <div className={`text-xs mt-1 ${
-              isDark ? 'text-gray-400' : 'text-gray-600'
-            }`}>
+            <div
+              className={`text-xs mt-1 ${
+                isDark ? "text-gray-400" : "text-gray-600"
+              }`}
+            >
               Created {new Date(simulation.createdAt).toLocaleDateString()}
             </div>
           </div>
         </div>
       </td>
-      
+
       <td className="py-4">
-        <div className={`flex items-center gap-2 ${
-          isDark ? 'text-gray-300' : 'text-gray-700'
-        }`}>
+        <div
+          className={`flex items-center gap-2 ${
+            isDark ? "text-gray-300" : "text-gray-700"
+          }`}
+        >
           <MapPin className="w-4 h-4" />
           {simulation.location}
         </div>
       </td>
-      
+
       <td className="py-4">
-        <div className={`px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-2 ${
-          isDark ? 'bg-[#1a1f3a] text-gray-300' : 'bg-gray-100 text-gray-700'
-        }`}>
-          {simulation.coolingTechnique === 'airside' ? <Wind className="w-3 h-3" /> : <Droplets className="w-3 h-3" />}
-          {simulation.coolingTechnique.charAt(0).toUpperCase() + simulation.coolingTechnique.slice(1)}
+        <div
+          className={`px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-2 ${
+            isDark ? "bg-[#1a1f3a] text-gray-300" : "bg-gray-100 text-gray-700"
+          }`}
+        >
+          {simulation.coolingTechnique === "airside" ? (
+            <Wind className="w-3 h-3" />
+          ) : (
+            <Droplets className="w-3 h-3" />
+          )}
+          {simulation.coolingTechnique.charAt(0).toUpperCase() +
+            simulation.coolingTechnique.slice(1)}
         </div>
       </td>
-      
+
       <td className="py-4">
         <div className="flex items-center gap-2">
-          <div className={`px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-2 ${getStatusColor(simulation.status)}`}>
+          <div
+            className={`px-3 py-1.5 rounded-full text-xs font-medium inline-flex items-center gap-2 ${getStatusColor(simulation.status)}`}
+          >
             {getStatusIcon(simulation.status)}
-            {simulation.status.charAt(0).toUpperCase() + simulation.status.slice(1)}
+            {simulation.status.charAt(0).toUpperCase() +
+              simulation.status.slice(1)}
           </div>
         </div>
       </td>
-      
+
       <td className="py-4 pr-6">
         <div className="flex items-center justify-end gap-2">
           <button
             onClick={() => navigate(`/simulation/${simulation.id}`)}
             className={`p-2 rounded-lg transition-all ${
-              isDark 
-                ? 'hover:bg-[#27304a] text-gray-400 hover:text-white' 
-                : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'
+              isDark
+                ? "hover:bg-[#27304a] text-gray-400 hover:text-white"
+                : "hover:bg-gray-100 text-gray-500 hover:text-gray-900"
             }`}
           >
             <Eye className="w-4 h-4" />
           </button>
           <button
-            onClick={() => console.log('Download', simulation.id)}
+            onClick={() => console.log("Download", simulation.id)}
             className={`p-2 rounded-lg transition-all ${
-              isDark 
-                ? 'hover:bg-[#27304a] text-gray-400 hover:text-white' 
-                : 'hover:bg-gray-100 text-gray-500 hover:text-gray-900'
+              isDark
+                ? "hover:bg-[#27304a] text-gray-400 hover:text-white"
+                : "hover:bg-gray-100 text-gray-500 hover:text-gray-900"
             }`}
           >
             <Download className="w-4 h-4" />
@@ -340,147 +411,374 @@ const SimulationRow: React.FC<{
         </div>
       </td>
     </tr>
-  )
-}
+  );
+};
 
-export const Dashboard: React.FC = () => {
-  const navigate = useNavigate()
-  const user = useAuthStore((state) => state.user)
-  const simulations = useSimulationStore((state) => state.simulations)
-  const isDark = useThemeStore((state) => state.isDark)  // This should now work
+// Recent Activity Component
+const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({ userId, isDark }) => {
+  const [activities, setActivities] = useState<ActivityEntry[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const stats = [
-    { 
-      label: 'Total Simulations', 
-      value: simulations.length, 
-      icon: Zap, 
-      color: isDark ? '#5ce1e5' : '#0ea5e9',
-      change: '+12%',
-      isPositive: true
-    },
-    { 
-      label: 'Avg. Energy Saved', 
-      value: '32%', 
-      icon: TrendingUp, 
-      color: isDark ? '#10b981' : '#10b981',
-      change: '+5%',
-      isPositive: true
-    },
-    { 
-      label: 'CO₂ Reduction', 
-      value: '45.2t', 
-      icon: Leaf, 
-      color: isDark ? '#8b5cf6' : '#8b5cf6',
-      change: '-18%',
-      isPositive: true
-    },
-    { 
-      label: 'System Uptime', 
-      value: '99.8%', 
-      icon: Shield, 
-      color: isDark ? '#fd5757' : '#ef4444',
-      change: '+0.2%',
-      isPositive: true
-    }
-  ]
+  useEffect(() => {
+    if (!userId) return;
+    setLoading(true);
+    getRecentActivity(userId, 15).then(setActivities).finally(() => setLoading(false));
+  }, [userId]);
 
-  const quickActions = [
-    {
-      title: 'New Simulation',
-      description: 'Design and run a new cooling optimization simulation',
-      icon: Play,
-      action: () => navigate('/input-management'),
-      gradient: 'from-[#5ce1e5] to-[#0ea5e9]'
-    },
-    {
-      title: 'View Reports',
-      description: 'Access detailed analytics and performance reports',
-      icon: BarChart3,
-      action: () => navigate('/reports'),
-      gradient: 'from-[#fd5757] to-[#ff8888]'
-    },
-    {
-      title: 'Compare Methods',
-      description: 'Compare different cooling techniques side-by-side',
-      icon: GitCompare,
-      action: () => navigate('/advisory'),
-      gradient: 'from-[#8b5cf6] to-[#a78bfa]'
-    },
-    {
-      title: 'Team Dashboard',
-      description: 'Collaborate with your team on cooling projects',
-      icon: Users,
-      action: () => navigate('/team'),
-      gradient: 'from-[#10b981] to-[#34d399]'
-    }
-  ]
+  const iconFor = (action: string) => {
+    if (action.startsWith("simulation")) return <Activity className="w-4 h-4" />;
+    if (action.startsWith("report")) return <FileText className="w-4 h-4" />;
+    if (action === "login" || action === "logout") return <LogIn className="w-4 h-4" />;
+    if (action === "profile_updated") return <User className="w-4 h-4" />;
+    return <Clock className="w-4 h-4" />;
+  };
 
-  const recentSimulations = simulations.slice(-5)
+  const colorFor = (action: string) => {
+    if (action.includes("completed")) return isDark ? "text-green-400 bg-green-500/15" : "text-green-700 bg-green-100";
+    if (action.includes("created")) return isDark ? "text-cyan-400 bg-cyan-500/15" : "text-cyan-700 bg-cyan-100";
+    if (action.includes("deleted")) return isDark ? "text-red-400 bg-red-500/15" : "text-red-700 bg-red-100";
+    if (action.includes("export") || action.includes("email")) return isDark ? "text-purple-400 bg-purple-500/15" : "text-purple-700 bg-purple-100";
+    return isDark ? "text-gray-400 bg-gray-500/15" : "text-gray-600 bg-gray-100";
+  };
 
-  // Performance Metrics
-  const performanceMetrics = [
-    { label: 'Cooling Efficiency', value: '92%', trend: 'up' },
-    { label: 'Energy Usage', value: '1.2MW', trend: 'down' },
-    { label: 'PUE Score', value: '1.15', trend: 'down' },
-    { label: 'Server Temp', value: '22°C', trend: 'stable' }
-  ]
-
-  // Quick Stats
-  const quickStats = [
-    { icon: Cloud, label: 'Active Servers', value: '1,243' },
-    { icon: Wind, label: 'Fans Running', value: '98%' },
-    { icon: Cpu, label: 'CPU Utilization', value: '68%' },
-    { icon: Server, label: 'Racks Monitored', value: '45' }
-  ]
+  const timeAgo = (ts: string) => {
+    const diff = Date.now() - new Date(ts).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return "just now";
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    return `${Math.floor(h / 24)}d ago`;
+  };
 
   return (
-    <div className={`min-h-screen transition-colors duration-500 ${
-      isDark 
-        ? 'bg-gradient-to-b from-[#0a0e27] via-[#1a1f3a] to-[#0a0e27]' 
-        : 'bg-gradient-to-b from-slate-50 via-white to-slate-50'
-    }`}>
-      <Sidebar />
+    <div className={`rounded-2xl p-6 mt-8 border ${isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-white border-gray-200"}`}>
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
+          <Clock className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-cyan-600"}`} />
+          <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Recent Activity</h2>
+        </div>
+        {loading && <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />}
+      </div>
 
+      {!loading && activities.length === 0 ? (
+        <div className={`text-center py-8 text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+          No activity recorded yet. Activity is logged as you use the platform.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {activities.map((a) => (
+            <div key={a.id} className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? "hover:bg-[#27304a]" : "hover:bg-gray-50"} transition-colors`}>
+              <div className={`p-2 rounded-lg shrink-0 ${colorFor(a.action)}`}>
+                {iconFor(a.action)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
+                  {activityLabel(a.action as any)}
+                  {a.metadata?.name && <span className={`ml-1 font-normal ${isDark ? "text-gray-400" : "text-gray-500"}`}>— {a.metadata.name}</span>}
+                </div>
+                {a.entity_type && (
+                  <div className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>{a.entity_type}{a.entity_id ? ` #${a.entity_id}` : ""}</div>
+                )}
+              </div>
+              <div className={`text-xs shrink-0 ${isDark ? "text-gray-500" : "text-gray-400"}`}>{timeAgo(a.created_at)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const user = useAuthStore((state) => state.user);
+  const updateUser = useAuthStore((state) => state.updateUser);
+
+  // On mount, fetch the latest user profile from the users table
+  useEffect(() => {
+    (async () => {
+      const profile = await getCurrentUserProfile();
+      if (profile) {
+        updateUser({
+          name: profile.name,
+          email: profile.email,
+        });
+      }
+    })();
+  }, [updateUser]);
+  const simulations = useSimulationStore((state) => state.simulations);
+  const isDark = useThemeStore().isDark;
+
+  // Locations and tariff/carbon data
+  const [tariffLocations, setTariffLocations] = useState<{
+    tariffs: Tariff[];
+    locations: Location[];
+    error: string | null;
+  }>({ tariffs: [], locations: [], error: null });
+  const [loadingTariff, setLoadingTariff] = useState<boolean>(true);
+
+  // Simulation data for charts
+  const [dbSimulations, setDbSimulations] = useState<SimulationWithResults[]>(
+    [],
+  );
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>("");
+
+  useEffect(() => {
+    async function fetchTariffLocations() {
+      setLoadingTariff(true);
+      const result = await getTariffCarbonLocations();
+      setTariffLocations(result);
+      setLoadingTariff(false);
+    }
+    fetchTariffLocations();
+  }, []);
+
+  useEffect(() => {
+    async function fetchData() {
+      setLoading(true);
+      setError("");
+      try {
+        if (user?.id) {
+          const resp = await getUserSimulations(user.id);
+          if (resp.success && resp.data) {
+            setDbSimulations(resp.data.simulations || []);
+          } else {
+            setError(resp.error || "Failed to fetch simulations");
+          }
+        }
+      } catch (e) {
+        setError("Failed to fetch simulations");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, [user?.id]);
+
+  // Prepare chart data
+  const techniqueData: ChartDatum[] = useMemo(() => {
+    const grouped = groupByTechnique(dbSimulations);
+    return Object.entries(grouped).map(([tech, sims], i) => {
+      const totalEnergy = sims.reduce(
+        (sum, s) => sum + (s.result?.energy_consumed_kwh || 0),
+        0,
+      );
+      const avgCost = sims.length
+        ? sims.reduce(
+            (sum, s) => sum + (s.result?.cost_saving_percent || 0),
+            0,
+          ) / sims.length
+        : 0;
+      return {
+        name: tech,
+        energy: Math.round(totalEnergy * 100) / 100,
+        cost: Math.round(avgCost * 100) / 100,
+        color: TECH_COLORS[i % TECH_COLORS.length],
+      };
+    });
+  }, [dbSimulations]);
+
+  const serverData: ChartDatum[] = useMemo(() => {
+    const grouped = groupByServer(dbSimulations);
+    return Object.entries(grouped).map(([server, sims], i) => {
+      const totalEnergy = sims.reduce(
+        (sum, s) => sum + (s.result?.energy_consumed_kwh || 0),
+        0,
+      );
+      const avgCost = sims.length
+        ? sims.reduce(
+            (sum, s) => sum + (s.result?.cost_saving_percent || 0),
+            0,
+          ) / sims.length
+        : 0;
+      return {
+        name: server,
+        energy: Math.round(totalEnergy * 100) / 100,
+        cost: Math.round(avgCost * 100) / 100,
+        color: SERVER_COLORS[i % SERVER_COLORS.length],
+      };
+    });
+  }, [dbSimulations]);
+
+  // Quick Actions
+  const quickActions = [
+    {
+      title: "New Simulation",
+      description: "Design and run a new cooling optimization simulation",
+      icon: Play,
+      action: () => {
+        navigate("/input-management");
+      },
+      gradient: "from-[#5ce1e5] to-[#0ea5e9]",
+    },
+    {
+      title: "View Reports",
+      description: "Access detailed analytics and performance reports",
+      icon: BarChart3,
+      action: () => {
+        navigate("/reports");
+      },
+      gradient: "from-[#fd5757] to-[#ff8888]",
+    },
+    {
+      title: "Compare Methods",
+      description: "Compare different cooling techniques side-by-side",
+      icon: GitCompare,
+      action: () => {
+        navigate("/advisory");
+      },
+      gradient: "from-[#8b5cf6] to-[#a78bfa]",
+    },
+  ];
+
+  const recentSimulations = simulations.slice(-5);
+
+  // Real-time quick stats from backend
+  const [status, setStatus] = useState<any>(null);
+  const [statusError, setStatusError] = useState<string>("");
+  const [statusLoading, setStatusLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchStatus() {
+      setStatusLoading(true);
+      setStatusError("");
+      try {
+        const { fetchDashboardStatus } = await import("../services/statusApi");
+        const data = await fetchDashboardStatus();
+        if (isMounted) setStatus(data);
+      } catch (e) {
+        if (isMounted) setStatusError("Failed to fetch real-time stats");
+      } finally {
+        if (isMounted) setStatusLoading(false);
+      }
+    }
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 5000); // Poll every 5s
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const quickStats = status
+    ? [
+        {
+          icon: Cloud,
+          label: "Active Servers",
+          value: status.activeServers,
+          color: "#5ce1e5",
+        },
+        {
+          icon: Wind,
+          label: "Fans Running",
+          value: `${status.fansRunning}%`,
+          color: "#0ea5e9",
+        },
+        {
+          icon: Cpu,
+          label: "CPU Utilization",
+          value: `${status.cpuUtilization.toFixed(1)}%`,
+          color: "#8b5cf6",
+        },
+        {
+          icon: Server,
+          label: "Racks Monitored",
+          value: status.racksMonitored,
+          color: "#10b981",
+        },
+        {
+          icon: Activity,
+          label: "Last Active",
+          value: status.lastActive,
+          color: "#fd5757",
+        },
+        {
+          icon: Shield,
+          label: "System Alerts",
+          value: status.systemAlerts,
+          color: "#ff8888",
+        },
+      ]
+    : [];
+
+  return (
+    <div
+      className={`min-h-screen transition-colors duration-500 ${
+        isDark
+          ? "bg-gradient-to-b from-[#0a0e27] via-[#1a1f3a] to-[#0a0e27]"
+          : "bg-gradient-to-b from-slate-50 via-white to-slate-50"
+      }`}
+    >
+      <Sidebar />
       <main className="lg:ml-64 p-4 lg:p-8">
         {/* Animated Background Elements */}
         <div className="fixed inset-0 pointer-events-none z-0">
-          <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${
-            isDark ? 'bg-[#5ce1e5]/5' : 'bg-[#0ea5e9]/5'
-          }`} style={{ animation: 'float 8s ease-in-out infinite' }} />
+          <div
+            className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${
+              isDark ? "bg-[#5ce1e5]/5" : "bg-[#0ea5e9]/5"
+            }`}
+            style={{ animation: "float 8s ease-in-out infinite" }}
+          />
+          <div
+            className={`absolute bottom-0 left-0 w-96 h-96 rounded-full blur-3xl ${
+              isDark ? "bg-[#fd5757]/5" : "bg-[#ff8888]/5"
+            }`}
+            style={{ animation: "float 12s ease-in-out infinite reverse" }}
+          />
         </div>
-
         {/* Welcome Header */}
         <div className="relative mb-8 lg:mb-12">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
             <div>
-              <h1 className={`text-3xl lg:text-4xl font-bold mb-2 animate-in slide-in-from-left-8 ${
-                isDark ? 'text-white' : 'text-gray-900'
-              }`}>
-                Welcome back, <span className={isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'}>{user?.email?.split('@')[0] || 'User'}</span>!
+              <h1
+                className={`text-3xl lg:text-4xl font-bold mb-2 animate-in slide-in-from-left-8 ${
+                  isDark ? "text-white" : "text-gray-900"
+                }`}
+              >
+                Welcome back,{" "}
+                <span className={isDark ? "text-[#5ce1e5]" : "text-[#0ea5e9]"}>
+                  {user?.name || user?.email?.split("@")[0] || "User"}
+                </span>
+                !
               </h1>
-              <p className={`text-lg ${
-                isDark ? 'text-gray-400' : 'text-gray-600'
-              }`}>
+              <p
+                className={`text-lg ${
+                  isDark ? "text-gray-400" : "text-gray-600"
+                }`}
+              >
                 Here's what's happening with your data center today
               </p>
             </div>
-            
+
             {/* Date and Status */}
-            <div className={`flex items-center gap-4 px-4 py-3 rounded-xl ${
-              isDark ? 'bg-[#1a1f3a] border border-[#3f4a68]' : 'bg-white border border-gray-200'
-            }`}>
-              <Calendar className={`w-5 h-5 ${isDark ? 'text-gray-400' : 'text-gray-600'}`} />
-              <span className={`font-medium ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
-                {new Date().toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  year: 'numeric', 
-                  month: 'long', 
-                  day: 'numeric' 
+            <div
+              className={`flex items-center gap-4 px-4 py-3 rounded-xl ${
+                isDark
+                  ? "bg-[#1a1f3a] border border-[#3f4a68]"
+                  : "bg-white border border-gray-200"
+              }`}
+            >
+              <Calendar
+                className={`w-5 h-5 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+              />
+              <span
+                className={`font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}
+              >
+                {new Date().toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
                 })}
               </span>
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span className={`text-sm ${isDark ? 'text-green-400' : 'text-green-600'}`}>
+                <span
+                  className={`text-sm ${isDark ? "text-green-400" : "text-green-600"}`}
+                >
                   System Normal
                 </span>
               </div>
@@ -488,335 +786,277 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Quick Stats Bar */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4 mb-8">
             {quickStats.map((stat, index) => (
-              <div 
+              <StatCard
                 key={index}
-                className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 animate-in fade-in ${
-                  isDark 
-                    ? 'bg-[#1a1f3a]/50 border border-[#3f4a68] hover:border-[#5ce1e5]/30' 
-                    : 'bg-white/50 border border-gray-200 hover:border-[#0ea5e9]/30'
-                }`}
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${
-                    isDark ? 'bg-[#27304a]' : 'bg-gray-100'
-                  }`}>
-                    <stat.icon className={`w-4 h-4 ${
-                      isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-                    }`} />
-                  </div>
-                  <div>
-                    <div className={`text-xs ${
-                      isDark ? 'text-gray-400' : 'text-gray-600'
-                    }`}>
-                      {stat.label}
-                    </div>
-                    <div className={`text-lg font-bold ${
-                      isDark ? 'text-white' : 'text-gray-900'
-                    }`}>
-                      {stat.value}
-                    </div>
-                  </div>
-                </div>
-              </div>
+                icon={stat.icon}
+                label={stat.label}
+                value={stat.value}
+                color={stat.color}
+                delay={index * 100}
+              />
             ))}
           </div>
         </div>
-
-        {/* Main Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Left Column - Stats and Quick Actions */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Enhanced Stats Cards */}
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className={`text-2xl font-bold ${
-                  isDark ? 'text-white' : 'text-gray-900'
-                }`}>
-                  Performance Overview
-                </h2>
-                <span className={`text-sm ${
-                  isDark ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  Last 30 days
-                </span>
+        {/* Locations & Tariff/Carbon Visualization Section */}
+        <div className="relative mb-8">
+          <h2
+            className={`text-2xl font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+          >
+            Locations & Carbon Tariff Visualization
+          </h2>
+          {loadingTariff ? (
+            <div
+              className={`text-center py-8 ${isDark ? "text-gray-400" : "text-gray-600"}`}
+            >
+              <div className="animate-pulse">Loading locations...</div>
+            </div>
+          ) : tariffLocations.error ? (
+            <div className="text-red-500 p-4 rounded-lg bg-red-500/10">
+              {tariffLocations.error}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Map Visualization */}
+              <div
+                className={`rounded-2xl p-6 ${isDark ? "bg-[#1a1f3a] border border-[#3f4a68]" : "bg-white border border-gray-200"}`}
+              >
+                <h3
+                  className={`font-semibold mb-4 text-lg ${isDark ? "text-white" : "text-gray-900"}`}
+                >
+                  Locations Catered by Cooling
+                </h3>
+                <LocationMap
+                  locations={tariffLocations.locations.map((loc) => ({
+                    city: loc.city,
+                    country: loc.country,
+                    latitude: loc.latitude,
+                    longitude: loc.longitude,
+                  }))}
+                />
+                <div className="mt-2 text-xs text-gray-500">
+                  Hover markers for lat/lng info
+                </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {stats.map((stat, index) => (
-                  <EnhancedStatCard key={index} {...stat} />
-                ))}
+              {/* Carbon Tariff Chart Visualization */}
+              <div
+                className={`rounded-2xl p-6 ${isDark ? "bg-[#1a1f3a] border border-[#3f4a68]" : "bg-white border border-gray-200"}`}
+              >
+                <h3
+                  className={`font-semibold mb-4 text-lg ${isDark ? "text-white" : "text-gray-900"}`}
+                >
+                  CO₂ Factor & Tariff by Country
+                </h3>
+                <CarbonTariffChart
+                  data={tariffLocations.tariffs.map((tariff) => ({
+                    country: tariff.country_name,
+                    co2: tariff.co2_grid_factor,
+                    tariff: tariff.electricity_tariff,
+                  }))}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+        {/* Charts Section */}
+        {!loading && !error && dbSimulations.length > 0 && (
+          <>
+            {/* Technique Comparison Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <div
+                className={`rounded-2xl p-6 ${
+                  isDark
+                    ? "bg-[#1a1f3a] border border-[#3f4a68]"
+                    : "bg-white border border-gray-200"
+                }`}
+              >
+                <h3
+                  className={`text-lg font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+                >
+                  Energy Consumed by Technique
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={techniqueData}
+                      dataKey="energy"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      label
+                    >
+                      {techniqueData.map((entry, i) => (
+                        <Cell key={`cell-tech-${i}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: isDark ? "#1a1f3a" : "#fff",
+                        border: `1px solid ${isDark ? "#3f4a68" : "#e5e7eb"}`,
+                        borderRadius: "0.5rem",
+                      }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div
+                className={`rounded-2xl p-6 ${
+                  isDark
+                    ? "bg-[#1a1f3a] border border-[#3f4a68]"
+                    : "bg-white border border-gray-200"
+                }`}
+              >
+                <h3
+                  className={`text-lg font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+                >
+                  Cost Savings by Technique
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={techniqueData}>
+                    <XAxis
+                      dataKey="name"
+                      stroke={isDark ? "#9ca3af" : "#4b5563"}
+                      tick={{ fill: isDark ? "#9ca3af" : "#4b5563" }}
+                    />
+                    <YAxis
+                      stroke={isDark ? "#9ca3af" : "#4b5563"}
+                      tick={{ fill: isDark ? "#9ca3af" : "#4b5563" }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: isDark ? "#1a1f3a" : "#fff",
+                        border: `1px solid ${isDark ? "#3f4a68" : "#e5e7eb"}`,
+                        borderRadius: "0.5rem",
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="cost" fill="#5ce1e5">
+                      {techniqueData.map((entry, i) => (
+                        <Cell key={`bar-tech-${i}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
-            {/* Quick Actions Grid */}
+            {/* Server Comparison Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <div
+                className={`rounded-2xl p-6 ${
+                  isDark
+                    ? "bg-[#1a1f3a] border border-[#3f4a68]"
+                    : "bg-white border border-gray-200"
+                }`}
+              >
+                <h3
+                  className={`text-lg font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+                >
+                  Energy Consumed by Server
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={serverData}
+                      dataKey="energy"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={100}
+                      label
+                    >
+                      {serverData.map((entry, i) => (
+                        <Cell key={`cell-server-${i}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: isDark ? "#1a1f3a" : "#fff",
+                        border: `1px solid ${isDark ? "#3f4a68" : "#e5e7eb"}`,
+                        borderRadius: "0.5rem",
+                      }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div
+                className={`rounded-2xl p-6 ${
+                  isDark
+                    ? "bg-[#1a1f3a] border border-[#3f4a68]"
+                    : "bg-white border border-gray-200"
+                }`}
+              >
+                <h3
+                  className={`text-lg font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+                >
+                  Cost Savings by Server
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={serverData}>
+                    <XAxis
+                      dataKey="name"
+                      stroke={isDark ? "#9ca3af" : "#4b5563"}
+                      tick={{ fill: isDark ? "#9ca3af" : "#4b5563" }}
+                    />
+                    <YAxis
+                      stroke={isDark ? "#9ca3af" : "#4b5563"}
+                      tick={{ fill: isDark ? "#9ca3af" : "#4b5563" }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: isDark ? "#1a1f3a" : "#fff",
+                        border: `1px solid ${isDark ? "#3f4a68" : "#e5e7eb"}`,
+                        borderRadius: "0.5rem",
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="cost" fill="#0ea5e9">
+                      {serverData.map((entry, i) => (
+                        <Cell key={`bar-server-${i}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </>
+        )}
+        {/* Main Dashboard Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+          {/* Left Column - Quick Actions */}
+          <div className="lg:col-span-2 space-y-8">
             <div>
-              <h2 className={`text-2xl font-bold mb-6 ${
-                isDark ? 'text-white' : 'text-gray-900'
-              }`}>
+              <h2
+                className={`text-2xl font-bold mb-6 ${
+                  isDark ? "text-white" : "text-gray-900"
+                }`}
+              >
                 Quick Actions
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {quickActions.map((action, index) => (
-                  <QuickActionCard key={index} {...action} delay={index * 100} />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column - Performance Metrics */}
-          <div className="space-y-8">
-            {/* Performance Metrics */}
-            <div className={`rounded-2xl p-6 ${
-              isDark 
-                ? 'bg-gradient-to-b from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
-                : 'bg-gradient-to-b from-white to-gray-50 border border-gray-200'
-            }`}>
-              <div className="flex items-center justify-between mb-6">
-                <h3 className={`text-xl font-bold ${
-                  isDark ? 'text-white' : 'text-gray-900'
-                }`}>
-                  Performance Metrics
-                </h3>
-                <Activity className={`w-5 h-5 ${
-                  isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-                }`} />
-              </div>
-              
-              <div className="space-y-4">
-                {performanceMetrics.map((metric, index) => (
-                  <div 
+                  <QuickActionCard
                     key={index}
-                    className="flex items-center justify-between py-3"
-                  >
-                    <span className={`font-medium ${
-                      isDark ? 'text-gray-300' : 'text-gray-700'
-                    }`}>
-                      {metric.label}
-                    </span>
-                    <div className="flex items-center gap-3">
-                      <span className={`text-lg font-bold ${
-                        isDark ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {metric.value}
-                      </span>
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        metric.trend === 'up' 
-                          ? isDark ? 'bg-green-500/20' : 'bg-green-500/20'
-                          : metric.trend === 'down'
-                            ? isDark ? 'bg-red-500/20' : 'bg-red-500/20'
-                            : isDark ? 'bg-gray-500/20' : 'bg-gray-200'
-                      }`}>
-                        {metric.trend === 'up' ? (
-                          <TrendingUp className={`w-4 h-4 ${
-                            isDark ? 'text-green-400' : 'text-green-600'
-                          }`} />
-                        ) : metric.trend === 'down' ? (
-                          <TrendingUp className={`w-4 h-4 rotate-180 ${
-                            isDark ? 'text-red-400' : 'text-red-600'
-                          }`} />
-                        ) : (
-                          <div className="w-2 h-2 rounded-full bg-gray-500" />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {/* Progress Visualization */}
-              <div className={`mt-6 p-4 rounded-xl ${
-                isDark ? 'bg-black/20' : 'bg-gray-100/50'
-              }`}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`text-sm ${
-                    isDark ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    Cooling Efficiency Progress
-                  </span>
-                  <span className={`text-sm font-bold ${
-                    isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-                  }`}>
-                    92%
-                  </span>
-                </div>
-                <div className={`h-2 rounded-full overflow-hidden ${
-                  isDark ? 'bg-gray-800' : 'bg-gray-300'
-                }`}>
-                  <div 
-                    className="h-full rounded-full transition-all duration-1000"
-                    style={{ 
-                      width: '92%',
-                      background: isDark 
-                        ? 'linear-gradient(90deg, #5ce1e5, #0ea5e9)'
-                        : 'linear-gradient(90deg, #0ea5e9, #5ce1e5)'
-                    }}
+                    {...action}
+                    delay={index * 100}
                   />
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Activity */}
-            <div className={`rounded-2xl p-6 ${
-              isDark 
-                ? 'bg-gradient-to-b from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
-                : 'bg-gradient-to-b from-white to-gray-50 border border-gray-200'
-            }`}>
-              <h3 className={`text-xl font-bold mb-6 ${
-                isDark ? 'text-white' : 'text-gray-900'
-              }`}>
-                Recent Activity
-              </h3>
-              
-              <div className="space-y-4">
-                {[
-                  { action: 'New simulation started', time: '2 minutes ago', user: 'You' },
-                  { action: 'Report generated', time: '1 hour ago', user: 'System' },
-                  { action: 'Cooling optimization completed', time: '3 hours ago', user: 'Auto-System' },
-                  { action: 'Energy usage alert', time: '5 hours ago', user: 'Monitoring' }
-                ].map((activity, index) => (
-                  <div 
-                    key={index}
-                    className={`flex items-start gap-3 p-3 rounded-lg transition-colors ${
-                      isDark ? 'hover:bg-[#27304a]' : 'hover:bg-gray-100'
-                    }`}
-                  >
-                    <div className={`p-2 rounded-lg ${
-                      isDark ? 'bg-[#27304a]' : 'bg-gray-100'
-                    }`}>
-                      <Activity className={`w-4 h-4 ${
-                        isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-                      }`} />
-                    </div>
-                    <div className="flex-1">
-                      <div className={`font-medium ${
-                        isDark ? 'text-white' : 'text-gray-900'
-                      }`}>
-                        {activity.action}
-                      </div>
-                      <div className={`text-xs mt-1 ${
-                        isDark ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                        {activity.time} • by {activity.user}
-                      </div>
-                    </div>
-                  </div>
                 ))}
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Recent Simulations Table */}
-        <div className={`rounded-2xl overflow-hidden ${
-          isDark 
-            ? 'bg-gradient-to-b from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]' 
-            : 'bg-gradient-to-b from-white to-gray-50 border border-gray-200'
-        }`}>
-          <div className={`p-6 border-b ${
-            isDark ? 'border-[#3f4a68]' : 'border-gray-200'
-          }`}>
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div>
-                <h3 className={`text-xl font-bold ${
-                  isDark ? 'text-white' : 'text-gray-900'
-                }`}>
-                  Recent Simulations
-                </h3>
-                <p className={`text-sm mt-1 ${
-                  isDark ? 'text-gray-400' : 'text-gray-600'
-                }`}>
-                  Your latest cooling optimization simulations
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => navigate('/simulations')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
-                    isDark
-                      ? 'bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900'
-                  }`}
-                >
-                  View All
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => navigate('/input-management')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
-                    isDark
-                      ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
-                      : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
-                  }`}
-                >
-                  + New Simulation
-                </button>
-              </div>
-            </div>
+          {/* Right Column - Recent Activity */}
+          <div>
+            <RecentActivity userId={user?.id ?? ""} isDark={isDark} />
           </div>
-
-          {recentSimulations.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className={`${
-                    isDark ? 'bg-[#27304a]' : 'bg-gray-100'
-                  }`}>
-                    <th className="py-4 px-6 text-left text-sm font-semibold">
-                      <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Simulation</span>
-                    </th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold">
-                      <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Location</span>
-                    </th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold">
-                      <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Cooling Type</span>
-                    </th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold">
-                      <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Status</span>
-                    </th>
-                    <th className="py-4 px-6 text-left text-sm font-semibold">
-                      <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentSimulations.map((sim, index) => (
-                    <SimulationRow key={sim.id} simulation={sim} index={index} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="p-12 text-center">
-              <div className="inline-block p-4 rounded-full bg-gradient-to-r from-[#5ce1e5]/10 to-[#0ea5e9]/10 mb-4">
-                <Zap className={`w-12 h-12 ${
-                  isDark ? 'text-[#5ce1e5]' : 'text-[#0ea5e9]'
-                }`} />
-              </div>
-              <h4 className={`text-xl font-bold mb-2 ${
-                isDark ? 'text-white' : 'text-gray-900'
-              }`}>
-                No simulations yet
-              </h4>
-              <p className={`mb-6 ${
-                isDark ? 'text-gray-400' : 'text-gray-600'
-              }`}>
-                Start your first cooling optimization simulation
-              </p>
-              <button
-                onClick={() => navigate('/input-management')}
-                className={`px-6 py-3 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
-                  isDark
-                    ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
-                    : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
-                }`}
-              >
-                Start First Simulation
-              </button>
-            </div>
-          )}
         </div>
+
       </main>
 
       {/* Custom Animations */}
@@ -851,22 +1091,5 @@ export const Dashboard: React.FC = () => {
         }
       `}</style>
     </div>
-  )
-}
-
-// Helper component (MapPin)
-const MapPin: React.FC<{ className?: string }> = ({ className }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    className={className}
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round"
-  >
-    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-    <circle cx="12" cy="10" r="3" />
-  </svg>
-)
+  );
+};

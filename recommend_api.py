@@ -6,6 +6,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 try:
@@ -49,6 +50,10 @@ class RecommendRequest(BaseModel):
     scenario: ScenarioInput
     current_technique: Optional[str] = Field(default=None, description="User's currently used cooling technique")
     technique_results: Optional[list[TechniqueResult]] = None
+    simulation_hourly: Optional[dict] = Field(
+        default=None,
+        description="Optional hourly series from simulation. Expected keys: tempC, rh, itLoadKW (arrays).",
+    )
     metrics_unit: str = Field(default="annual", description="annual or hourly")
 
 
@@ -74,6 +79,15 @@ def _normalize(values: list[float]) -> np.ndarray:
     if high - low < 1e-12:
         return np.zeros_like(arr)
     return (arr - low) / (high - low)
+
+
+def _mean_or_none(values: Optional[list[float]]) -> Optional[float]:
+    if not values:
+        return None
+    cleaned = [float(v) for v in values if np.isfinite(float(v))]
+    if not cleaned:
+        return None
+    return float(np.mean(cleaned))
 
 
 def _enrich_rows(rows: list[TechniqueResult], metrics_unit: str) -> list[dict]:
@@ -222,6 +236,14 @@ def _build_comparison_table(prepared_rows: list[dict]) -> list[dict]:
 
 app = FastAPI(title="Cooling Recommender API", version="1.0.0")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],          # allow all origins (dev); tighten in prod
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 try:
     artifact = joblib.load(MODEL_PATH)
 except Exception as exc:
@@ -247,16 +269,56 @@ def recommend(payload: RecommendRequest) -> dict:
     feature_cols = artifact["feature_cols"]
 
     scenario_dict = payload.scenario.model_dump()
+
+    if not payload.simulation_hourly:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "simulation_hourly is required. Run simulation first and provide hourly arrays "
+                "for tempC, rh, and itLoadKW."
+            ),
+        )
+
+    avg_temp = _mean_or_none(payload.simulation_hourly.get("tempC"))
+    avg_rh = _mean_or_none(payload.simulation_hourly.get("rh"))
+    avg_it = _mean_or_none(payload.simulation_hourly.get("itLoadKW"))
+
+    if avg_temp is None or avg_rh is None or avg_it is None:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "simulation_hourly must include non-empty numeric arrays for tempC, rh, and itLoadKW."
+            ),
+        )
+
+    scenario_dict["tempC"] = avg_temp
+    scenario_dict["rh"] = avg_rh
+    scenario_dict["itLoadKW"] = avg_it
+
+    n_hours = len(payload.simulation_hourly.get("tempC") or [])
+    print(f"\n{'='*60}")
+    print(f"  🔧 ML RECOMMEND — AVERAGES FROM simulation_hourly ({n_hours} hours)")
+    print(f"{'='*60}")
+    print(f"  avg tempC        : {avg_temp:.2f} °C")
+    print(f"  avg rh           : {avg_rh:.2f} %")
+    print(f"  avg itLoadKW     : {avg_it:.4f} kW")
+    print(f"  electricityPrice : {scenario_dict.get('electricityPrice', 'N/A')} USD/kWh")
+    print(f"  waterPrice       : {scenario_dict.get('waterPrice', 'N/A')} USD/L")
+    print(f"  carbonFactor     : {scenario_dict.get('carbonFactor', 'N/A')} kgCO2/kWh")
+    print(f"{'='*60}\n")
+
     frame = pd.DataFrame([scenario_dict])[feature_cols]
 
     prediction = str(model.predict(frame)[0])
+    print(f"  🤖 ML prediction : {prediction}")
+    print(f"  current_technique: {payload.current_technique or 'not provided'}\n")
     response = {
         "current_technique": payload.current_technique,
         "generated_at_utc": datetime.utcnow().isoformat() + "Z",
         "model_recommendation": prediction,
         "why_this_is_recommended": [
             f"Recommended technique: {prediction}.",
-            "This recommendation uses your scenario inputs (temperature, humidity, IT load, electricity price, water price, and carbon factor).",
+            "This recommendation uses average hourly values from simulation for temperature, humidity, and IT load, plus your electricity/water/carbon settings.",
         ],
         "future_impact_paragraph": (
             "Future impact details are available when technique comparison metrics are provided in the request."
@@ -335,5 +397,9 @@ def recommend(payload: RecommendRequest) -> dict:
                 "comparison_table": comparison_table,
             }
         )
-
     return response
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

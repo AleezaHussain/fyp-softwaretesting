@@ -366,6 +366,8 @@ function getComponentColor(type: string): number {
     pdu: 0xfbbf24, // Yellow
     storage_array: 0xf97316, // Orange
     backup_generator: 0xef4444, // Red
+    fan: 0x10b981, // Green
+    chiller: 0x6366f1, // Indigo
   }
   return colors[type] || 0x6b7280
 }
@@ -392,10 +394,15 @@ function getComponentGeometry(type: string): THREE.BufferGeometry {
       return new THREE.BoxGeometry(3, 2, 1.5)
     case 'backup_generator':
       return new THREE.BoxGeometry(3, 2.5, 2)
+    case 'fan':
+      return new THREE.TorusGeometry(1, 0.3, 16, 100)
+    case 'chiller':
+      return new THREE.BoxGeometry(4, 2, 2)
     default:
       return new THREE.BoxGeometry(1, 1, 1)
   }
 }
+
 
 function getComponentLabel(type: string): string {
   const labels: Record<string, string> = {
@@ -405,6 +412,8 @@ function getComponentLabel(type: string): string {
     pdu: 'PDU',
     storage_array: 'Storage Array',
     backup_generator: 'Generator',
+    fan: 'Fan',
+    chiller: 'Chiller',
   }
   return labels[type] || type
 }

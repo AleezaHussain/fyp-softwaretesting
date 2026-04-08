@@ -1,33 +1,39 @@
-import React from 'react'
-import { LogOut, Home, BarChart3, FileText, User, Menu, X } from 'lucide-react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { useAuthStore } from '@/store/store'
-import { useState } from 'react'
+import React from "react";
+import {
+  LogOut,
+  Home,
+  BarChart3,
+  FileText,
+  User,
+  Menu,
+  X,
+} from "lucide-react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useAuthStore } from "@/store/store";
+import { useState } from "react";
 
 export const Sidebar: React.FC = () => {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const { logout } = useAuthStore()
-  const [isOpen, setIsOpen] = useState(false)
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { logout } = useAuthStore();
+  const [isOpen, setIsOpen] = useState(false);
 
   const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
+    logout();
+    navigate("/login");
+  };
 
-  const isActive = (path: string) => location.pathname === path
+  const isActive = (path: string) => location.pathname === path;
 
   const navItems = [
-    { path: '/dashboard', icon: Home, label: 'Home' },
-    { path: '/simulations', icon: BarChart3, label: 'Simulations' },
-    { path: '/reports', icon: FileText, label: 'Reports' },
-    { path: '/builder', icon: BarChart3, label: 'Builder' },
-    { path: '/profile', icon: User, label: 'Profile' },
-  ]
+    { path: "/dashboard", icon: Home, label: "Home" },
+    { path: "/simulations", icon: BarChart3, label: "Simulations" },
+    { path: "/reports", icon: FileText, label: "Reports" },
+    { path: "/profile", icon: User, label: "Profile" },
+  ];
 
   return (
     <>
-      {/* Mobile Menu Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-primary text-white rounded-lg hover:bg-primary-dark transition-all"
@@ -35,11 +41,11 @@ export const Sidebar: React.FC = () => {
         {isOpen ? <X size={24} /> : <Menu size={24} />}
       </button>
 
-      {/* Sidebar */}
       <aside
         className={`fixed left-0 top-0 h-screen w-64 bg-dark-gray text-white flex flex-col transition-transform duration-300 lg:translate-x-0 z-40 ${
-          isOpen ? 'translate-x-0' : '-translate-x-full'
+          isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        style={{ overflowY: "auto" }}
       >
         <div className="p-6 border-b border-opacity-20 border-secondary space-y-3">
           <div className="flex items-center gap-3">
@@ -59,8 +65,8 @@ export const Sidebar: React.FC = () => {
               onClick={() => setIsOpen(false)}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg mb-2 transition-all ${
                 isActive(path)
-                  ? 'bg-secondary text-dark-gray font-semibold'
-                  : 'text-gray-200 hover:bg-dark-gray hover:bg-opacity-50'
+                  ? "bg-secondary text-dark-gray font-semibold"
+                  : "text-gray-200 hover:bg-[#23272e] hover:bg-opacity-80"
               }`}
             >
               <Icon size={20} />
@@ -80,7 +86,6 @@ export const Sidebar: React.FC = () => {
         </div>
       </aside>
 
-      {/* Overlay */}
       {isOpen && (
         <div
           onClick={() => setIsOpen(false)}
@@ -88,5 +93,5 @@ export const Sidebar: React.FC = () => {
         />
       )}
     </>
-  )
-}
+  );
+};

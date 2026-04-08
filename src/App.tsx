@@ -1,56 +1,72 @@
-import React from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import { useAuthStore } from './store/store'
+import React, { useEffect } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { useAuthStore } from "./store/store";
 
 // Auth Pages
-import { SignUp } from './pages/auth/SignUp'
-import { Login } from './pages/auth/Login'
-import { ForgotPassword } from './pages/auth/ForgotPassword'
+import { SignUp } from "./pages/auth/SignUp";
+import { Login } from "./pages/auth/Login";
+import { ForgotPassword } from "./pages/auth/ForgotPassword";
+// import { ConfirmEmail } from "./pages/auth/ConfirmEmail";
 
 // Main Pages
-import { Dashboard } from './pages/Dashboard'
-import { InputManagement } from './pages/InputManagement'
-import { SimulationResults } from './pages/SimulationResults'
-import { Advisory } from './pages/Advisory'
-import { Reporting } from './pages/Reporting'
-import { Profile } from './pages/Profile'
-import { Simulations } from './pages/Simulations'
-import { NewSimulation } from './pages/NewSimulation'
-import { DataCenterBuilder } from './pages/DataCenterBuilder'
-import Homepage from './pages/Homepage'
+import { Dashboard } from "./pages/Dashboard";
+import { InputManagement } from "./pages/InputManagement";
+import { SimulationResults } from "./pages/SimulationResults";
+import Advisory from "./pages/Advisory";
+import { Reporting } from "./pages/Reporting";
+import { ReportPage } from "./pages/ReportPage";
+import { Profile } from "./pages/Profile";
+import { Simulations } from "./pages/Simulations";
+import SimulationDetail from "./pages/SimulationDetail";
+import { NewSimulation } from "./pages/NewSimulation";
+import Homepage from "./pages/Homepage";
 
-import RawResultsPage from './pages/RawResultsPage';
+import RawResultsPage from "./pages/RawResultsPage";
 
 interface ProtectedRouteProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated)
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/login" replace />;
   }
 
-  return <>{children}</>
-}
+  return <>{children}</>;
+};
 
 function App() {
+  const initializeAuth = useAuthStore((state) => state.initializeAuth);
+
+  useEffect(() => {
+    // Initialize authentication state on app load
+    initializeAuth();
+  }, [initializeAuth]);
+
   return (
     <Router>
       <Routes>
         {/* Public Homepage */}
         <Route path="/" element={<Homepage />} />
-        
+
         {/* Auth Routes */}
         <Route path="/auth/signup" element={<SignUp />} />
         <Route path="/auth/login" element={<Login />} />
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />
-        
+        {/* <Route path="/auth/confirm-email" element={<ConfirmEmail />} /> */}
+
         {/* Backward compatibility */}
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        {/* <Route path="/confirm-email" element={<ConfirmEmail />} /> */}
 
         {/* Protected Routes */}
         <Route
@@ -104,6 +120,14 @@ function App() {
           }
         />
         <Route
+          path="/reports/:templateId"
+          element={
+            <ProtectedRoute>
+              <ReportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/profile"
           element={
             <ProtectedRoute>
@@ -120,6 +144,14 @@ function App() {
           }
         />
         <Route
+          path="/simulation/:id"
+          element={
+            <ProtectedRoute>
+              <SimulationDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/simulation/new"
           element={
             <ProtectedRoute>
@@ -127,21 +159,16 @@ function App() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/builder"
-          element={
-            <ProtectedRoute>
-              <DataCenterBuilder />
-            </ProtectedRoute>
-          }
-        />
 
         {/* Default Route */}
-        <Route path="/dashboard-redirect" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/dashboard-redirect"
+          element={<Navigate to="/dashboard" replace />}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
-  )
+  );
 }
 
-export default App
+export default App;

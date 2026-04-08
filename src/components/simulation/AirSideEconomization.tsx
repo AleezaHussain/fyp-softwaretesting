@@ -955,10 +955,16 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             min={100}
             max={100000}
             step={10}
-            value={airflowCFM}
-            onChange={(e) => setAirflowCFM(Number(e.target.value))}
-            className="w-full border rounded px-2 py-1"
+            value={selectedServer?.max_airflow_cfm ?? airflowCFM}
+            readOnly={!!(selectedServer?.max_airflow_cfm)}
+            onChange={(e) => {
+              if (!selectedServer?.max_airflow_cfm) setAirflowCFM(Number(e.target.value));
+            }}
+            className={`w-full border rounded px-2 py-1 ${selectedServer?.max_airflow_cfm ? "bg-gray-50 text-gray-700 cursor-not-allowed" : ""}`}
           />
+          {selectedServer?.max_airflow_cfm && (
+            <p className="text-xs text-gray-400 mt-0.5">From server DB: max_airflow_cfm</p>
+          )}
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-600 mb-1">
@@ -1023,13 +1029,11 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             <h4 className="text-sm font-medium text-gray-700 mb-2">
               Power Specifications
             </h4>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-1">
                   <Zap className="w-4 h-4 text-amber-500" />
-                  <span className="text-xs font-medium text-gray-600">
-                    Max Power
-                  </span>
+                  <span className="text-xs font-medium text-gray-600">Max Power</span>
                 </div>
                 <div className="text-lg font-bold text-gray-900">
                   {selectedServer.max_power_w.toLocaleString()} W
@@ -1039,9 +1043,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-1">
                   <Zap className="w-4 h-4 text-gray-500" />
-                  <span className="text-xs font-medium text-gray-600">
-                    Idle Power
-                  </span>
+                  <span className="text-xs font-medium text-gray-600">Idle Power</span>
                 </div>
                 <div className="text-lg font-bold text-gray-900">
                   {selectedServer.idle_power_w.toLocaleString()} W
@@ -1050,19 +1052,21 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
 
               <div className="bg-white p-3 rounded-lg border border-gray-200">
                 <div className="flex items-center gap-2 mb-1">
-                  <Zap className="w-4 h-4 text-blue-500" />
-                  <span className="text-xs font-medium text-gray-600">
-                    Typical Power
-                  </span>
+                  <Wind className="w-4 h-4 text-cyan-500" />
+                  <span className="text-xs font-medium text-gray-600">Cooling Type</span>
+                </div>
+                <div className="text-sm font-semibold text-gray-900">
+                  {selectedServer.cooling_type || "Air-cooled"}
+                </div>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <BarChart3 className="w-4 h-4 text-green-500" />
+                  <span className="text-xs font-medium text-gray-600">Avg Utilization</span>
                 </div>
                 <div className="text-lg font-bold text-gray-900">
-                  {selectedServer.typical_power_w?.toLocaleString() ||
-                    Math.round(
-                      (selectedServer.max_power_w +
-                        selectedServer.idle_power_w) /
-                        2,
-                    ).toLocaleString()}{" "}
-                  W
+                  {selectedServer.avg_utilization_percent ?? selectedServer.typical_utilization ?? 45}%
                 </div>
               </div>
             </div>
@@ -1130,37 +1134,6 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             </div>
           </div>
 
-          {/* Cooling Information */}
-          <div>
-            <h4 className="text-sm font-medium text-gray-700 mb-2">
-              Cooling Information
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div className="bg-white p-3 rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2 mb-1">
-                  <Wind className="w-4 h-4 text-cyan-500" />
-                  <span className="text-xs font-medium text-gray-600">
-                    Cooling Type
-                  </span>
-                </div>
-                <div className="text-sm font-semibold text-gray-900">
-                  {selectedServer.cooling_type}
-                </div>
-              </div>
-
-              <div className="bg-white p-3 rounded-lg border border-gray-200">
-                <div className="flex items-center gap-2 mb-1">
-                  <BarChart3 className="w-4 h-4 text-green-500" />
-                  <span className="text-xs font-medium text-gray-600">
-                    Typical Utilization
-                  </span>
-                </div>
-                <div className="text-sm font-semibold text-gray-900">
-                  {selectedServer.typical_utilization || 45}%
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
 
         {renderPhysicalFields()}
@@ -1502,43 +1475,47 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
               </div>
             </div>
 
-            {/* Quick Summary */}
-            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-l-4 border-blue-500">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                    Total Servers
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {numberOfServers.toLocaleString()}
+            {/* Quick Summary — computed directly from local state, independent of country selection */}
+            {(() => {
+              const totalServers = localNumberOfRacks * localServersPerRack;
+              const avgUtil = selectedServer?.avg_utilization_percent
+                ?? selectedServer?.typical_utilization
+                ?? localAvgUtil;
+              const maxPowerW = selectedServer?.max_power_w ?? 0;
+              const totalITPower = maxPowerW > 0
+                ? (totalServers * maxPowerW * avgUtil) / 100 / 1000
+                : 0;
+              return (
+                <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-l-4 border-blue-500">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Total Servers</div>
+                      <div className="text-2xl font-bold text-gray-900">{totalServers.toLocaleString()}</div>
+                      <div className="text-xs text-gray-500">{localNumberOfRacks} racks × {localServersPerRack}/rack</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Total IT Power</div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        {maxPowerW > 0 ? `${totalITPower.toFixed(1)} kW` : "—"}
+                      </div>
+                      <div className="text-xs text-gray-500">servers × max_power_w × avg_util</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Per Server Power</div>
+                      <div className="text-2xl font-bold text-gray-900">
+                        {maxPowerW > 0 ? `${maxPowerW.toLocaleString()} W` : "—"}
+                      </div>
+                      <div className="text-xs text-gray-500">max_power_w from DB</div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Avg Utilization</div>
+                      <div className="text-2xl font-bold text-gray-900">{avgUtil}%</div>
+                      <div className="text-xs text-gray-500">avg_utilization_percent from DB</div>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                    Total Power
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {totalITPowerKW.toFixed(1)} kW
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                    Per Server Power
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {perServerPower.toLocaleString()} W
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                    Utilization
-                  </div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    {localAvgUtil}%
-                  </div>
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -1558,7 +1535,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             </div>
           </div>
 
-          {/* Utilization sliders */}
+          {/* Utilization sliders — read-only, values from server DB */}
           <div className="space-y-6 mb-8">
             <div>
               <div className="flex justify-between items-center mb-2">
@@ -1572,13 +1549,15 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
               <input
                 type="range"
                 value={localAvgUtil}
-                onChange={(e) => setLocalAvgUtil(Number(e.target.value))}
+                readOnly
+                disabled
                 min={0}
                 max={100}
-                className="w-full h-2 bg-gradient-to-r from-green-200 to-green-500 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 bg-gradient-to-r from-green-200 to-green-500 rounded-lg appearance-none cursor-not-allowed opacity-70"
               />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
                 <span>0%</span>
+                <span className="text-green-600 font-medium">avg_utilization_percent from server DB</span>
                 <span>100%</span>
               </div>
             </div>
@@ -1595,13 +1574,15 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
               <input
                 type="range"
                 value={localPeakUtil}
-                onChange={(e) => setLocalPeakUtil(Number(e.target.value))}
+                readOnly
+                disabled
                 min={0}
                 max={100}
-                className="w-full h-2 bg-gradient-to-r from-orange-200 to-red-500 rounded-lg appearance-none cursor-pointer"
+                className="w-full h-2 bg-gradient-to-r from-orange-200 to-red-500 rounded-lg appearance-none cursor-not-allowed opacity-70"
               />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
                 <span>0%</span>
+                <span className="text-red-500 font-medium">peak_utilization_percent from server DB</span>
                 <span>100%</span>
               </div>
             </div>
@@ -2318,7 +2299,8 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
           </div>
         </div>
 
-        {/* Summary Section */}
+        {/* Summary Section — only shown when server + country are selected */}
+        {selectedServer && selectedCountry && totalITPowerKW > 0 && (
         <div className="bg-gradient-to-br from-blue-50 to-cyan-50 rounded-2xl p-6 border-2 border-blue-200">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-blue-300">
             <div className="w-10 h-10 rounded-lg bg-blue-200 flex items-center justify-center">
@@ -2336,69 +2318,35 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                IT Power Consumption
-              </div>
-              <div className="text-2xl font-bold text-gray-900">
-                {totalITPowerKW.toFixed(1)} kW
-              </div>
-              <div className="text-xs text-gray-500">Total server power</div>
+              <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">IT Power</div>
+              <div className="text-2xl font-bold text-gray-900">{totalITPowerKW.toFixed(1)} kW</div>
+              <div className="text-xs text-gray-500">servers × max_power_w × avg_util</div>
             </div>
-
             <div className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                Cooling Power
-              </div>
-              <div className="text-2xl font-bold text-gray-900">
-                {totalFanPowerKW.toFixed(1)} kW
-              </div>
+              <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Fan Power</div>
+              <div className="text-2xl font-bold text-gray-900">{totalFanPowerKW.toFixed(1)} kW</div>
               <div className="text-xs text-gray-500">Fan power consumption</div>
             </div>
-
             <div className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                Total Cooling Power
-              </div>
-              <div className="text-2xl font-bold text-gray-900">
-                {totalCoolingPowerKW.toFixed(1)} kW
-              </div>
-              <div className="text-xs text-gray-500">IT + Cooling power</div>
+              <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Total Power</div>
+              <div className="text-2xl font-bold text-gray-900">{totalCoolingPowerKW.toFixed(1)} kW</div>
+              <div className="text-xs text-gray-500">IT + Fan power</div>
             </div>
-
             <div className="bg-white p-4 rounded-xl border border-gray-200">
-              <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
-                Annual Cost
-              </div>
-              <div className="text-2xl font-bold text-gray-900">
-                ${(annualCostUSD / 1000).toFixed(1)}k
-              </div>
-              <div className="text-xs text-gray-500">
-                Based on {tariff.toFixed(3)}/kWh
-              </div>
+              <div className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Est. Annual Cost</div>
+              <div className="text-2xl font-bold text-gray-900">${(annualCostUSD / 1000).toFixed(1)}k</div>
+              <div className="text-xs text-gray-500">${tariff.toFixed(3)}/kWh × 8760 h</div>
             </div>
           </div>
 
-          {selectedServer && (
-            <div className="p-4 bg-blue-100 rounded-lg">
-              <p className="text-sm text-blue-800">
-                Currently configured: {selectedServer.manufacturer}{" "}
-                {selectedServer.name} •
-                {selectedServer.max_power_w.toLocaleString()}W max power •
-                {selectedServer.cooling_type} cooling
-              </p>
-            </div>
-          )}
-
-          {selectedCountry && (
-            <div className="p-4 bg-gray-100 rounded-lg mt-4">
-              <p className="text-sm text-gray-800">
-                Based on {selectedCountry.country_name} • $
-                {selectedCountry.electricity_tariff.toFixed(3)}/kWh •
-                {Math.round(selectedCountry.co2_grid_factor)} gCO₂/kWh
-              </p>
-            </div>
-          )}
+          <div className="p-4 bg-blue-100 rounded-lg">
+            <p className="text-sm text-blue-800">
+              {selectedServer.manufacturer} {selectedServer.name} · {selectedServer.max_power_w.toLocaleString()} W max · {selectedServer.cooling_type}
+              {" · "}{selectedCountry.country_name} · ${selectedCountry.electricity_tariff.toFixed(3)}/kWh
+            </p>
+          </div>
         </div>
+        )}
         {/* REMOVED: Run Simulation button - now only on Review page (Step 4) */}
       </div>
     </div>

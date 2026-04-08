@@ -1,22 +1,45 @@
 # train_recommender.py
 # Python script that loads dataset.csv, trains a classifier, and saves a model file.
 
+from pathlib import Path
+
+import joblib
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
-import joblib
+from sklearn.model_selection import train_test_split
 
 # 1) Load data
-print("Loading dataset.csv")
-df = pd.read_csv("dataset.csv")
+candidate_files = [
+    Path("dataset.csv"),
+    Path("dataset - Copy.csv"),
+    Path("dataset_full.csv"),
+    Path("dataset_full - Copy.csv"),
+]
+
+df = None
+source_path = None
+for candidate in candidate_files:
+    if candidate.exists():
+        candidate_df = pd.read_csv(candidate)
+        if not candidate_df.empty:
+            df = candidate_df
+            source_path = candidate
+            break
+
+if df is None:
+    raise FileNotFoundError("No populated dataset CSV found for training")
+
+print(f"Loading {source_path}")
 
 # 2) Select features and label
 features = ["tempC", "rh", "itLoadKW"]
-if "electricity" in df.columns:
-    features.append("electricity")
-if "water" in df.columns:
-    features.append("water")
+for optional_feature in ["electricityPrice", "waterPrice", "carbonFactor", "electricity", "water"]:
+    if optional_feature in df.columns:
+        features.append(optional_feature)
+
+if "bestTechnique" not in df.columns:
+    raise KeyError("Expected target column 'bestTechnique' was not found in the dataset")
 
 X = df[features]
 y = df["bestTechnique"]

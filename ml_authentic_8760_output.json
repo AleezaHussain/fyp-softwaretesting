@@ -1,0 +1,52 @@
+{
+    "current_technique":  "ChilledWater",
+    "generated_at_utc":  "2026-04-07T17:33:13.464726Z",
+    "model_recommendation":  "Evaporative",
+    "why_this_is_recommended":  [
+                                    "Recommended technique is Evaporative, and it is feasible for this case, so it remains the final recommendation.",
+                                    "Your current technique is ChilledWater, but the suggested technique is Evaporative for better overall performance.",
+                                    "Based on your current conditions, the suggested cooling technique is Evaporative.",
+                                    "Feasibility check result: Evaporative is valid for this scenario with 0 constraint violations.",
+                                    "Compared with ChilledWater, choosing Evaporative can save about $22,030 per year, reduce emissions by about 93,088 kg CO2 per year, and save about 515,331 liters of water per year.",
+                                    "Compared with AirEconomizer, choosing Evaporative can save about $76,510 per year, reduce emissions by about 154,813 kg CO2 per year, and use about 0 more liters of water per year."
+                                ],
+    "future_impact_paragraph":  "If similar conditions continue, using Evaporative is expected to result in around $20,523 annual operating cost, 65,108 kg CO2 emissions, and 0 liters of water use in Year 1. Over 3 years, this becomes approximately $61,569 cost, 195,324 kg CO2, and 0 liters water. Over 5 years, it reaches approximately $102,616 cost, 325,540 kg CO2, and 0 liters water. This provides a long-term view for budget planning, sustainability targets, and cooling reliability.",
+    "comparison_table":  [
+                             {
+                                 "tech":  "Evaporative",
+                                 "feasible":  true,
+                                 "score":  0.0,
+                                 "cost":  20523.155552450164,
+                                 "emissions_kg":  65107.94175260052,
+                                 "water_liters":  0.0,
+                                 "violations":  0,
+                                 "annual_cost":  20523.155552450164,
+                                 "annual_emissions_kg":  65107.94175260052,
+                                 "annual_water_liters":  0.0
+                             },
+                             {
+                                 "tech":  "ChilledWater",
+                                 "feasible":  true,
+                                 "score":  0.5243538633171894,
+                                 "cost":  42552.79558464784,
+                                 "emissions_kg":  158196.14250986595,
+                                 "water_liters":  515330.5809588217,
+                                 "violations":  0,
+                                 "annual_cost":  42552.79558464784,
+                                 "annual_emissions_kg":  158196.14250986595,
+                                 "annual_water_liters":  515330.5809588217
+                             },
+                             {
+                                 "tech":  "AirEconomizer",
+                                 "feasible":  true,
+                                 "score":  0.8,
+                                 "cost":  97033.08387396023,
+                                 "emissions_kg":  219921.25828746276,
+                                 "water_liters":  0.0,
+                                 "violations":  0,
+                                 "annual_cost":  97033.08387396023,
+                                 "annual_emissions_kg":  219921.25828746276,
+                                 "annual_water_liters":  0.0
+                             }
+                         ]
+}
