@@ -19,6 +19,56 @@ export interface AuthResponse {
   error?: string;
 }
 
+const isRecoverableSignupError = (message: string): boolean => {
+  const text = (message || "").toLowerCase();
+  return (
+    text.includes("rate limit") ||
+    text.includes("already registered") ||
+    text.includes("already exists")
+  );
+};
+
+const ensureUserProfile = async (
+  authUserId: string,
+  name: string,
+  email: string,
+  role: "user" | "admin",
+): Promise<{ profile?: UserProfile; error?: string }> => {
+  const { data: existingProfile, error: existingProfileError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+
+  if (existingProfileError) {
+    return { error: existingProfileError.message };
+  }
+
+  if (existingProfile) {
+    return { profile: existingProfile as UserProfile };
+  }
+
+  const { data: createdProfile, error: createProfileError } = await supabase
+    .from("users")
+    .insert([
+      {
+        auth_user_id: authUserId,
+        name,
+        email,
+        password_hash: "hashed_profile_only",
+        role,
+      },
+    ])
+    .select()
+    .single();
+
+  if (createProfileError) {
+    return { error: createProfileError.message };
+  }
+
+  return { profile: createdProfile as UserProfile };
+};
+
 /**
  * Sign up a new user with Supabase Auth and create a user profile
  */
@@ -52,31 +102,57 @@ export const signUp = async (
     });
 
     if (authError || !authData.user) {
-      return { success: false, error: authError?.message || "Signup failed" };
+      const authMessage = authError?.message || "Signup failed";
+
+      // Supabase can throttle sign-up emails; if account already exists, recover by signing in.
+      if (isRecoverableSignupError(authMessage)) {
+        const { data: signInData, error: signInError } =
+          await supabase.auth.signInWithPassword({
+            email: normalizedEmail,
+            password,
+          });
+
+        if (signInError || !signInData.user) {
+          return { success: false, error: authMessage };
+        }
+
+        const { profile, error: ensureError } = await ensureUserProfile(
+          signInData.user.id,
+          name,
+          normalizedEmail,
+          role,
+        );
+
+        if (ensureError || !profile) {
+          return { success: false, error: ensureError || "Failed to save user profile" };
+        }
+
+        return {
+          success: true,
+          user: signInData.user,
+          profile,
+        };
+      }
+
+      return { success: false, error: authMessage };
     }
 
-    // 2. Insert into users table using the real UUID
-    const { data: profile, error: profileError } = await supabase
-      .from("users")
-      .insert([
-        {
-          auth_user_id: authData.user.id, // use real UUID
-          name: name,
-          email: normalizedEmail,
-          password_hash: "hashed_" + password,
-          role: role,
-        },
-      ])
-      .select()
-      .single();
+    // 2. Ensure users-table profile exists for this auth user.
+    const { profile, error: ensureError } = await ensureUserProfile(
+      authData.user.id,
+      name,
+      normalizedEmail,
+      role,
+    );
 
-    if (profileError) {
-      return { success: false, error: profileError.message };
+    if (ensureError || !profile) {
+      return { success: false, error: ensureError || "Failed to save user profile" };
     }
 
     return {
       success: true,
-      profile: profile as UserProfile,
+      user: authData.user,
+      profile,
     };
   } catch (error) {
     console.error("Sign up error:", error);
