@@ -3,9 +3,7 @@ import { Info } from "lucide-react";
 
 interface SimulationRecommendationsProps {
   resultData: any;
-  result?: {
-    recommendation?: string;
-  };
+  result?: any;
   isDark: boolean;
 }
 
@@ -23,11 +21,10 @@ const Tip: React.FC<{ text: string; isDark: boolean }> = ({ text, isDark }) => {
       </button>
       {show && (
         <span
-          className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 w-64 text-xs rounded-lg px-2.5 py-1.5 shadow-xl pointer-events-none ${
-            isDark
+          className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 w-64 text-xs rounded-lg px-2.5 py-1.5 shadow-xl pointer-events-none ${isDark
               ? "bg-[#27304a] text-gray-200 border border-[#3f4a68]"
               : "bg-gray-900 text-white"
-          }`}
+            }`}
         >
           {text}
         </span>
@@ -60,11 +57,10 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
   if (!mlRec && !fallbackRecommendation) {
     return (
       <div
-        className={`p-4 rounded-xl border ${
-          isDark
+        className={`p-4 rounded-xl border ${isDark
             ? "bg-slate-900 border-slate-700 text-slate-300"
             : "bg-white border-gray-200 text-gray-600"
-        }`}
+          }`}
       >
         <p className="text-sm">No recommendation data is available for this simulation.</p>
       </div>
@@ -133,7 +129,7 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
         >
           ML Recommendation
         </span>
-        
+
       </div>
 
       <div>
@@ -144,9 +140,8 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
           {metaCards.map((card) => (
             <div
               key={card.label}
-              className={`p-3 rounded-xl border ${
-                isDark ? "bg-[#0a0e27] border-[#3f4a68]" : "bg-white border-gray-200"
-              }`}
+              className={`p-3 rounded-xl border ${isDark ? "bg-[#0a0e27] border-[#3f4a68]" : "bg-white border-gray-200"
+                }`}
             >
               <div className={`text-xs mb-1 flex items-center ${isDark ? "text-gray-400" : "text-gray-500"}`}>
                 {card.label}
@@ -167,11 +162,10 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
             <Tip text="Source: mlRecommendation.why_this_is_recommended[]" isDark={isDark} />
           </h3>
           <div
-            className={`p-3 rounded-xl border text-sm leading-7 ${
-              isDark
+            className={`p-3 rounded-xl border text-sm leading-7 ${isDark
                 ? "bg-[#0a0e27] border-[#3f4a68] text-gray-200"
                 : "bg-white border-gray-200 text-gray-700"
-            }`}
+              }`}
           >
             {summaryParagraph}
           </div>
@@ -185,11 +179,10 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
             <Tip text="Source: mlRecommendation.future_impact_paragraph" isDark={isDark} />
           </h3>
           <div
-            className={`p-3 rounded-xl border text-sm leading-7 ${
-              isDark
+            className={`p-3 rounded-xl border text-sm leading-7 ${isDark
                 ? "bg-[#0a0e27] border-[#3f4a68] text-gray-200"
                 : "bg-white border-gray-200 text-gray-700"
-            }`}
+              }`}
           >
             {mlRec.future_impact_paragraph}
           </div>
@@ -203,9 +196,8 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
             <Tip text="Source: mlRecommendation.comparison_table[]" isDark={isDark} />
           </h3>
           <div
-            className={`rounded-xl border overflow-hidden ${
-              isDark ? "bg-[#0a0e27] border-[#3f4a68]" : "bg-white border-gray-200"
-            }`}
+            className={`rounded-xl border overflow-hidden ${isDark ? "bg-[#0a0e27] border-[#3f4a68]" : "bg-white border-gray-200"
+              }`}
           >
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -214,9 +206,8 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
                     {["Rank", "Technique", "Feasible", "Score", "Annual Cost", "CO2 (kg)", "Water (L)", "Violations"].map((h) => (
                       <th
                         key={h}
-                        className={`px-3 py-2 text-left text-xs font-semibold ${
-                          isDark ? "text-gray-400" : "text-gray-500"
-                        }`}
+                        className={`px-3 py-2 text-left text-xs font-semibold ${isDark ? "text-gray-400" : "text-gray-500"
+                          }`}
                       >
                         {h}
                       </th>
@@ -259,11 +250,10 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
 
       {!mlRec && fallbackRecommendation && (
         <div
-          className={`p-3 rounded-xl border ${
-            isDark
+          className={`p-3 rounded-xl border ${isDark
               ? "bg-[#0a0e27] border-[#3f4a68] text-gray-200"
               : "bg-white border-gray-200 text-gray-700"
-          }`}
+            }`}
         >
           <div className={`text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
             Recommendation Summary

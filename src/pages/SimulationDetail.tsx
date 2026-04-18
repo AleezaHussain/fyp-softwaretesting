@@ -25,6 +25,7 @@ import {
 import { supabase } from "../lib/supabase";
 import { ArrayDataSection } from "../components/simulation/ArrayDataSection";
 import { SimulationCharts } from "../components/simulation/SimulationCharts";
+import { SimulationChartsInsightPanel } from "../components/simulation/SimulationChartsInsightPanel";
 import { generateSimulationPDF } from "../utils/pdfExport";
 import { SimulationDetailedView } from "../components/simulation/SimulationDetailedView";
 import { SimulationRecommendations } from "../components/simulation/SimulationRecommendations";
@@ -278,6 +279,49 @@ const SimulationDetail: React.FC = () => {
   // Overview KPI cards
   const kpiCards = isEvap
     ? [
+      {
+        icon: (
+          <Clock
+            className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-cyan-600"}`}
+          />
+        ),
+        label: "Runtime",
+        value: `${simulation.result?.runtime_minutes}`,
+        unit: "min",
+      },
+      {
+        icon: (
+          <Zap
+            className={`w-5 h-5 ${isDark ? "text-yellow-400" : "text-yellow-600"}`}
+          />
+        ),
+        label: "PUE Average",
+        value: (evapPerf.pue_average ?? rd?.pue ?? 0).toFixed(4),
+        unit: "",
+      },
+      {
+        icon: (
+          <TrendingDown
+            className={`w-5 h-5 ${isDark ? "text-green-400" : "text-green-600"}`}
+          />
+        ),
+        label: "Cooling Cap Avg",
+        value: (km.cooling_capacity_avg_kw ?? 0).toFixed(2),
+        unit: "kW",
+      },
+      {
+        icon: (
+          <DollarSign
+            className={`w-5 h-5 ${isDark ? "text-purple-400" : "text-purple-600"}`}
+          />
+        ),
+        label: "Annual Cost",
+        value: `$${(rd?.rawEvaporativeData?.results?.cost?.total_energy_cost_usd ?? rd?.estimatedCost ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+        unit: "",
+      },
+    ]
+    : isAir
+      ? [
         {
           icon: (
             <Clock
@@ -294,9 +338,9 @@ const SimulationDetail: React.FC = () => {
               className={`w-5 h-5 ${isDark ? "text-yellow-400" : "text-yellow-600"}`}
             />
           ),
-          label: "PUE Average",
-          value: (evapPerf.pue_average ?? rd?.pue ?? 0).toFixed(4),
-          unit: "",
+          label: "Energy Consumed",
+          value: (simulation.result?.energy_consumed_kwh ?? 0).toFixed(2),
+          unit: "kWh",
         },
         {
           icon: (
@@ -304,9 +348,59 @@ const SimulationDetail: React.FC = () => {
               className={`w-5 h-5 ${isDark ? "text-green-400" : "text-green-600"}`}
             />
           ),
-          label: "Cooling Cap Avg",
-          value: (km.cooling_capacity_avg_kw ?? 0).toFixed(2),
-          unit: "kW",
+          label: "Energy Savings",
+          value: (
+            rd?.summary?.energySavingsPercent ??
+            simulation.result?.cost_saving_percent ??
+            0
+          ).toFixed(1),
+          unit: "%",
+        },
+        {
+          icon: (
+            <DollarSign
+              className={`w-5 h-5 ${isDark ? "text-purple-400" : "text-purple-600"}`}
+            />
+          ),
+          label: "Annual Savings",
+          value: `$${(rd?.summary?.annualSavingsUSD ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+          unit: "",
+        },
+      ]
+      : [
+        {
+          icon: (
+            <Clock
+              className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-cyan-600"}`}
+            />
+          ),
+          label: "Runtime",
+          value: `${simulation.result?.runtime_minutes}`,
+          unit: "min",
+        },
+        {
+          icon: (
+            <Zap
+              className={`w-5 h-5 ${isDark ? "text-yellow-400" : "text-yellow-600"}`}
+            />
+          ),
+          label: "Energy Consumed",
+          value: (simulation.result?.energy_consumed_kwh ?? 0).toFixed(2),
+          unit: "kWh",
+        },
+        {
+          icon: (
+            <TrendingDown
+              className={`w-5 h-5 ${isDark ? "text-green-400" : "text-green-600"}`}
+            />
+          ),
+          label: "PUE",
+          value: (
+            rd?.results?.metrics?.pue ??
+            simulation.result?.cooling_efficiency ??
+            0
+          ).toFixed(4),
+          unit: "",
         },
         {
           icon: (
@@ -315,103 +409,10 @@ const SimulationDetail: React.FC = () => {
             />
           ),
           label: "Annual Cost",
-          value: `$${(rd?.rawEvaporativeData?.results?.cost?.total_energy_cost_usd ?? rd?.estimatedCost ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+          value: `$${(rd?.results?.annual?.cost_USD ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
           unit: "",
         },
-      ]
-    : isAir
-      ? [
-          {
-            icon: (
-              <Clock
-                className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-cyan-600"}`}
-              />
-            ),
-            label: "Runtime",
-            value: `${simulation.result?.runtime_minutes}`,
-            unit: "min",
-          },
-          {
-            icon: (
-              <Zap
-                className={`w-5 h-5 ${isDark ? "text-yellow-400" : "text-yellow-600"}`}
-              />
-            ),
-            label: "Energy Consumed",
-            value: (simulation.result?.energy_consumed_kwh ?? 0).toFixed(2),
-            unit: "kWh",
-          },
-          {
-            icon: (
-              <TrendingDown
-                className={`w-5 h-5 ${isDark ? "text-green-400" : "text-green-600"}`}
-              />
-            ),
-            label: "Energy Savings",
-            value: (
-              rd?.summary?.energySavingsPercent ??
-              simulation.result?.cost_saving_percent ??
-              0
-            ).toFixed(1),
-            unit: "%",
-          },
-          {
-            icon: (
-              <DollarSign
-                className={`w-5 h-5 ${isDark ? "text-purple-400" : "text-purple-600"}`}
-              />
-            ),
-            label: "Annual Savings",
-            value: `$${(rd?.summary?.annualSavingsUSD ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-            unit: "",
-          },
-        ]
-      : [
-          {
-            icon: (
-              <Clock
-                className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-cyan-600"}`}
-              />
-            ),
-            label: "Runtime",
-            value: `${simulation.result?.runtime_minutes}`,
-            unit: "min",
-          },
-          {
-            icon: (
-              <Zap
-                className={`w-5 h-5 ${isDark ? "text-yellow-400" : "text-yellow-600"}`}
-              />
-            ),
-            label: "Energy Consumed",
-            value: (simulation.result?.energy_consumed_kwh ?? 0).toFixed(2),
-            unit: "kWh",
-          },
-          {
-            icon: (
-              <TrendingDown
-                className={`w-5 h-5 ${isDark ? "text-green-400" : "text-green-600"}`}
-              />
-            ),
-            label: "PUE",
-            value: (
-              rd?.results?.metrics?.pue ??
-              simulation.result?.cooling_efficiency ??
-              0
-            ).toFixed(4),
-            unit: "",
-          },
-          {
-            icon: (
-              <DollarSign
-                className={`w-5 h-5 ${isDark ? "text-purple-400" : "text-purple-600"}`}
-              />
-            ),
-            label: "Annual Cost",
-            value: `$${(rd?.results?.annual?.cost_USD ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-            unit: "",
-          },
-        ];
+      ];
 
   return (
     <div className={`min-h-screen ${bg}`}>
@@ -447,11 +448,10 @@ const SimulationDetail: React.FC = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleExportPDF}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-105 ${
-                    isDark
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-105 ${isDark
                       ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white shadow-lg shadow-cyan-500/20"
                       : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white shadow-lg shadow-cyan-500/20"
-                  }`}
+                    }`}
                 >
                   <Download className="w-4 h-4" />
                   Export PDF
@@ -517,15 +517,14 @@ const SimulationDetail: React.FC = () => {
             <button
               key={tid}
               onClick={() => setActiveTab(tid)}
-              className={`flex items-center gap-2 flex-1 justify-center py-2.5 px-3 rounded-lg text-sm font-semibold transition-all ${
-                activeTab === tid
+              className={`flex items-center gap-2 flex-1 justify-center py-2.5 px-3 rounded-lg text-sm font-semibold transition-all ${activeTab === tid
                   ? isDark
                     ? "bg-[#5ce1e5]/20 text-[#5ce1e5] border border-[#5ce1e5]/30"
                     : "bg-white text-blue-700 shadow border border-blue-100"
                   : isDark
                     ? "text-gray-400 hover:text-white"
                     : "text-gray-500 hover:text-gray-900"
-              }`}
+                }`}
             >
               <Icon className="w-4 h-4" />
               <span className="hidden sm:inline">{label}</span>
@@ -608,8 +607,8 @@ const SimulationDetail: React.FC = () => {
                     "Completed",
                     simulation.result.completed_at
                       ? new Date(
-                          simulation.result.completed_at,
-                        ).toLocaleString()
+                        simulation.result.completed_at,
+                      ).toLocaleString()
                       : "—",
                   ],
                   ["Runtime", `${simulation.result.runtime_minutes} min`],
@@ -631,13 +630,24 @@ const SimulationDetail: React.FC = () => {
 
         {/* ── TAB: Charts ── */}
         {activeTab === "charts" && simulation.result?.result_data && (
-          <div className={`p-6 ${card}`}>
-            <h2 className={`text-lg font-bold mb-6 ${text}`}>Visualisations</h2>
-            <SimulationCharts
-              resultData={simulation.result.result_data}
-              simulationType={simulation.simulation_type}
-              isDark={isDark}
-            />
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
+            <div className={`p-6 ${card}`}>
+              <h2 className={`text-lg font-bold mb-6 ${text}`}>Visualisations</h2>
+              <SimulationCharts
+                resultData={simulation.result.result_data}
+                simulationType={simulation.simulation_type}
+                isDark={isDark}
+              />
+            </div>
+            <div className="xl:sticky xl:top-6">
+              <SimulationChartsInsightPanel
+                simulationName={simulation.name}
+                simulationType={simulation.simulation_type}
+                simulationDescription={simulation.description}
+                resultData={simulation.result.result_data}
+                isDark={isDark}
+              />
+            </div>
           </div>
         )}
 
