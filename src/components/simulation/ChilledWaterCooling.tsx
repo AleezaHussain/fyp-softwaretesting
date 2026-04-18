@@ -1,5 +1,7 @@
 import React, { useState, useCallback, useMemo } from "react";
 import { Upload, CloudRain, Mountain, AlertCircle, CheckCircle2, FileText, Thermometer, Cpu, Droplets, Settings, DollarSign, Zap } from "lucide-react";
+import WeatherLocationPicker from "./WeatherLocationPicker";
+import { ChilledWaterWeatherPoint } from "../../services/weatherService";
 
 // Custom slider styles
 const sliderStyles = `
@@ -990,157 +992,23 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
       >
         
         {/* ====================================================================
-            1. WEATHER DATA UPLOAD - INTERACTIVE DROPZONE
+            1. WEATHER DATA — LOCATION PICKER (auto-fetch from EnergyPlus)
             ==================================================================== */}
-        <div>
-          <label className={`block mb-3 font-semibold text-lg ${isDark ? "text-white" : "text-gray-900"}`}>
-            <CloudRain className="inline-block w-5 h-5 mr-2 mb-1" />
-            Weather Data Upload
-          </label>
-          <p className={`text-sm mb-4 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-            Upload an EPW (EnergyPlus Weather) or CSV file with 8760 hourly data points
-          </p>
-
-          {/* Dropzone */}
-          <div
-            onDragEnter={handleDragEnter}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`
-              relative border-2 border-dashed rounded-xl p-8 transition-all duration-300
-              ${isDragging 
-                ? isDark 
-                  ? "border-blue-500 bg-blue-500/10" 
-                  : "border-blue-400 bg-blue-50"
-                : isDark
-                  ? "border-[#3f4a68] hover:border-blue-500/50"
-                  : "border-gray-300 hover:border-blue-400"
-              }
-              ${isProcessing ? "opacity-50 pointer-events-none" : "cursor-pointer"}
-            `}
-          >
-            <input
-              type="file"
-              accept=".epw,.csv"
-              onChange={handleFileInput}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              disabled={isProcessing}
-            />
-
-            <div className="text-center space-y-4">
-              {/* Icon */}
-              <div className={`mx-auto w-16 h-16 rounded-full flex items-center justify-center ${
-                isDark ? "bg-blue-500/20" : "bg-blue-100"
-              }`}>
-                <Upload className={`w-8 h-8 ${isDark ? "text-blue-400" : "text-blue-600"}`} />
-              </div>
-
-              {/* Text */}
-              {!weatherFile && !isProcessing && (
-                <>
-                  <div>
-                    <p className={`text-lg font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                      Drop your weather file here
-                    </p>
-                    <p className={`text-sm mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                      or click to browse
-                    </p>
-                  </div>
-                  <div className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>
-                    Supported formats: .epw, .csv (max 10MB)
-                  </div>
-                </>
-              )}
-
-              {isProcessing && (
-                <div className="flex items-center justify-center space-x-2">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
-                  <span className={isDark ? "text-gray-300" : "text-gray-700"}>
-                    Processing file...
-                  </span>
-                </div>
-              )}
-
-              {/* Success State */}
-              {weatherFile && weatherMetadata && !isProcessing && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-center space-x-2">
-                    <CheckCircle2 className="w-6 h-6 text-green-500" />
-                    <span className={`font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                      File uploaded successfully
-                    </span>
-                  </div>
-                  
-                  {/* File Metadata Card */}
-                  <div className={`
-                    mt-4 p-4 rounded-lg text-left
-                    ${isDark ? "bg-[#1a1f3a] border border-[#3f4a68]" : "bg-white border border-gray-200"}
-                  `}>
-                    <div className="flex items-start space-x-3">
-                      <FileText className={`w-5 h-5 mt-0.5 ${isDark ? "text-blue-400" : "text-blue-600"}`} />
-                      <div className="flex-1 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className={`font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                            {weatherFile.name}
-                          </span>
-                          <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-500"}`}>
-                            {(weatherFile.size / 1024).toFixed(1)} KB
-                          </span>
-                        </div>
-                        
-                        <div className={`text-sm space-y-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium">Location:</span>
-                            <span>{weatherMetadata.location}</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium">Elevation:</span>
-                            <span>{weatherMetadata.elevation.toFixed(0)} m</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="font-medium">Data Points:</span>
-                            <span>{weatherMetadata.rowCount} hours</span>
-                            {weatherMetadata.hasValidData && (
-                              <span className="text-green-500 text-xs">✓ Valid</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Change File Button */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setWeatherFile(null);
-                      setWeatherData([]);
-                      setWeatherMetadata(null);
-                    }}
-                    className={`
-                      text-sm px-4 py-2 rounded-lg transition-colors
-                      ${isDark 
-                        ? "text-blue-400 hover:bg-blue-500/10" 
-                        : "text-blue-600 hover:bg-blue-50"
-                      }
-                    `}
-                  >
-                    Change File
-                  </button>
-                </div>
-              )}
-
-              {/* Error State */}
-              {uploadError && (
-                <div className="flex items-center justify-center space-x-2 text-red-500">
-                  <AlertCircle className="w-5 h-5" />
-                  <span className="text-sm">{uploadError}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <WeatherLocationPicker
+          mode="chilled-water"
+          isDark={isDark}
+          onWeatherLoaded={(result) => {
+            const points = result.data as ChilledWaterWeatherPoint[];
+            setWeatherData(points as any);
+            setWeatherMetadata({
+              location:     result.location ?? result.city,
+              elevation:    result.elevation ?? 0,
+              rowCount:     result.hours,
+              hasValidData: result.hours >= 8760,
+            });
+            setWeatherFile({ name: result.city + ".epw", size: 0 } as any);
+          }}
+        />
 
         {/* ====================================================================
             2. WARMING DELTA (ΔT) - RANGE SLIDER

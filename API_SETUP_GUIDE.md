@@ -6,10 +6,10 @@ This guide explains how to run all three cooling system APIs simultaneously.
 
 All three APIs are configured to run on different ports to avoid conflicts:
 
-| API Name | Port | Endpoint | Swagger UI |
-|----------|------|----------|------------|
-| **Air Economizer** | 8080 | `http://localhost:8080/api/simulate` | `http://localhost:8080/swagger-ui.html` |
-| **Chilled Water** | 8081 | `http://localhost:8081/api/v1/chilled-water/simulate` | `http://localhost:8081/swagger-ui.html` |
+| API Name                | Port | Endpoint                                                    | Swagger UI                              |
+| ----------------------- | ---- | ----------------------------------------------------------- | --------------------------------------- |
+| **Air Economizer**      | 8080 | `http://localhost:8080/api/simulate`                        | `http://localhost:8080/swagger-ui.html` |
+| **Chilled Water**       | 8081 | `http://localhost:8081/api/v1/chilled-water/simulate`       | `http://localhost:8081/swagger-ui.html` |
 | **Evaporative Cooling** | 8082 | `http://localhost:8082/api/simulations/evaporative-cooling` | `http://localhost:8082/swagger-ui.html` |
 
 ## 🎯 Quick Start
@@ -23,6 +23,7 @@ Simply run the unified startup script:
 ```
 
 This will:
+
 - ✅ Start all three APIs in separate PowerShell windows
 - ✅ Each API runs on its designated port
 - ✅ Display all endpoint URLs and Swagger UI links
@@ -96,6 +97,7 @@ Port configurations are stored in:
 If you get a "port already in use" error:
 
 1. Check what's using the port:
+
    ```powershell
    netstat -ano | findstr :8080
    netstat -ano | findstr :8081
@@ -103,6 +105,7 @@ If you get a "port already in use" error:
    ```
 
 2. Kill the process:
+
    ```powershell
    taskkill /PID <process_id> /F
    ```
@@ -131,6 +134,7 @@ mvn clean compile
 ### API Not Responding
 
 1. Check if the API is running:
+
    ```powershell
    Get-Process -Name "java" | Where-Object {$_.CommandLine -like "*spring-boot*"}
    ```
@@ -170,6 +174,7 @@ curl -X POST http://localhost:8082/api/simulations/evaporative-cooling `
 ### Using Frontend
 
 1. Start the frontend:
+
    ```powershell
    npm run dev
    ```

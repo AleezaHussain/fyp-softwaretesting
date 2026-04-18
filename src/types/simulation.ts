@@ -98,7 +98,7 @@ export interface ThermalData {
   heatLoad: number
   position: { x: number; y: number; z: number }
 }
-
+export type ComponentMetadata = {
   [key in ComponentType]: {
     name: string
     color: string

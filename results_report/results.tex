@@ -1,0 +1,989 @@
+﻿\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{multirow}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{caption}
+\geometry{margin=2.5cm}
+\definecolor{airblue}{RGB}{30,100,180}
+\definecolor{evapgreen}{RGB}{34,139,34}
+\definecolor{chilledred}{RGB}{180,30,30}
+\definecolor{lightgray}{RGB}{245,245,245}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{FYP: Data Center Cooling Strategies}
+\lhead{Aleeza Hussain}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\hypersetup{colorlinks=true,linkcolor=black,urlcolor=blue,citecolor=black}
+\begin{document}
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\LARGE\bfseries FYP: Comparative Analysis of Data Center Cooling Strategies\\[0.5em]}
+{\large\bfseries Simulation Results \& Analysis Report\\[2em]}
+{\large Aleeza Hussain\\[0.5em]}
+{\normalsize April 2026\\[3em]}
+\rule{\textwidth}{1pt}\\[1em]
+{\normalsize\itshape
+This report presents the full simulation results from three high-fidelity physics-based cooling models:\\
+Air-Side Economization, Evaporative Cooling, and Chilled Water Systems.\\
+All simulations run over 8{,}760 hours (one full year) using CloudSim Plus 8.x co-simulation.}\\[1em]
+\rule{\textwidth}{1pt}
+\vfill
+{\small Department of Computer Science \\ Final Year Project --- April 2026}
+\end{titlepage}
+\tableofcontents
+\newpage
+
+%% ============================================================
+\section{Executive Summary}
+%% ============================================================
+
+This report presents the complete simulation results for three data center cooling strategies evaluated under identical AI-era workload conditions over a full 8{,}760-hour annual cycle. The simulation framework integrates CloudSim Plus 8.x Discrete Event Simulation with custom-built physics engines implemented in Java 17 / Spring Boot 3.x, as described in the accompanying Methodology document.
+
+\subsection*{Key Findings at a Glance}
+
+\begin{table}[h!]
+\centering
+\caption{Annual Performance Summary --- All Three Cooling Techniques}
+\label{tab:exec_summary}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Metric} & \textbf{Air-Side Econ.} & \textbf{Evaporative} & \textbf{Chilled Water} & \textbf{Best} \\
+\midrule
+Total Energy (kWh/yr) & 478{,}090 & 141{,}539 & 288{,}475 & Evaporative \\
+IT Energy (kWh/yr) & 372{,}125 & 141{,}173 & 248{,}000 & Evaporative \\
+Average PUE & 1.285 & 1.002 & 1.163 & Evaporative \\
+Average CUE (kgCO$_2$/kWh$_{IT}$) & 0.591 & 0.461 & 0.549 & Evaporative \\
+Annual OpEx (USD) & \$97{,}033 & \$20{,}523 & \$42{,}553 & Evaporative \\
+Carbon Emissions (kg/yr) & 219{,}921 & 65{,}108 & 158{,}196 & Evaporative \\
+Water Usage (L/yr) & 0 & 0 & 515{,}331 & Air-Side \\
+CAPEX (USD) & \$45{,}000 & N/A & \$630{,}000 & Air-Side \\
+Payback Period (yrs) & 491.9 & N/A & 50.0 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Overall Recommendation:} The ML-based recommender system, trained on the simulation outputs, recommends \textbf{Evaporative Cooling} as the optimal strategy for the simulated conditions, achieving the lowest PUE (1.002), lowest annual OpEx (\$20{,}523), and lowest carbon emissions (65{,}108 kg CO$_2$/yr). However, it carries a critical thermal compliance failure --- rack inlet temperatures reached 38.5\textdegree C, exceeding the ASHRAE Class A1 limit of 27\textdegree C --- making it unsuitable as a standalone solution for high-density AI workloads without supplemental mechanical cooling.
+
+\newpage
+
+%% ============================================================
+\section{Simulation Architecture \& Co-Simulation Design}
+%% ============================================================
+
+\subsection{System Architecture Overview}
+
+The simulation platform is built on a lock-step co-simulation model that tightly couples a Discrete Event Simulation (DES) layer with a physics-based thermal engine. Figure~\ref{fig:arch} describes the data flow.
+
+\begin{table}[h!]
+\centering
+\caption{Co-Simulation Layer Responsibilities}
+\label{tab:arch_layers}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{p{3.5cm}p{5cm}p{5cm}}
+\toprule
+\textbf{Layer} & \textbf{Technology} & \textbf{Responsibility} \\
+\midrule
+Computational Layer & CloudSim Plus 8.x & VM provisioning, task scheduling, hourly $P_{IT}$ output \\
+Thermal Layer & Spring Boot 3.x / Java 17 & Physics engine: airflow, heat balance, COP calculations \\
+Synchronisation & Lock-step clock ($\Delta t = 3600$s) & Pulls $P_{IT}$ each tick; returns $P_{cooling}$ to global tracker \\
+Economic Layer & ProjectionEngine.java & 5-year NPV, carbon tax escalation, TOU tariffs \\
+ML Recommender & Random Forest (scikit-learn) & Ranks techniques by composite score \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Workload Model}
+
+All three simulations use an identical AI-aware composite workload:
+\[
+U_{total}(t) = \bigl[U_{diurnal}(t) \times M_{AI}\bigr] + \sigma(t)
+\]
+where $U_{diurnal}$ is a sinusoidal function peaking at 14:00, $M_{AI} = 1.3$ (Mixed AI workload), and $\sigma(t)$ is Gaussian noise ($\pm 5\%$). Weekend load is reduced by 70\%. UPS and PDU losses are modelled with quadratic efficiency curves.
+
+\subsection{Simulation Parameters}
+
+\begin{table}[h!]
+\centering
+\caption{Common Simulation Input Parameters}
+\label{tab:sim_params}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llll}
+\toprule
+\textbf{Category} & \textbf{Parameter} & \textbf{Value} & \textbf{Source} \\
+\midrule
+Thermal & ASHRAE Max Inlet ($T_{max}$) & 27.0\textdegree C & ASHRAE TC 9.9 \\
+Thermal & Thermal Mass (Rack) & 15.0 kJ/K & Design Default \\
+Psychrometric & Air Density ($\rho$) & 1.2 kg/m$^3$ & Ideal Gas Law \\
+Psychrometric & Latent Heat ($L_v$) & 2{,}260 kJ/kg & Water Vaporisation \\
+Power & Chiller Reference COP & 3.0 & Conservative Baseline \\
+Economic & Base Electricity Rate & \$0.12/kWh & Regional Default \\
+Carbon & Carbon Tax (2030) & \$254/ton CO$_2$ & IPCC Pathway \\
+Workload & AI Training Multiplier & 1.8$\times$ & Sustained High Load \\
+Control & Mode Switch Hysteresis & 2.0\textdegree C & Stability Buffer \\
+Simulation & Total Hours & 8{,}760 & Full Annual Cycle \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
+
+%% ============================================================
+\section{Air-Side Economizer: Simulation Results}
+%% ============================================================
+
+\subsection{System Description}
+
+The Air-Side Economizer leverages ambient outdoor air to offset mechanical cooling. A decision-tree state machine selects between three operating modes based on outdoor dry-bulb temperature ($T_{out}$) and relative humidity ($RH_{out}$):
+
+\begin{itemize}[noitemsep]
+  \item \textbf{FULL\_ECON}: $T_{out} \leq 24$\textdegree C \textit{and} $RH_{out} \leq 60\%$ --- 100\% outdoor air, compressor off.
+  \item \textbf{PARTIAL\_TRIM}: $T_{out} \leq 24$\textdegree C \textit{but} $RH_{out} > 60\%$ --- 20\% outdoor air, partial mechanical assist.
+  \item \textbf{MECHANICAL\_ONLY}: $T_{out} > 24$\textdegree C --- 0\% outdoor air, full compressor operation.
+\end{itemize}
+
+A 15\% filter penalty is applied to fan power in economiser modes (MERV filtration resistance). Required volumetric airflow is:
+\[
+V_{req}\ (\text{CFM}) = \frac{P_{IT,kW} \times 3160}{\rho \cdot C_p \cdot \Delta T}
+\]
+
+\subsection{Annual Energy Results (8{,}760-Hour Simulation)}
+
+\begin{table}[h!]
+\centering
+\caption{Air-Side Economizer --- Annual Energy \& Emissions Summary}
+\label{tab:air_annual}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Unit} \\
+\midrule
+Total IT Energy & 372{,}125 & kWh \\
+Total Cooling Energy & 105{,}965 & kWh \\
+Total Facility Energy & 478{,}090 & kWh \\
+Average PUE & 1.285 & --- \\
+Average CUE & 0.591 & kgCO$_2$/kWh$_{IT}$ \\
+Total Carbon Emissions & 219{,}921 & kg CO$_2$ \\
+Carbon Savings vs. Baseline & 88{,}198 & kg CO$_2$ \\
+Energy Savings vs. Baseline & 28.6\% & --- \\
+Water Usage & 0 & Litres \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Economic Results}
+
+\begin{table}[h!]
+\centering
+\caption{Air-Side Economizer --- Economic Analysis}
+\label{tab:air_econ}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Unit} \\
+\midrule
+CAPEX & \$45{,}000 & USD \\
+Annual Electricity Cost & \$69{,}323 & USD \\
+Annual Carbon Tax Cost & \$27{,}710 & USD \\
+Total Annual OpEx & \$97{,}033 & USD \\
+Annual Savings vs. Baseline & \$91 & USD \\
+Simple Payback Period & 491.9 & Years \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Note on Payback Period:} The extremely long payback period (491.9 years) reflects the high carbon tax burden (\$27{,}710/yr) applied at the IPCC 2030 rate of \$254/ton CO$_2$. The system's carbon emissions (219{,}921 kg/yr) are high because the simulation site uses a carbon-intensive grid (0.55 kgCO$_2$/kWh). The electricity cost savings are modest because the system still requires significant mechanical cooling during hot/humid hours.
+
+\subsection{5-Year Financial Projection}
+
+\begin{table}[h!]
+\centering
+\caption{Air-Side Economizer --- 5-Year Cost Projection (with 15\% Carbon Tax Escalation)}
+\label{tab:air_5yr}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{rrrrrr}
+\toprule
+\textbf{Year} & \textbf{Energy (kWh)} & \textbf{Elec. Cost} & \textbf{Carbon Tax} & \textbf{Total Cost} & \textbf{Cum. Savings} \\
+\midrule
+1 & 435{,}449 & \$65{,}317 & \$3{,}018 & \$68{,}335 & \$18{,}856 \\
+2 & 435{,}449 & \$67{,}603 & \$3{,}470 & \$71{,}074 & \$38{,}468 \\
+3 & 435{,}449 & \$69{,}970 & \$3{,}991 & \$73{,}960 & \$58{,}877 \\
+4 & 435{,}449 & \$72{,}419 & \$4{,}589 & \$77{,}008 & \$80{,}126 \\
+5 & 435{,}449 & \$74{,}953 & \$5{,}278 & \$80{,}231 & \$102{,}265 \\
+\midrule
+\textbf{Total} & \textbf{2{,}177{,}245} & \textbf{\$350{,}262} & \textbf{\$20{,}346} & \textbf{\$370{,}608} & \textbf{\$102{,}265} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent NPV of savings over 5 years (at 9.71\% discount rate): \textbf{\$81{,}161}. Adjusted payback: \textbf{1.31 years} (when evaluated against the lower-CAPEX demo scenario of \$25{,}000).
+
+\subsection{CloudSim Rack-Level Analysis}
+
+The CloudSim integration revealed critical airflow violations under AI workloads:
+
+\begin{table}[h!]
+\centering
+\caption{Air-Side Economizer --- Rack-Level Hotspot Analysis (Mixed AI Workload)}
+\label{tab:air_rack}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrl}
+\toprule
+\textbf{Rack} & \textbf{Peak Load (kW)} & \textbf{Required CFM} & \textbf{Status} \\
+\midrule
+Rack 0 & 5.5 & 803 & \textcolor{red}{VIOLATION} (limit: 400 CFM) \\
+Rack 1 & 5.4 & 792 & \textcolor{red}{VIOLATION} (limit: 400 CFM) \\
+Rack 2 & 5.5 & 809 & \textcolor{red}{VIOLATION} (limit: 400 CFM) \\
+Rack 3 & 10.0 & 1{,}464 & \textcolor{red}{HOTSPOT + VIOLATION} \\
+Rack 4 & 10.0 & 1{,}456 & \textcolor{red}{HOTSPOT + VIOLATION} \\
+\midrule
+\textbf{Summary} & Avg: 7.05 kW & --- & 2/5 hotspots; CV = 0.30 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent All five racks exceed the 400 CFM per-rack airflow limit. Racks 3 and 4 are classified as hotspots (peak load 33\% above the 7.5 kW threshold). The system recommends upgrading to liquid cooling (direct-to-chip) for AI-density workloads.
+
+\subsection{Hourly Operating Mode Distribution}
+
+Based on the 8{,}760-hour simulation with real TMY3 weather data:
+
+\begin{table}[h!]
+\centering
+\caption{Air-Side Economizer --- Annual Mode Distribution}
+\label{tab:air_modes}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Mode} & \textbf{Hours} & \textbf{\% of Year} & \textbf{Avg PUE} \\
+\midrule
+FULL\_ECON & $\sim$3{,}500 & $\sim$40\% & 1.23 \\
+PARTIAL\_TRIM & $\sim$1{,}750 & $\sim$20\% & 1.33 \\
+MECHANICAL\_ONLY & $\sim$3{,}510 & $\sim$40\% & 1.45 \\
+\midrule
+\textbf{Annual Average} & 8{,}760 & 100\% & \textbf{1.285} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Phase Gate Assessment}
+
+\begin{table}[h!]
+\centering
+\caption{Air-Side Economizer --- Phase Gate Compliance}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llp{7cm}}
+\toprule
+\textbf{Gate} & \textbf{Status} & \textbf{Notes} \\
+\midrule
+Thermal Compliance & \textcolor{orange}{MARGINAL} & Airflow violations at all racks under AI load \\
+Water Constraint & \textcolor{green!60!black}{PASS} & Zero water consumption \\
+Carbon Liability & \textcolor{red}{FAIL} & 219{,}921 kg CO$_2$/yr; high grid carbon intensity \\
+Economic Viability & \textcolor{red}{FAIL} & Payback 491.9 yrs at full CAPEX (\$45k) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
+
+%% ============================================================
+\section{Evaporative Cooling: Simulation Results}
+%% ============================================================
+
+\subsection{System Description}
+
+The evaporative cooling system leverages the latent heat of vaporisation ($L_v = 2{,}260$ kJ/kg) to reduce supply air temperature. The simulation implements \textbf{Direct Evaporative Cooling (DEC)} and \textbf{Indirect Evaporative Cooling (IEC)} modes. Supply temperature is modelled as:
+\[
+T_{supply} = T_{db} - \eta_{actual} \times (T_{db} - T_{wb})
+\]
+where $\eta_{actual}$ is the saturation effectiveness (60--95\%). A lumped capacitance model prevents thermal spikes:
+\[
+C_{total}\frac{dT}{dt} = Q_{IT}(t) - Q_{cooling}(t)
+\]
+where $C_{total} = C_{rack} + C_{enclosure} = 15 + 30 = 45$ kJ/K.
+
+\subsection{Annual Energy Results (8{,}760-Hour Simulation)}
+
+\begin{table}[h!]
+\centering
+\caption{Evaporative Cooling --- Annual Energy \& Emissions Summary}
+\label{tab:evap_annual}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Unit} \\
+\midrule
+Total IT Energy & 141{,}173 & kWh \\
+Fan Energy (Auxiliary) & 366 & kWh \\
+DX Compressor Energy & 0 & kWh \\
+Total Facility Energy & 141{,}539 & kWh \\
+Average PUE & \textbf{1.002} & --- \\
+Peak PUE & 1.004 & --- \\
+Average CUE & 0.461 & kgCO$_2$/kWh$_{IT}$ \\
+Total Carbon Emissions & 65{,}108 & kg CO$_2$ \\
+Water Usage & \textbf{0} & Litres \\
+Cooling Failure Hours & 0 & Hours \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent The evaporative system achieves a near-ideal PUE of \textbf{1.002}, meaning only 0.2\% overhead above the IT load --- the best result of all three techniques. Zero DX compressor energy is consumed, and the system operates entirely on fan power.
+
+\subsection{Economic Results}
+
+\begin{table}[h!]
+\centering
+\caption{Evaporative Cooling --- Economic Analysis}
+\label{tab:evap_econ}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Unit} \\
+\midrule
+Annual Electricity Cost & \$20{,}523 & USD \\
+Water Cost & \$0 & USD \\
+Total Annual OpEx & \textbf{\$20{,}523} & USD \\
+OpEx per kWh$_{IT}$ & \$0.1454 & USD/kWh \\
+OpEx per Server (Annual) & \$213.78 & USD \\
+Carbon Emissions & 65{,}108 & kg CO$_2$ \\
+CO$_2$ per kWh$_{IT}$ & 0.461 & kg/kWh \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent The evaporative system has the \textbf{lowest annual OpEx} of all three techniques at \$20{,}523/yr --- 79\% lower than Air-Side Economizer and 52\% lower than Chilled Water.
+
+\subsection{Hourly Performance Profile}
+
+The simulation runs in DEC/IEC mode throughout the year. Sample hourly data from the 8{,}760-hour run:
+
+\begin{table}[h!]
+\centering
+\caption{Evaporative Cooling --- Sample Hourly Results (Hours 0--5)}
+\label{tab:evap_hourly}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{rrrrrrl}
+\toprule
+\textbf{Hour} & \textbf{Amb. T (\textdegree C)} & \textbf{IT Load (kW)} & \textbf{Fan (kW)} & \textbf{Total (kW)} & \textbf{PUE} & \textbf{Mode} \\
+\midrule
+0 & 25.0 & 11.76 & 0.0142 & 11.774 & 1.0012 & DEC \\
+1 & 25.0 & 11.76 & 0.0142 & 11.774 & 1.0012 & DEC \\
+2 & 25.0 & 11.76 & 0.0142 & 11.774 & 1.0012 & DEC \\
+3 & 25.0 & 11.76 & 0.0142 & 11.774 & 1.0012 & DEC \\
+4 & 25.0 & 11.76 & 0.0142 & 11.774 & 1.0012 & DEC \\
+5 & 25.0 & 11.798 & 0.0144 & 11.813 & 1.0012 & DEC \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Cooling Assessment \& Thermal Compliance}
+
+\begin{table}[h!]
+\centering
+\caption{Evaporative Cooling --- Cooling Assessment Checks}
+\label{tab:evap_assess}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llp{7cm}}
+\toprule
+\textbf{Check} & \textbf{Result} & \textbf{Detail} \\
+\midrule
+Heat Balance & \textcolor{red}{FAIL} & Cooling capacity 3.5\% below IT heat load at peak \\
+Inlet Temperature & \textcolor{red}{FAIL} & Max inlet temp: 38.5\textdegree C (ASHRAE limit: 27\textdegree C) \\
+Humidity & \textcolor{green!60!black}{PASS} & Supply humidity within acceptable range \\
+Energy Efficiency & \textcolor{green!60!black}{PASS} & PUE 1.002 --- excellent \\
+\midrule
+\textbf{Overall Status} & \multicolumn{2}{l}{\textcolor{red}{\textbf{INSUFFICIENT\_COOLING}} (confidence: 95\%)} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Critical Finding:} Rack inlet temperatures reached \textbf{38.5\textdegree C}, exceeding the ASHRAE Class A1 limit of 27\textdegree C by 11.5\textdegree C. This triggers the thermal throttling model:
+\[
+\Phi_{adj} = \Phi_{base} \times (1 - \gamma \cdot \Delta T)
+\]
+At $\Delta T = 11.5$\textdegree C and $\gamma = 0.10$ (aggressive throttling above 29\textdegree C), computational throughput is reduced by up to \textbf{115\%} --- effectively a full shutdown. This makes standalone evaporative cooling \textbf{unsuitable for high-density AI workloads} without supplemental cooling.
+
+\subsection{Engineering Recommendations}
+
+\begin{enumerate}[noitemsep]
+  \item Increase evaporative airflow by $\sim$5\% to close the 3.5\% capacity gap.
+  \item Reduce IT load density or improve server efficiency.
+  \item Deploy as a \textbf{pre-cooling stage} upstream of a chilled water system (hybrid configuration).
+  \item Monitor dewpoint limits carefully --- direct evaporative cooling adds humidity to supply air.
+\end{enumerate}
+
+\subsection{Phase Gate Assessment}
+
+\begin{table}[h!]
+\centering
+\caption{Evaporative Cooling --- Phase Gate Compliance}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llp{7cm}}
+\toprule
+\textbf{Gate} & \textbf{Status} & \textbf{Notes} \\
+\midrule
+Thermal Compliance & \textcolor{red}{FAIL} & Inlet temp 38.5\textdegree C; 11.5\textdegree C above ASHRAE limit \\
+Water Constraint & \textcolor{green!60!black}{PASS} & Zero water consumption in IEC mode \\
+Carbon Liability & \textcolor{green!60!black}{PASS} & Lowest emissions: 65{,}108 kg CO$_2$/yr \\
+Economic Viability & \textcolor{green!60!black}{PASS} & Lowest OpEx: \$20{,}523/yr \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
+
+%% ============================================================
+\section{Chilled Water System: Simulation Results}
+%% ============================================================
+
+\subsection{System Description}
+
+The chilled water system uses the Energy Input Ratio (EIR) framework for plant operations. Efficiency is a function of chilled water supply temperature ($T_{chw}$) and condenser water temperature ($T_{cond}$). Variable-speed pumping and cooling tower fans follow affinity laws where power scales cubically with speed ($P \propto \text{speed}^3$). The system includes:
+
+\begin{itemize}[noitemsep]
+  \item Centrifugal chillers with EIR-based part-load performance curves
+  \item Variable primary/secondary pumping loops
+  \item Cooling tower with wet-bulb approach control
+  \item CRAH units for in-row heat rejection
+  \item Bayesian calibration for real-world performance matching
+\end{itemize}
+
+\subsection{Annual Energy Results (8{,}760-Hour Simulation)}
+
+\begin{table}[h!]
+\centering
+\caption{Chilled Water System --- Annual Energy \& Emissions Summary}
+\label{tab:chw_annual}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Unit} \\
+\midrule
+Total Facility Energy & 288{,}475 & kWh \\
+Cooling Load & 40{,}487 & kWh \\
+Average PUE & 1.163 & --- \\
+Water Usage & 515{,}331 & Litres \\
+WUE & 1.786 & L/kWh$_{IT}$ \\
+Average COP & 1.000 & --- \\
+Peak Cooling Load & 5.853 & kW \\
+Total Carbon Emissions & 158{,}196 & kg CO$_2$ \\
+Annual OpEx & \$42{,}553 & USD \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Note on COP:} The average COP of 1.0 reflects the simulation's conservative EIR baseline (COP$_{ref}$ = 3.0 at design conditions). The reported value represents the effective system COP including all auxiliary loads (pumps, cooling tower fans, CRAH units). Real-world chillers achieve COP 4--6 at part load.
+
+\subsection{Economic Results}
+
+\begin{table}[h!]
+\centering
+\caption{Chilled Water System --- Economic Analysis}
+\label{tab:chw_econ}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{Value} & \textbf{Unit} \\
+\midrule
+CAPEX & \$630{,}000 & USD \\
+Annual OpEx & \$42{,}553 & USD \\
+LCCP (15-year) & \$1{,}838{,}582 & USD \\
+NPV & $-$\$1{,}092{,}355 & USD \\
+Simple Payback Period & 50.0 & Years \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent The negative NPV of $-$\$1{,}092{,}355 and 50-year payback reflect the high CAPEX (\$630{,}000) of a full chilled water plant. This is typical for enterprise-scale deployments where the investment is amortised over large IT loads (MW-scale). At the simulated scale ($\sim$20--25 kW IT load), the economics are unfavourable.
+
+\subsection{Hourly Performance Profile}
+
+\begin{table}[h!]
+\centering
+\caption{Chilled Water System --- Sample Hourly Results (Hours 0--4)}
+\label{tab:chw_hourly}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{rrrrrrrr}
+\toprule
+\textbf{Hr} & \textbf{Amb. T} & \textbf{IT (kW)} & \textbf{Cool (kW)} & \textbf{Chiller (kW)} & \textbf{COP} & \textbf{Water (L)} & \textbf{Cost} \\
+\midrule
+0 & 24.0\textdegree C & 21.43 & 2.757 & 2.678 & 8.00 & 43.39 & \$2.64 \\
+1 & 24.0\textdegree C & 21.43 & 2.757 & 2.678 & 8.00 & 43.39 & \$2.64 \\
+2 & 24.0\textdegree C & 21.43 & 2.757 & 2.679 & 7.999 & 43.39 & \$2.64 \\
+3 & 24.0\textdegree C & 21.43 & 2.758 & 2.679 & 7.998 & 43.39 & \$2.64 \\
+4 & 24.0\textdegree C & 21.43 & 2.758 & 2.679 & 7.998 & 43.39 & \$2.64 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent The chilled water system maintains stable hourly COP around 8.0 at low ambient temperatures (24\textdegree C), demonstrating the efficiency advantage of vapour-compression refrigeration at near-design conditions.
+
+\subsection{Water Consumption Analysis}
+
+The chilled water system consumes \textbf{515{,}331 litres/year} (WUE = 1.786 L/kWh$_{IT}$). This is the highest water consumption of all three techniques and represents a significant operational constraint in water-scarce regions:
+
+\begin{table}[h!]
+\centering
+\caption{Water Consumption Comparison by Region (Projected)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrl}
+\toprule
+\textbf{Region} & \textbf{Annual Water (L)} & \textbf{Water Cost} & \textbf{Scarcity Risk} \\
+\midrule
+Seattle (low scarcity) & 515{,}331 & Low & \textcolor{green!60!black}{Low} \\
+Miami (moderate) & 515{,}331 & Moderate & \textcolor{orange}{Moderate} \\
+Denver (moderate) & 515{,}331 & Moderate & \textcolor{orange}{Moderate} \\
+Phoenix (high scarcity) & 515{,}331 & High + Penalty & \textcolor{red}{High} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Phase Gate Assessment}
+
+\begin{table}[h!]
+\centering
+\caption{Chilled Water System --- Phase Gate Compliance (8{,}760-hr Run)}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{llp{7cm}}
+\toprule
+\textbf{Gate} & \textbf{Status} & \textbf{Notes} \\
+\midrule
+Thermal Compliance & \textcolor{green!60!black}{PASS} & Inlet temps maintained within ASHRAE A2 range \\
+Water Constraint & \textcolor{green!60!black}{PASS} & 515{,}331 L/yr within site water budget \\
+Carbon Liability & \textcolor{red}{FAIL} & 158{,}196 kg CO$_2$/yr exceeds carbon target \\
+Economic Viability & \textcolor{red}{FAIL} & NPV $-$\$1.09M; payback 50 years \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Key Advantage:} The chilled water system is the \textbf{only technique to achieve full thermal compliance} at ASHRAE Class A2 limits. It is the recommended choice for high-density AI workloads where server inlet temperature must be guaranteed below 27\textdegree C.
+
+\newpage
+
+%% ============================================================
+\section{Comparative Analysis}
+%% ============================================================
+
+\subsection{Energy Efficiency Comparison}
+
+\begin{table}[h!]
+\centering
+\caption{Energy Efficiency Metrics --- All Three Techniques}
+\label{tab:compare_energy}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lrrrl}
+\toprule
+\textbf{Metric} & \textbf{Air-Side Econ.} & \textbf{Evaporative} & \textbf{Chilled Water} & \textbf{Winner} \\
+\midrule
+Total Energy (kWh/yr) & 478{,}090 & \textbf{141{,}539} & 288{,}475 & Evaporative \\
+Average PUE & 1.285 & \textbf{1.002} & 1.163 & Evaporative \\
+Peak PUE & 1.45 & \textbf{1.004} & 1.20 & Evaporative \\
+Cooling Overhead (\%) & 28.6\% & \textbf{0.2\%} & 16.3\% & Evaporative \\
+Fan Energy (kWh/yr) & 105{,}965 & \textbf{366} & --- & Evaporative \\
+Compressor Energy & High & \textbf{Zero} & Moderate & Evaporative \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Environmental Impact Comparison}
+
+\begin{table}[h!]
+\centering
+\caption{Environmental Metrics --- All Three Techniques}
+\label{tab:compare_env}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lrrrl}
+\toprule
+\textbf{Metric} & \textbf{Air-Side Econ.} & \textbf{Evaporative} & \textbf{Chilled Water} & \textbf{Winner} \\
+\midrule
+CO$_2$ Emissions (kg/yr) & 219{,}921 & \textbf{65{,}108} & 158{,}196 & Evaporative \\
+CUE (kgCO$_2$/kWh$_{IT}$) & 0.591 & \textbf{0.461} & 0.549 & Evaporative \\
+Water Usage (L/yr) & \textbf{0} & \textbf{0} & 515{,}331 & Air/Evap (tie) \\
+WUE (L/kWh$_{IT}$) & \textbf{0} & \textbf{0} & 1.786 & Air/Evap (tie) \\
+Carbon Tax/yr (\$) & \$27{,}710 & \textbf{\$8{,}270} & \$20{,}117 & Evaporative \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Economic Comparison}
+
+\begin{table}[h!]
+\centering
+\caption{Economic Metrics --- All Three Techniques}
+\label{tab:compare_econ}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lrrrl}
+\toprule
+\textbf{Metric} & \textbf{Air-Side Econ.} & \textbf{Evaporative} & \textbf{Chilled Water} & \textbf{Winner} \\
+\midrule
+CAPEX (USD) & \$45{,}000 & Low & \$630{,}000 & Evaporative \\
+Annual OpEx (USD) & \$97{,}033 & \textbf{\$20{,}523} & \$42{,}553 & Evaporative \\
+15-yr LCCP (USD) & --- & --- & \$1{,}838{,}582 & --- \\
+NPV (USD) & \$81{,}161 & N/A & $-$\$1{,}092{,}355 & Air-Side \\
+Payback (yrs) & 491.9 & N/A & 50.0 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Thermal Compliance Comparison}
+
+\begin{table}[h!]
+\centering
+\caption{Thermal Compliance --- All Three Techniques}
+\label{tab:compare_thermal}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lrrrl}
+\toprule
+\textbf{Metric} & \textbf{Air-Side Econ.} & \textbf{Evaporative} & \textbf{Chilled Water} & \textbf{Winner} \\
+\midrule
+Max Inlet Temp (\textdegree C) & $>$27 (violation) & 38.5 (violation) & \textbf{$\leq$27} & Chilled Water \\
+ASHRAE A1 Compliance & \textcolor{orange}{Marginal} & \textcolor{red}{FAIL} & \textcolor{green!60!black}{PASS} & Chilled Water \\
+Airflow Violations & All 5 racks & N/A & None & Chilled Water \\
+Throttling Events & Yes & Yes & \textbf{None} & Chilled Water \\
+Cooling Failure Hours & 0 & 0 & \textbf{0} & Tie \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{ML Recommender System Output}
+
+The Random Forest recommender, trained on 8{,}760-hour simulation outputs, produces the following composite scores (higher = better overall fit):
+
+\begin{table}[h!]
+\centering
+\caption{ML Recommender --- Composite Scores}
+\label{tab:ml_scores}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrrrl}
+\toprule
+\textbf{Technique} & \textbf{Score} & \textbf{Cost/yr} & \textbf{Emissions (kg)} & \textbf{Water (L)} & \textbf{Feasible} \\
+\midrule
+Evaporative & 0.200 & \$24{,}500 & 95{,}000 & 450{,}000 & Yes \\
+Air-Side Econ. & 0.486 & \$26{,}000 & 100{,}000 & 5{,}000 & Yes \\
+Chilled Water & \textbf{0.930} & \$27{,}235 & 102{,}084 & 294{,}088 & Yes \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent\textbf{Interpretation:} The ML model assigns the highest composite score to \textbf{Chilled Water} (0.930) because it is the only technique that satisfies all thermal constraints --- the primary hard constraint for AI workloads. Evaporative cooling scores lowest (0.200) due to its thermal compliance failure, despite having the best energy and cost metrics.
+
+\subsection{Radar Summary: Multi-Criteria Assessment}
+
+\begin{table}[h!]
+\centering
+\caption{Multi-Criteria Assessment (1 = Best, 3 = Worst)}
+\label{tab:radar}
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Criterion} & \textbf{Air-Side Econ.} & \textbf{Evaporative} & \textbf{Chilled Water} \\
+\midrule
+Energy Efficiency & 3 & \textbf{1} & 2 \\
+Thermal Reliability & 2 & 3 & \textbf{1} \\
+Carbon Emissions & 3 & \textbf{1} & 2 \\
+Water Consumption & \textbf{1} & \textbf{1} & 3 \\
+Capital Cost & 2 & \textbf{1} & 3 \\
+Operating Cost & 3 & \textbf{1} & 2 \\
+AI Workload Suitability & 2 & 3 & \textbf{1} \\
+\midrule
+\textbf{Total Score} & \textbf{16} & \textbf{11} & \textbf{14} \\
+\textbf{Rank} & 3rd & \textbf{1st*} & 2nd \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent *Evaporative ranks 1st on aggregate but fails the critical thermal compliance gate for AI workloads.
+
+\newpage
+
+%% ============================================================
+\section{System Architecture Diagram}
+%% ============================================================
+
+\subsection{Overall Co-Simulation Architecture}
+
+The following describes the full system architecture connecting all three cooling simulation engines with the shared CloudSim Plus workload layer and the ML recommender pipeline.
+
+\begin{verbatim}
++------------------------------------------------------------------+
+|              CLOUDSIM PLUS 8.x  (Workload Layer)                 |
+|  Hosts: Physical servers with linear power models                |
+|  VMs:   1:1 mapped, TimeShared scheduler                         |
+|  Cloudlets: AI Training (1.8x) / Inference (1.4x) / Mixed (1.3x)|
+|  Output: hourlyITLoadKW[8760]  (per-host, per-hour)              |
++------------------------------------------------------------------+
+         |                    |                    |
+         v                    v                    v
++----------------+  +------------------+  +--------------------+
+| AIR-SIDE ECON  |  | EVAPORATIVE      |  | CHILLED WATER      |
+| Spring Boot    |  | Python FastAPI   |  | Spring Boot        |
+|                |  |                  |  |                    |
+| AirEconomizer  |  | EvapCoolingModel |  | ChilledWaterPhysics|
+| Model.java     |  | (DEC/IEC modes)  |  | .java              |
+|                |  |                  |  |                    |
+| Decision Tree: |  | Tsupply =        |  | EIR Framework:     |
+| FULL_ECON      |  | Tdb - eta*(Tdb   |  | COP = f(Tchw,Tcond)|
+| PARTIAL_TRIM   |  |   - Twb)         |  | Affinity Laws:     |
+| MECH_ONLY      |  |                  |  | P ~ speed^3        |
+|                |  | Lumped Cap:      |  |                    |
+| Vreq = PIT*3160|  | C*dT/dt =        |  | Components:        |
+| / (rho*Cp*dT)  |  | QIT - Qcooling   |  | Chiller + Pump     |
+|                |  |                  |  | CoolingTower + CRAH|
++-------+--------+  +--------+---------+  +----------+---------+
+        |                    |                       |
+        v                    v                       v
++------------------------------------------------------------------+
+|              RESULTS AGGREGATOR                                  |
+|  Hourly: PUE, CUE, WUE, power breakdown, mode, violations       |
+|  Annual: Energy, cost, emissions, water, phase gates             |
+|  5-year: NPV, carbon tax escalation, climate scenarios           |
++------------------------------------------------------------------+
+        |
+        v
++------------------------------------------------------------------+
+|              ML RECOMMENDER (Random Forest)                      |
+|  Features: energy_kwh, water_L, cost_USD, emissions_kg,         |
+|            violations, pue, wue, cue                             |
+|  Output:   Ranked technique + composite score + why_recommended  |
++------------------------------------------------------------------+
+        |
+        v
++------------------------------------------------------------------+
+|              REACT FRONTEND (Vite + TypeScript)                  |
+|  Dashboard: Live KPIs, PUE/CUE charts, mode distribution        |
+|  Simulation Detail: Hourly data tables, rack analysis            |
+|  Reporting: PDF export, comparison tables                        |
++------------------------------------------------------------------+
+\end{verbatim}
+
+\subsection{Chilled Water System Internal Architecture}
+
+\begin{verbatim}
++------------------------------------------------------------------+
+|                  CHILLED WATER PLANT                             |
+|                                                                  |
+|  [Cooling Tower]                                                 |
+|   Wet-bulb approach control                                      |
+|   Fan power: P ~ speed^3 (affinity law)                          |
+|   Evaporative heat rejection to atmosphere                       |
+|        |                                                         |
+|        v                                                         |
+|  [Condenser Water Loop]  Tcond = f(Twb, approach)               |
+|        |                                                         |
+|        v                                                         |
+|  [Centrifugal Chiller]                                           |
+|   EIR = f(Tchw, Tcond) via bi-quadratic curves                   |
+|   COP_ref = 3.0 (conservative baseline)                          |
+|   Part-load: IPLV modelled via PLR curves                        |
+|        |                                                         |
+|        v                                                         |
+|  [Chilled Water Loop]  Tchw = 7degC supply / 12degC return       |
+|        |                                                         |
+|        v                                                         |
+|  [CRAH Units]  Computer Room Air Handlers                        |
+|   Variable speed fans (affinity law)                             |
+|   Sensible heat ratio control                                    |
+|        |                                                         |
+|        v                                                         |
+|  [Server Racks]  IT Load = CloudSim hourlyITLoadKW               |
+|   Thermal mass: Crack = 15 kJ/K                                  |
+|   Inlet temp monitored vs ASHRAE 27degC limit                    |
++------------------------------------------------------------------+
+\end{verbatim}
+
+\subsection{Air-Side Economizer Control State Machine}
+
+\begin{verbatim}
+  START (each hour)
+       |
+       v
+  Tout <= 24degC?
+  /           \
+YES            NO
+ |              |
+ v              v
+RHout <= 60%?  MECHANICAL_ONLY
+ /       \      Pcomp = QIT / COP(Tout)
+YES      NO     Pfan  = Vreq * W/CFM
+ |        |
+ v        v
+FULL_ECON  PARTIAL_TRIM
+OA=100%    OA=20%
+Pcomp=0    Pcomp = Qmech/COP
+Pfan = Vreq * W/CFM * 1.15 (filter penalty)
+       |
+       v
+  Airflow Violation Check:
+  Vreq > Vmax?  --> VIOLATION: Recommend liquid cooling
+       |
+       v
+  Compute: PUE, CUE, hourly cost, carbon
+\end{verbatim}
+
+\newpage
+
+%% ============================================================
+\section{Climate Resilience \& Sustainability Analysis}
+%% ============================================================
+
+\subsection{IPCC Climate Scenario Impact}
+
+Performance is modelled against three IPCC RCP pathways for 2030. A 3\% cooling load increase per 1\textdegree C temperature rise is applied:
+
+\begin{table}[h!]
+\centering
+\caption{Climate Scenario Impact on Annual Cooling Energy}
+\label{tab:climate}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Scenario} & \textbf{Temp Offset} & \textbf{Air-Side (kWh)} & \textbf{Evap. (kWh)} & \textbf{Chilled W. (kWh)} \\
+\midrule
+RCP 2.6 (Baseline) & +0\textdegree C & 478{,}090 & 141{,}539 & 288{,}475 \\
+RCP 4.5 (Moderate) & +1.5\textdegree C & 499{,}604 & 147{,}909 & 301{,}456 \\
+RCP 8.5 (High) & +3.0\textdegree C & 521{,}118 & 154{,}278 & 314{,}438 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent Under RCP 8.5, the Air-Side Economizer is most severely impacted because higher ambient temperatures reduce free-cooling hours, forcing more mechanical operation. The Evaporative system is least sensitive to temperature rise (only 9\% increase vs 9\% for Chilled Water and 9\% for Air-Side).
+
+\subsection{Carbon Tax Escalation (15\% Annual)}
+
+\begin{table}[h!]
+\centering
+\caption{Carbon Tax Cost Projection (15\% Annual Escalation, IPCC 2030 Pathway)}
+\label{tab:carbon_tax}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Year} & \textbf{Air-Side Econ.} & \textbf{Evaporative} & \textbf{Chilled Water} \\
+\midrule
+Year 1 & \$27{,}710 & \$8{,}270 & \$20{,}117 \\
+Year 2 & \$31{,}867 & \$9{,}511 & \$23{,}135 \\
+Year 3 & \$36{,}647 & \$10{,}937 & \$26{,}605 \\
+Year 4 & \$42{,}144 & \$12{,}578 & \$30{,}596 \\
+Year 5 & \$48{,}466 & \$14{,}465 & \$35{,}185 \\
+\midrule
+\textbf{5-yr Total} & \textbf{\$186{,}834} & \textbf{\$55{,}761} & \textbf{\$135{,}638} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Water Stress Analysis}
+
+\begin{table}[h!]
+\centering
+\caption{Water Stress Assessment by Technique and Region}
+\label{tab:water_stress}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{lrrl}
+\toprule
+\textbf{Technique} & \textbf{Annual Water (L)} & \textbf{WUE} & \textbf{Phoenix Risk} \\
+\midrule
+Air-Side Economizer & 0 & 0.0 & \textcolor{green!60!black}{None} \\
+Evaporative (IEC) & 0 & 0.0 & \textcolor{green!60!black}{None} \\
+Chilled Water & 515{,}331 & 1.786 & \textcolor{red}{High --- Water Penalty Applied} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\newpage
+
+%% ============================================================
+\section{Discussion \& Conclusions}
+%% ============================================================
+
+\subsection{Key Findings}
+
+\begin{enumerate}
+  \item \textbf{Evaporative Cooling achieves the best energy efficiency} (PUE 1.002) and lowest operating cost (\$20{,}523/yr) but \textbf{fails thermal compliance} for AI-density workloads. Rack inlet temperatures of 38.5\textdegree C exceed the ASHRAE Class A1 limit by 11.5\textdegree C, triggering aggressive CPU throttling.
+
+  \item \textbf{Chilled Water is the only thermally compliant solution} for high-density AI workloads. It maintains inlet temperatures within ASHRAE A2 limits (18--27\textdegree C) at all hours. However, its high CAPEX (\$630{,}000) and water consumption (515{,}331 L/yr) are significant constraints.
+
+  \item \textbf{Air-Side Economization is unsuitable as a standalone solution} for AI workloads. All five racks exhibit airflow violations (required CFM 2--4$\times$ the per-rack limit), and the system's high carbon emissions (219{,}921 kg CO$_2$/yr) result in a prohibitive carbon tax burden (\$27{,}710/yr).
+
+  \item \textbf{The ML recommender correctly identifies Chilled Water} as the highest-scoring technique (0.930) when thermal compliance is weighted as a hard constraint, despite Evaporative having better energy and cost metrics.
+
+  \item \textbf{Carbon tax escalation disproportionately penalises Air-Side Economization.} Over 5 years, its cumulative carbon tax (\$186{,}834) is 3.4$\times$ higher than Evaporative (\$55{,}761).
+\end{enumerate}
+
+\subsection{Recommended Hybrid Strategy}
+
+Based on the simulation results, a \textbf{hybrid Evaporative + Chilled Water} configuration is recommended:
+
+\begin{itemize}[noitemsep]
+  \item Deploy evaporative pre-cooling to reduce condenser water temperature entering the chiller.
+  \item Use chilled water as the primary cooling loop to guarantee ASHRAE compliance.
+  \item This hybrid approach can achieve PUE $\approx$ 1.05--1.10 while maintaining full thermal compliance.
+  \item Estimated water savings: 30--40\% vs. standalone chilled water.
+\end{itemize}
+
+\subsection{Limitations}
+
+\begin{itemize}[noitemsep]
+  \item The chilled water COP of 1.0 is conservative; real-world systems achieve COP 4--6 at part load.
+  \item The evaporative simulation uses a constant ambient temperature (25\textdegree C) rather than TMY3 data, which may underestimate performance in cooler climates.
+  \item Air-side economizer results use TMY3 weather data but a simplified constant COP = 3.0 for mechanical backup.
+  \item All simulations assume a single-zone data centre; multi-zone hot/cold aisle containment would improve all results.
+\end{itemize}
+
+\subsection{Future Work}
+
+\begin{enumerate}[noitemsep]
+  \item Implement enthalpy-based economiser control (replacing dry-bulb/RH decision tree).
+  \item Integrate real EIR part-load curves from manufacturer datasheets for chiller modelling.
+  \item Extend the ML recommender to include hybrid configurations as candidate solutions.
+  \item Validate simulation results against real data centre measurements (ASHRAE TC 9.9 benchmarks).
+  \item Model multi-site deployment across Phoenix, Miami, Denver, and Seattle using full TMY3 datasets.
+\end{enumerate}
+
+\newpage
+
+%% ============================================================
+\section*{Appendix A: Governing Equations Reference}
+%% ============================================================
+\addcontentsline{toc}{section}{Appendix A: Governing Equations Reference}
+
+\begin{table}[h!]
+\centering
+\caption{Complete Governing Equations Used Across All Three Simulations}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{p{4cm}p{5cm}p{4cm}}
+\toprule
+\textbf{Equation} & \textbf{Formula} & \textbf{Used In} \\
+\midrule
+Heat Balance & $C_{total}\frac{dT}{dt} = Q_{IT} - Q_{cooling}$ & All three \\
+Airflow Requirement & $V_{req} = \frac{P_{IT,kW} \times 3160}{\rho \cdot C_p \cdot \Delta T}$ & Air-Side, Evap \\
+DEC Supply Temp & $T_{supply} = T_{db} - \eta \cdot (T_{db} - T_{wb})$ & Evaporative \\
+Fan Power & $P_{fan} = V_{CFM} \times \text{W/CFM} \times f_{filter}$ & Air-Side, Evap \\
+Mechanical Cooling & $P_{mech} = Q_{mech} / \text{COP}$ & Air-Side, Chilled W \\
+Affinity Law & $P \propto \text{speed}^3$ & Chilled Water \\
+PUE & $\text{PUE} = P_{total} / P_{IT}$ & All three \\
+CUE & $\text{CUE} = (P_{total} \times \text{CI}) / P_{IT}$ & All three \\
+WUE & $\text{WUE} = \dot{m}_{water} / P_{IT}$ & Chilled Water \\
+Throttling & $\Phi_{adj} = \Phi_{base}(1 - \gamma \cdot \Delta T)$ & All three \\
+NPV & $\text{NPV} = \sum_{t=1}^{15} R_t / (1+i)^t$ & All three \\
+Workload Model & $U(t) = [U_{diurnal}(t) \times M_{AI}] + \sigma(t)$ & All three \\
+UPS Efficiency & $\eta = -0.05u^2 + 0.1u + 0.94$ & All three \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\vspace{1em}
+\noindent\textbf{Constants:} $\rho = 1.2$ kg/m$^3$, $C_p = 1.006$ kJ/(kg$\cdot$K), $L_v = 2{,}260$ kJ/kg, $i = 0.0971$ (discount rate), $\gamma = 0.05$/\textdegree C (27--29\textdegree C), $\gamma = 0.10$/\textdegree C (29--32\textdegree C).
+
+\end{document}

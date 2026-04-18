@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+﻿import React, { useState, useEffect, useMemo } from "react";
 
 import { useNavigate } from "react-router-dom";
 import {
@@ -416,29 +416,50 @@ const SimulationRow: React.FC<{
 
 // Recent Activity Component
 const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({ userId, isDark }) => {
+  const navigate = useNavigate();
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 5;
 
   useEffect(() => {
     if (!userId) return;
     setLoading(true);
-    getRecentActivity(userId, 15).then(setActivities).finally(() => setLoading(false));
+    // fetch enough for several pages
+    getRecentActivity(userId, 50).then(setActivities).finally(() => setLoading(false));
   }, [userId]);
+
+  const totalPages = Math.ceil(activities.length / PAGE_SIZE);
+  const paged = activities.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
   const iconFor = (action: string) => {
     if (action.startsWith("simulation")) return <Activity className="w-4 h-4" />;
-    if (action.startsWith("report")) return <FileText className="w-4 h-4" />;
+    if (action.startsWith("report"))     return <FileText className="w-4 h-4" />;
     if (action === "login" || action === "logout") return <LogIn className="w-4 h-4" />;
-    if (action === "profile_updated") return <User className="w-4 h-4" />;
+    if (action === "profile_updated")    return <User className="w-4 h-4" />;
     return <Clock className="w-4 h-4" />;
   };
 
   const colorFor = (action: string) => {
-    if (action.includes("completed")) return isDark ? "text-green-400 bg-green-500/15" : "text-green-700 bg-green-100";
-    if (action.includes("created")) return isDark ? "text-cyan-400 bg-cyan-500/15" : "text-cyan-700 bg-cyan-100";
-    if (action.includes("deleted")) return isDark ? "text-red-400 bg-red-500/15" : "text-red-700 bg-red-100";
+    if (action.includes("completed")) return isDark ? "text-green-400 bg-green-500/15"  : "text-green-700 bg-green-100";
+    if (action.includes("created"))   return isDark ? "text-cyan-400 bg-cyan-500/15"    : "text-cyan-700 bg-cyan-100";
+    if (action.includes("deleted"))   return isDark ? "text-red-400 bg-red-500/15"      : "text-red-700 bg-red-100";
     if (action.includes("export") || action.includes("email")) return isDark ? "text-purple-400 bg-purple-500/15" : "text-purple-700 bg-purple-100";
+    if (action.includes("viewed"))    return isDark ? "text-blue-400 bg-blue-500/15"    : "text-blue-700 bg-blue-100";
     return isDark ? "text-gray-400 bg-gray-500/15" : "text-gray-600 bg-gray-100";
+  };
+
+  // Resolve where clicking an activity row should navigate
+  const navTarget = (a: ActivityEntry): string | null => {
+    const id = a.entity_id;
+    if (!id) return null;
+    if (a.entity_type === "simulation" || a.action.startsWith("simulation")) {
+      return `/simulation/${id}`;
+    }
+    if (a.entity_type === "report" || a.action.startsWith("report")) {
+      return `/reports/${id}`;
+    }
+    return null;
   };
 
   const timeAgo = (ts: string) => {
@@ -452,38 +473,117 @@ const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({ userId,
   };
 
   return (
-    <div className={`rounded-2xl p-6 mt-8 border ${isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-white border-gray-200"}`}>
+    <div className={`rounded-2xl p-5 border ${isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-white border-gray-200"}`}>
+      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <Clock className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-cyan-600"}`} />
           <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Recent Activity</h2>
+          {activities.length > 0 && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isDark ? "bg-[#27304a] text-gray-400" : "bg-gray-100 text-gray-500"}`}>
+              {activities.length} total
+            </span>
+          )}
         </div>
         {loading && <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />}
       </div>
 
-      {!loading && activities.length === 0 ? (
+      {/* Empty state */}
+      {!loading && activities.length === 0 && (
         <div className={`text-center py-8 text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>
           No activity recorded yet. Activity is logged as you use the platform.
         </div>
-      ) : (
-        <div className="space-y-2">
-          {activities.map((a) => (
-            <div key={a.id} className={`flex items-center gap-3 p-3 rounded-xl ${isDark ? "hover:bg-[#27304a]" : "hover:bg-gray-50"} transition-colors`}>
-              <div className={`p-2 rounded-lg shrink-0 ${colorFor(a.action)}`}>
-                {iconFor(a.action)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className={`text-sm font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                  {activityLabel(a.action as any)}
-                  {a.metadata?.name && <span className={`ml-1 font-normal ${isDark ? "text-gray-400" : "text-gray-500"}`}>— {a.metadata.name}</span>}
+      )}
+
+      {/* Activity rows */}
+      {paged.length > 0 && (
+        <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
+          {paged.map((a) => {
+            const target = navTarget(a);
+            const isClickable = !!target;
+            const Row = isClickable ? "button" : "div";
+            return (
+              <Row
+                key={a.id}
+                onClick={isClickable ? () => navigate(target!) : undefined}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl text-left transition-colors
+                  ${isDark ? "hover:bg-[#27304a]" : "hover:bg-gray-50"}
+                  ${isClickable ? "cursor-pointer group" : "cursor-default"}`}
+              >
+                {/* Icon */}
+                <div className={`p-2 rounded-lg shrink-0 ${colorFor(a.action)}`}>
+                  {iconFor(a.action)}
                 </div>
-                {a.entity_type && (
-                  <div className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>{a.entity_type}{a.entity_id ? ` #${a.entity_id}` : ""}</div>
-                )}
-              </div>
-              <div className={`text-xs shrink-0 ${isDark ? "text-gray-500" : "text-gray-400"}`}>{timeAgo(a.created_at)}</div>
-            </div>
-          ))}
+
+                {/* Text */}
+                <div className="flex-1 min-w-0">
+                  <div className={`text-sm font-medium flex items-center gap-1.5 ${isDark ? "text-white" : "text-gray-900"}`}>
+                    {activityLabel(a.action as any)}
+                    {a.metadata?.name && (
+                      <span className={`font-normal truncate ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                        — {a.metadata.name}
+                      </span>
+                    )}
+                  </div>
+                  <div className={`text-xs flex items-center gap-1 mt-0.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+                    {a.entity_type && <span className="capitalize">{a.entity_type}</span>}
+                    {a.entity_id && <span>#{a.entity_id}</span>}
+                  </div>
+                </div>
+
+                {/* Time + arrow */}
+                <div className="flex flex-col items-end gap-0.5 shrink-0">
+                  <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>{timeAgo(a.created_at)}</span>
+                  <span className={`text-xs ${isDark ? "text-gray-600" : "text-gray-300"}`}>
+                    {new Date(a.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                  </span>
+                  {isClickable && (
+                    <ChevronRight className={`w-4 h-4 transition-transform ${isDark ? "text-gray-600 group-hover:text-gray-300" : "text-gray-300 group-hover:text-gray-600"} group-hover:translate-x-0.5`} />
+                  )}
+                </div>
+              </Row>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-4 pt-4 border-t border-opacity-20 border-gray-500">
+          <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, activities.length)} of {activities.length}
+          </span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-40
+                ${isDark ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            >
+              ← Prev
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i}
+                onClick={() => setPage(i)}
+                className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors
+                  ${page === i
+                    ? isDark ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-blue-100 text-blue-700"
+                    : isDark ? "bg-[#27304a] text-gray-400 hover:bg-[#3f4a68]" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+              >
+                {i + 1}
+              </button>
+            ))}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={page === totalPages - 1}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors disabled:opacity-40
+                ${isDark ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68]" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+            >
+              Next →
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -713,7 +813,7 @@ export const Dashboard: React.FC = () => {
       }`}
     >
       <Sidebar />
-      <main className="lg:ml-64 p-4 lg:p-8">
+      <main className="lg:ml-56 p-4 lg:p-8">
         {/* Animated Background Elements */}
         <div className="fixed inset-0 pointer-events-none z-0">
           <div
@@ -730,8 +830,8 @@ export const Dashboard: React.FC = () => {
           />
         </div>
         {/* Welcome Header */}
-        <div className="relative mb-8 lg:mb-12">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+        <div className="relative mb-4 lg:mb-6">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-4">
             <div>
               <h1
                 className={`text-3xl lg:text-4xl font-bold mb-2 animate-in slide-in-from-left-8 ${
@@ -774,14 +874,7 @@ export const Dashboard: React.FC = () => {
                   day: "numeric",
                 })}
               </span>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                <span
-                  className={`text-sm ${isDark ? "text-green-400" : "text-green-600"}`}
-                >
-                  System Normal
-                </span>
-              </div>
+              
             </div>
           </div>
 
@@ -1052,7 +1145,7 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* Right Column - Recent Activity */}
-          <div>
+          <div className="min-w-0 overflow-hidden">
             <RecentActivity userId={user?.id ?? ""} isDark={isDark} />
           </div>
         </div>
@@ -1093,3 +1186,4 @@ export const Dashboard: React.FC = () => {
     </div>
   );
 };
+

@@ -64,19 +64,30 @@ export async function logActivity(
   }
 }
 
-/** Fetch recent activity for a user (latest N entries) */
+/** Fetch recent activity for a user (latest N entries).
+ *  Always queries by the Supabase auth UUID — all logActivity calls now use auth.getUser().id.
+ *  Falls back to the provided userId if auth session is unavailable.
+ */
 export async function getRecentActivity(
   userId: string,
   limit = 20,
 ): Promise<ActivityEntry[]> {
   if (!userId) return [];
   try {
+    // Prefer the auth UUID (all activity is logged with auth UUID)
+    let queryId = userId;
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser?.id) queryId = authUser.id;
+    } catch { /* use provided userId */ }
+
     const { data, error } = await supabase
       .from('user_activity')
       .select('*')
-      .eq('user_id', userId)
+      .eq('user_id', queryId)
       .order('created_at', { ascending: false })
       .limit(limit);
+
     if (error) return [];
     return (data ?? []) as ActivityEntry[];
   } catch {

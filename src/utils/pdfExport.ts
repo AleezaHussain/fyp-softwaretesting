@@ -1,6 +1,12 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
+export interface CapturedChartImage {
+  imageData: string; // data:image/png;base64,...
+  width: number;
+  height: number;
+}
+
 export interface SimulationPDFData {
   simulation: {
     id: number;
@@ -17,7 +23,10 @@ export interface SimulationPDFData {
     runtime_minutes: number;
     completed_at?: string;
     result_data: any;
+    recommendation?: string;
   };
+  // Optional captured chart images for embedding in PDF
+  capturedCharts?: Record<string, CapturedChartImage>;
 }
 
 // RGB tuples
@@ -100,160 +109,1508 @@ function kpiRow(
   return y + 22;
 }
 
-function sparkline(
+function addColumnLegend(doc: jsPDF, y: number, columns: { key: string; description: string }[]): number {
+  const pw = doc.internal.pageSize.getWidth();
+  const marginLeft = 14;
+  const marginRight = 14;
+  const contentWidth = pw - marginLeft - marginRight;
+  
+  // Legend header
+  doc.setFontSize(7);
+  tc(doc, MID);
+  doc.setFont("helvetica", "bold");
+  doc.text("Column Reference:", marginLeft, y);
+  
+  y += 3.5;
+  doc.setFont("helvetica", "normal");
+  tc(doc, DARK);
+  
+  // Columns in 2-column layout for space efficiency
+  const colsPerRow = 2;
+  const colWidth = (contentWidth - 5) / colsPerRow;
+  
+  columns.forEach((col, idx) => {
+    const row = Math.floor(idx / colsPerRow);
+    const col_idx = idx % colsPerRow;
+    const xPos = marginLeft + col_idx * (colWidth + 5);
+    const yPos = y + row * 4;
+    
+    doc.setFontSize(6.5);
+    doc.setFont("helvetica", "bold");
+    doc.text(col.key + ":", xPos, yPos);
+    
+    doc.setFont("helvetica", "normal");
+    const descWidth = colWidth - 2;
+    const lines = doc.splitTextToSize(col.description, descWidth);
+    doc.text(lines, xPos + 20, yPos);
+  });
+  
+  const totalRows = Math.ceil(columns.length / colsPerRow);
+  return y + totalRows * 4 + 4;
+}
+
+function ensureSpace(doc: jsPDF, y: number, required: number, top = 20): number {
+  const ph = doc.internal.pageSize.getHeight();
+  if (y + required > ph - 16) {
+    doc.addPage();
+    return top;
+  }
+  return y;
+}
+
+function addWrappedTextBlock(
   doc: jsPDF,
+  text: string,
   x: number,
   y: number,
-  w: number,
-  h: number,
+  width: number,
+  fontSize = 9,
+  lineHeight = 4.4,
+  color: RGB = DARK,
+): number {
+  doc.setFontSize(fontSize);
+  tc(doc, color);
+  const lines = doc.splitTextToSize(text, width);
+  doc.text(lines, x, y);
+  return y + lines.length * lineHeight;
+}
+
+type SnapshotSeries = {
+  name: string;
+  values: number[];
+  color: RGB;
+};
+
+/**
+ * Embed a captured chart image in the PDF
+ * If chart image is provided, embed it. Otherwise fall back to drawing approximation.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/**
+ * Renders a line chart snapshot in the PDF
+ * Currently unused but kept for potential future chart visualization features
+ */
+function renderLineSnapshot(
+  doc: jsPDF,
+  title: string,
+  subtitle: string,
+  xAxisLabel: string,
+  yAxisLabel: string,
+  labels: string[],
+  series: SnapshotSeries[],
+  y: number,
+  capturedImage?: CapturedChartImage,
+): number {
+  const pw = doc.internal.pageSize.getWidth();
+  const chartX = 14;
+  const chartW = pw - 28;
+  const chartH = capturedImage ? 70 : 56; // Extra height for captured images
+  y = ensureSpace(doc, y, chartH + 56);
+
+  // Render title and subtitle
+  doc.setFontSize(10);
+  tc(doc, DARK);
+  doc.setFont("helvetica", "bold");
+  doc.text(title, chartX, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  tc(doc, MID);
+  const subtitleLines = doc.splitTextToSize(subtitle, chartW);
+  doc.text(subtitleLines, chartX, y + 4);
+
+  const plotY = y + 10;
+  const plotH = chartH;
+
+  // If captured image available, embed it
+  if (capturedImage && capturedImage.imageData) {
+    try {
+      fc(doc, WHITE);
+      doc.roundedRect(chartX, plotY, chartW, plotH, 2, 2, "F");
+      dc(doc, MID);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(chartX, plotY, chartW, plotH, 2, 2, "S");
+
+      // Calculate scaling to fit within bounds
+      const maxWidth = chartW - 4;
+      const maxHeight = plotH - 4;
+      let imgWidth = maxWidth;
+      let imgHeight = (maxWidth * capturedImage.height) / capturedImage.width;
+
+      if (imgHeight > maxHeight) {
+        imgHeight = maxHeight;
+        imgWidth = (maxHeight * capturedImage.width) / capturedImage.height;
+      }
+
+      // Center the image
+      const offsetX = chartX + (chartW - imgWidth) / 2;
+      const offsetY = plotY + (plotH - imgHeight) / 2;
+
+      // Embed the image
+      doc.addImage(
+        capturedImage.imageData,
+        "PNG",
+        offsetX,
+        offsetY,
+        imgWidth,
+        imgHeight
+      );
+
+      // Add axis labels below the image
+      doc.setFontSize(7);
+      tc(doc, MID);
+      doc.text(`X: ${xAxisLabel}`, chartX, plotY + plotH + 6.3);
+      doc.text(`Y: ${yAxisLabel}`, chartX + chartW - 2, plotY + plotH + 6.3, { align: "right" });
+
+      // Add value table below
+      const summaryRows = series.map((item) => {
+        const seriesValues = item.values.filter((value) => Number.isFinite(value));
+        const first = seriesValues[0] ?? 0;
+        const last = seriesValues[seriesValues.length - 1] ?? 0;
+        const minValue = seriesValues.length > 0 ? Math.min(...seriesValues) : 0;
+        const maxValue = seriesValues.length > 0 ? Math.max(...seriesValues) : 0;
+        const average = seriesValues.length > 0 ? seriesValues.reduce((sum, value) => sum + value, 0) / seriesValues.length : 0;
+        return [
+          item.name,
+          first.toFixed(2),
+          last.toFixed(2),
+          minValue.toFixed(2),
+          maxValue.toFixed(2),
+          average.toFixed(2),
+        ];
+      });
+
+      autoTable(doc, {
+        startY: plotY + plotH + 10,
+        head: [["Series", "First", "Last", "Min", "Max", "Avg"]],
+        body: summaryRows,
+        theme: "grid",
+        margin: { left: chartX, right: 14 },
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: LIGHT },
+      });
+
+      return (doc as any).lastAutoTable.finalY + 6;
+    } catch (error) {
+      console.warn("Failed to embed captured chart image, falling back to approximation", error);
+      // Fall through to approximation rendering below
+    }
+  }
+
+  // ─── Fallback: Draw approximation (original logic) ────────────────────────
+  fc(doc, WHITE);
+  doc.roundedRect(chartX, plotY, chartW, plotH, 2, 2, "F");
+  dc(doc, MID);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(chartX, plotY, chartW, plotH, 2, 2, "S");
+
+  const values = series.flatMap((s) => s.values).filter((v) => Number.isFinite(v));
+  const min = values.length > 0 ? Math.min(...values) : 0;
+  const max = values.length > 0 ? Math.max(...values) : 1;
+  const range = Math.max(max - min, 0.001);
+  const leftPad = 12;
+  const rightPad = 12;
+  const topPad = 6;
+  const bottomPad = 10;
+  const plotLeft = chartX + leftPad;
+  const plotTop = plotY + topPad;
+  const plotWidth = chartW - leftPad - rightPad;
+  const plotHeight = plotH - topPad - bottomPad;
+
+  // ─── Draw prominent axes ────────────────────────────────────────
+  dc(doc, DARK);
+  doc.setLineWidth(0.8); // Thick axis lines
+  // Y-axis (vertical)
+  doc.line(plotLeft, plotTop, plotLeft, plotTop + plotHeight);
+  // X-axis (horizontal)
+  doc.line(plotLeft, plotTop + plotHeight, plotLeft + plotWidth, plotTop + plotHeight);
+
+  // ─── Y-axis ticks and values ────────────────────────────────────
+  const tickCount = 4;
+  for (let i = 0; i <= tickCount; i++) {
+    const ratio = i / tickCount;
+    const tickY = plotTop + plotHeight - ratio * plotHeight;
+    const tickValue = min + ratio * range;
+    
+    // Draw tick mark on Y-axis
+    dc(doc, DARK);
+    doc.setLineWidth(0.5);
+    doc.line(plotLeft - 1.5, tickY, plotLeft, tickY);
+    
+    // Y-axis value label
+    tc(doc, DARK);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.text(tickValue.toFixed(2), chartX - 1, tickY + 1.2, { align: "right" });
+  }
+
+  // ─── X-axis ticks ──────────────────────────────────────────────
+  const maxLen = Math.max(...series.map((s) => s.values.length), 0);
+  if (maxLen > 1) {
+    const xTicks = [0, Math.floor((maxLen - 1) / 2), maxLen - 1];
+    xTicks.forEach((tickIndex) => {
+      const ratio = tickIndex / Math.max(maxLen - 1, 1);
+      const tickX = plotLeft + ratio * plotWidth;
+      
+      // Draw tick mark on X-axis
+      dc(doc, DARK);
+      doc.setLineWidth(0.5);
+      doc.line(tickX, plotTop + plotHeight, tickX, plotTop + plotHeight + 1.5);
+      
+      // X-axis label
+      tc(doc, DARK);
+      doc.setFontSize(7);
+      doc.setFont("helvetica", "normal");
+      doc.text(labels[tickIndex] ?? String(tickIndex + 1), tickX, plotTop + plotHeight + 4, { align: "center" });
+    });
+  }
+
+  // ─── Draw data lines ───────────────────────────────────────────
+  series.forEach((item) => {
+    if (!item.values || item.values.length < 2) return;
+    dc(doc, item.color);
+    doc.setLineWidth(1.2); // Thicker data lines
+    for (let i = 1; i < item.values.length; i++) {
+      const x1 = plotLeft + ((i - 1) / Math.max(item.values.length - 1, 1)) * plotWidth;
+      const y1 = plotTop + plotHeight - ((item.values[i - 1] - min) / range) * plotHeight;
+      const x2 = plotLeft + (i / Math.max(item.values.length - 1, 1)) * plotWidth;
+      const y2 = plotTop + plotHeight - ((item.values[i] - min) / range) * plotHeight;
+      doc.line(x1, y1, x2, y2);
+    }
+  });
+
+  // ─── Legend ─────────────────────────────────────────────────────
+  let legendX = plotLeft + 2;
+  const legendY = plotY + plotH - 2;
+  series.slice(0, 4).forEach((item) => {
+    fc(doc, item.color);
+    doc.roundedRect(legendX, legendY - 3, 3, 3, 1, 1, "F");
+    doc.setFontSize(6);
+    tc(doc, DARK);
+    doc.setFont("helvetica", "normal");
+    doc.text(item.name, legendX + 4, legendY - 0.5);
+    legendX += Math.min(32, doc.getTextWidth(item.name) + 12);
+  });
+
+  // ─── Axis labels below chart ────────────────────────────────────
+  doc.setFontSize(8);
+  tc(doc, DARK);
+  doc.setFont("helvetica", "bold");
+  doc.text(`X-Axis: ${xAxisLabel}`, chartX, plotY + plotH + 6.3);
+  doc.text(`Y-Axis: ${yAxisLabel}`, chartX + chartW - 2, plotY + plotH + 6.3, { align: "right" });
+  doc.setFont("helvetica", "normal");
+
+  const summaryRows = series.map((item) => {
+    const seriesValues = item.values.filter((value) => Number.isFinite(value));
+    const first = seriesValues[0] ?? 0;
+    const last = seriesValues[seriesValues.length - 1] ?? 0;
+    const minValue = seriesValues.length > 0 ? Math.min(...seriesValues) : 0;
+    const maxValue = seriesValues.length > 0 ? Math.max(...seriesValues) : 0;
+    const average = seriesValues.length > 0 ? seriesValues.reduce((sum, value) => sum + value, 0) / seriesValues.length : 0;
+    return [
+      item.name,
+      first.toFixed(2),
+      last.toFixed(2),
+      minValue.toFixed(2),
+      maxValue.toFixed(2),
+      average.toFixed(2),
+    ];
+  });
+
+  autoTable(doc, {
+    startY: plotY + plotH + 10,
+    head: [["Series", "First", "Last", "Min", "Max", "Avg"]],
+    body: summaryRows,
+    theme: "grid",
+    margin: { left: chartX, right: 14 },
+    styles: { fontSize: 7, cellPadding: 1.5 },
+    headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: LIGHT },
+  });
+
+  return (doc as any).lastAutoTable.finalY + 6;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+/**
+ * Renders a bar chart snapshot in the PDF
+ * Currently unused but kept for potential future chart visualization features
+ */
+function renderBarSnapshot(
+  doc: jsPDF,
+  title: string,
+  subtitle: string,
+  labels: string[],
   values: number[],
   color: RGB,
-  title: string,
-) {
-  if (!values || values.length < 2) return;
-  const min = Math.min(...values);
-  const max = Math.max(...values, min + 0.001);
-  const step = w / (values.length - 1);
+  y: number,
+  capturedImage?: CapturedChartImage,
+): number {
+  const pw = doc.internal.pageSize.getWidth();
+  const chartX = 14;
+  const chartW = pw - 28;
+  const chartH = capturedImage ? 70 : 48; // Extra height for captured images
+  y = ensureSpace(doc, y, chartH + 34);
 
-  doc.setFontSize(8);
+  // Render title and subtitle
+  doc.setFontSize(10);
   tc(doc, DARK);
   doc.setFont("helvetica", "bold");
-  doc.text(title, x, y - 2);
+  doc.text(title, chartX, y);
   doc.setFont("helvetica", "normal");
-
-  fc(doc, LIGHT);
-  doc.roundedRect(x, y, w, h, 2, 2, "F");
-  dc(doc, color);
-  doc.setLineWidth(0.8);
-  for (let i = 1; i < values.length; i++) {
-    const x1 = x + (i - 1) * step;
-    const y1 = y + h - ((values[i - 1] - min) / (max - min)) * (h - 4) - 2;
-    const x2 = x + i * step;
-    const y2 = y + h - ((values[i] - min) / (max - min)) * (h - 4) - 2;
-    doc.line(x1, y1, x2, y2);
-  }
-  doc.setFontSize(6);
+  doc.setFontSize(8);
   tc(doc, MID);
-  doc.text(`min ${min.toFixed(2)}`, x + 1, y + h - 1);
-  doc.text(`max ${max.toFixed(2)}`, x + w - 1, y + 1, { align: "right" });
+  const subtitleLines = doc.splitTextToSize(subtitle, chartW);
+  doc.text(subtitleLines, chartX, y + 4);
+
+  const plotY = y + 10;
+
+  // If captured image available, embed it
+  if (capturedImage && capturedImage.imageData) {
+    try {
+      fc(doc, WHITE);
+      doc.roundedRect(chartX, plotY, chartW, chartH, 2, 2, "F");
+      dc(doc, MID);
+      doc.setLineWidth(0.2);
+      doc.roundedRect(chartX, plotY, chartW, chartH, 2, 2, "S");
+
+      // Calculate scaling to fit within bounds
+      const maxWidth = chartW - 4;
+      const maxHeight = chartH - 4;
+      let imgWidth = maxWidth;
+      let imgHeight = (maxWidth * capturedImage.height) / capturedImage.width;
+
+      if (imgHeight > maxHeight) {
+        imgHeight = maxHeight;
+        imgWidth = (maxHeight * capturedImage.width) / capturedImage.height;
+      }
+
+      // Center the image
+      const offsetX = chartX + (chartW - imgWidth) / 2;
+      const offsetY = plotY + (chartH - imgHeight) / 2;
+
+      // Embed the image
+      doc.addImage(
+        capturedImage.imageData,
+        "PNG",
+        offsetX,
+        offsetY,
+        imgWidth,
+        imgHeight
+      );
+
+      // Add axis labels
+      doc.setFontSize(7);
+      tc(doc, MID);
+      doc.text("X: Category", chartX, plotY + chartH + 4.4);
+      doc.text("Y: Value", chartX + chartW - 2, plotY + chartH + 4.4, { align: "right" });
+
+      // Add value table below
+      autoTable(doc, {
+        startY: plotY + chartH + 6,
+        head: [["Label", "Value"]],
+        body: labels.map((label, index) => [label, Number(values[index] ?? 0).toFixed(2)]),
+        theme: "grid",
+        margin: { left: chartX, right: 14 },
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: LIGHT },
+      });
+
+      return (doc as any).lastAutoTable.finalY + 6;
+    } catch (error) {
+      console.warn("Failed to embed captured chart image, falling back to approximation", error);
+      // Fall through to approximation rendering below
+    }
+  }
+
+  // ─── Fallback: Draw approximation (original logic) ────────────────────────
+  fc(doc, WHITE);
+  doc.roundedRect(chartX, plotY, chartW, chartH, 2, 2, "F");
+  dc(doc, MID);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(chartX, plotY, chartW, chartH, 2, 2, "S");
+
+  const maxVal = Math.max(...values.map((v) => Number(v) || 0), 1);
+  const barW = Math.max((chartW - 16) / Math.max(values.length, 1) - 2, 3);
+  const plotLeft = chartX + 10;
+  const plotBottom = plotY + chartH - 8;
+  const plotHeight = chartH - 14;
+
+  // ─── Draw prominent axes ────────────────────────────────────────
+  dc(doc, DARK);
+  doc.setLineWidth(0.8); // Thick axis lines
+  // Y-axis (vertical)
+  doc.line(plotLeft, plotY + 3, plotLeft, plotBottom);
+  // X-axis (horizontal)
+  doc.line(plotLeft, plotBottom, chartX + chartW - 4, plotBottom);
+
+  // ─── Y-axis ticks ───────────────────────────────────────────────
+  const yTicks = 4;
+  for (let i = 0; i <= yTicks; i++) {
+    const ratio = i / yTicks;
+    const tickY = plotBottom - ratio * plotHeight;
+    const tickValue = (ratio * maxVal).toFixed(2);
+    
+    // Draw tick mark on Y-axis
+    dc(doc, DARK);
+    doc.setLineWidth(0.5);
+    doc.line(plotLeft - 1.5, tickY, plotLeft, tickY);
+    
+    // Y-axis value label
+    tc(doc, DARK);
+    doc.setFontSize(7);
+    doc.setFont("helvetica", "normal");
+    doc.text(tickValue, chartX - 1, tickY + 1.2, { align: "right" });
+  }
+
+  // ─── Draw bars ──────────────────────────────────────────────────
+  values.forEach((value, index) => {
+    const bh = Math.max((Number(value) / maxVal) * plotHeight, 0.5);
+    const bx = plotLeft + index * (barW + 2);
+    const by = plotBottom - bh;
+    fc(doc, color);
+    doc.roundedRect(bx, by, barW, bh, 0.8, 0.8, "F");
+    
+    // X-axis category label
+    doc.setFontSize(7);
+    tc(doc, DARK);
+    doc.setFont("helvetica", "normal");
+    doc.text(labels[index] ?? `#${index + 1}`, bx + barW / 2, plotBottom + 3.5, { align: "center" });
+  });
+
+  doc.setFontSize(7);
+  tc(doc, MID);
+  doc.text("X: Category", chartX, plotY + chartH + 4.4);
+  doc.text("Y: Value", chartX + chartW - 2, plotY + chartH + 4.4, { align: "right" });
+
+  autoTable(doc, {
+    startY: plotY + chartH + 6,
+    head: [["Label", "Value"]],
+    body: labels.map((label, index) => [label, Number(values[index] ?? 0).toFixed(2)]),
+    theme: "grid",
+    margin: { left: chartX, right: 14 },
+    styles: { fontSize: 7, cellPadding: 1.5 },
+    headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: LIGHT },
+  });
+
+  return (doc as any).lastAutoTable.finalY + 6;
 }
 
-function miniBar(
+function renderTechniqueTable(
   doc: jsPDF,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  data: { label: string; value: number; color: RGB }[],
   title: string,
-) {
-  if (!data || data.length === 0) return;
-  const maxVal = Math.max(...data.map((d) => d.value), 1);
-  const bw = (w - 10) / data.length - 2;
+  rows: any[],
+  y: number,
+): number {
+  y = ensureSpace(doc, y, 30);
+  y = sectionHeader(doc, title, y);
+  if (!rows || rows.length === 0) return y;
 
-  doc.setFontSize(8);
-  tc(doc, DARK);
-  doc.setFont("helvetica", "bold");
-  doc.text(title, x, y - 2);
-  doc.setFont("helvetica", "normal");
+  autoTable(doc, {
+    startY: y,
+    head: [["Technique", "Feasible", "Score", "Annual Cost", "CO₂", "Water", "Violations"]],
+    body: rows.map((r: any) => [
+      r.tech ?? "—",
+      r.feasible ? "Yes" : "No",
+      fmt(r.score, 4),
+      `$${(r.annual_cost ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      `${(r.annual_emissions_kg ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} kg`,
+      `${(r.annual_water_liters ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} L`,
+      String(r.violations ?? 0),
+    ]),
+    theme: "grid",
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8, cellPadding: 2.5, halign: "center" },
+    headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold", fontSize: 8.5 },
+    alternateRowStyles: { fillColor: LIGHT },
+    columnStyles: { 0: { halign: "left" } },
+    didParseCell: (d) => {
+      if (d.section === "body" && d.column.index === 0) {
+        const bestTech = rows[0]?.tech;
+        if (String(d.cell.raw) === bestTech) {
+          d.cell.styles.fillColor = [220, 252, 231] as any;
+          d.cell.styles.fontStyle = "bold";
+        }
+      }
+    },
+  });
+  
+  let legendY = (doc as any).lastAutoTable.finalY + 5;
+  legendY = addColumnLegend(doc, legendY, [
+    { key: "Technique", description: "Cooling technique name" },
+    { key: "Feasible", description: "Technical feasibility" },
+    { key: "Score", description: "Recommendation score (0-1)" },
+    { key: "Annual Cost", description: "Total annual operating cost (USD)" },
+    { key: "CO₂", description: "Annual carbon emissions (kg)" },
+    { key: "Water", description: "Annual water usage (liters)" },
+    { key: "Violations", description: "Number of constraint violations" },
+  ]);
+  return legendY;
+}
 
-  dc(doc, MID);
-  doc.setLineWidth(0.3);
-  doc.line(x, y, x, y + h);
-  doc.line(x, y + h, x + w, y + h);
+function appendRawDataAppendix(doc: jsPDF, rd: any) {
+  const hourly: any[] = rd?.results?.hourlyResults ?? rd?.hourlyResults ?? [];
+  if (hourly.length === 0) return;
 
-  data.forEach((d, i) => {
-    const bh = Math.max((d.value / maxVal) * (h - 4), 0.5);
-    const bx = x + 5 + i * (bw + 2);
-    const by = y + h - bh;
-    fc(doc, d.color);
-    doc.roundedRect(bx, by, bw, bh, 1, 1, "F");
-    doc.setFontSize(6);
-    tc(doc, MID);
-    const lbl = d.label.length > 8 ? d.label.slice(0, 7) + "…" : d.label;
-    doc.text(lbl, bx + bw / 2, y + h + 4, { align: "center" });
-    tc(doc, DARK);
-    doc.text(
-      d.value > 999 ? `${(d.value / 1000).toFixed(1)}k` : d.value.toFixed(1),
-      bx + bw / 2,
-      by - 1,
-      { align: "center" },
-    );
+  doc.addPage();
+  let y = 20;
+  y = sectionHeader(doc, "5. Complete Hourly Raw Data", y);
+  y = addWrappedTextBlock(
+    doc,
+    `This section contains ALL ${hourly.length} hourly records with every available field. Data includes detailed measurements for all simulation hours.`,
+    14,
+    y,
+    doc.internal.pageSize.getWidth() - 28,
+    8,
+    4,
+    DARK,
+  );
+  y += 4;
+
+  // Get ALL available keys from the data
+  const allKeys = Array.from(new Set(hourly.flatMap((row) => Object.keys(row))));
+  const keys = allKeys.length > 0 ? allKeys : Object.keys(hourly[0] ?? {});
+
+  // Display all records
+  const rows = hourly.map((row) => keys.map((key) => fmt(row?.[key], 2)));
+
+  autoTable(doc, {
+    startY: y,
+    head: [keys],
+    body: rows,
+    theme: "striped",
+    margin: { left: 12, right: 12 },
+    styles: { fontSize: 6, cellPadding: 0.8, overflow: "ellipsize" },
+    headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold", fontSize: 6 },
+    alternateRowStyles: { fillColor: LIGHT },
+    rowPageBreak: "auto",
+    pageBreak: "auto",
   });
 }
+
+function appendMetricsAppendix(doc: jsPDF, rd: any) {
+  const metrics = rd?.results?.metrics ?? rd?.metrics ?? {};
+  const annual = rd?.results?.annual ?? rd?.summary ?? {};
+  const econ = rd?.results?.economics ?? rd?.economics ?? {};
+  const performance = rd?.results?.performance ?? {};
+  const energy = rd?.results?.energy ?? {};
+  const emissions = rd?.results?.emissions ?? {};
+  const costs = rd?.results?.costs ?? {};
+
+  doc.addPage();
+  let y = 20;
+  y = sectionHeader(doc, "6. Complete Detailed Metrics", y);
+
+  // Section 1: Performance Metrics
+  y = sectionHeader(doc, "6.1 Performance Metrics", y - 6);
+  const performanceRows = [
+    ["PUE", fmt(metrics.pue ?? performance.pue_average ?? annual.averagePUE ?? rd?.summary?.averagePUE)],
+    ["PUE Max", fmt(metrics.pue_max ?? performance.pue_max)],
+    ["CUE", fmt(metrics.cue ?? performance.cue_average ?? rd?.summary?.averageCUE)],
+    ["Average COP", fmt(metrics.averageCOP ?? performance.cop_average)],
+    ["WUE (L/kWh)", fmt(metrics.wue ?? performance.wue_average)],
+  ].filter(([, v]) => v !== "—");
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Metric", "Value"]],
+    body: performanceRows,
+    theme: "grid",
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8, cellPadding: 1.8 },
+    headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: LIGHT },
+    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
+  });
+  y = (doc as any).lastAutoTable.finalY + 6;
+
+  // Section 2: Energy & Load Metrics
+  y = sectionHeader(doc, "6.2 Energy & Load Metrics", y);
+  const energyRows = [
+    ["Annual Energy (kWh)", fmt(annual.energyConsumption_kWh ?? energy.electricity_kwh_total ?? rd?.summary?.totalEnergy_kWh)],
+    ["Annual Cooling Load (kWh)", fmt(annual.coolingLoad_kWh ?? energy.cooling_kwh)],
+    ["Peak Cooling Load (kW)", fmt(metrics.peakCoolingLoad_kW)],
+    ["IT Equipment (kWh)", fmt(energy.it_kwh)],
+    ["Fan Power (kWh)", fmt(energy.fan_kwh)],
+    ["Chiller Power (kWh)", fmt(energy.chiller_kwh)],
+  ].filter(([, v]) => v !== "—");
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Metric", "Value"]],
+    body: energyRows,
+    theme: "grid",
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8, cellPadding: 1.8 },
+    headStyles: { fillColor: ACCENT, textColor: WHITE, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: LIGHT },
+    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
+  });
+  y = (doc as any).lastAutoTable.finalY + 6;
+
+  // Section 3: Water & Environmental
+  y = sectionHeader(doc, "6.3 Water & Environmental", y);
+  const waterRows = [
+    ["Annual Water (L)", fmt(annual.waterUsage_L ?? rd?.summary?.waterUsage_L)],
+    ["Carbon Emissions (kg)", fmt(annual.carbonEmissions_kg ?? emissions.co2_kg_total ?? rd?.summary?.totalCarbonEmissions_kg)],
+    ["CO₂ per kWh IT", fmt(emissions.co2_kg_per_kwh_it)],
+  ].filter(([, v]) => v !== "—");
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Metric", "Value"]],
+    body: waterRows,
+    theme: "grid",
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8, cellPadding: 1.8 },
+    headStyles: { fillColor: GREEN, textColor: WHITE, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: LIGHT },
+    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
+  });
+  y = (doc as any).lastAutoTable.finalY + 6;
+
+  // Section 4: Economics
+  y = sectionHeader(doc, "6.4 Economics & Financial", y);
+  const ecoRows = [
+    ["OPEX Annual (USD)", fmt(annual.cost_USD ?? econ.opex_annual_USD ?? rd?.summary?.annualOpExUSD)],
+    ["CAPEX (USD)", fmt(econ.capex_USD ?? costs.capex_usd)],
+    ["LCCP (USD)", fmt(econ.lccp_USD)],
+    ["NPV (USD)", fmt(econ.npv_USD)],
+    ["IRR (%)", fmt(econ.irr)],
+    ["Payback Period (years)", fmt(econ.paybackPeriod_years)],
+    ["Annual Savings (USD)", fmt(rd?.annualSavingsUSD ?? econ.annualSavingsUSD ?? rd?.summary?.annualSavingsUSD)],
+  ].filter(([, v]) => v !== "—");
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Metric", "Value"]],
+    body: ecoRows,
+    theme: "grid",
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8, cellPadding: 1.8 },
+    headStyles: { fillColor: YELLOW, textColor: DARK, fontStyle: "bold" },
+    alternateRowStyles: { fillColor: LIGHT },
+    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
+  });
+}
+
+function appendRecommendationsAppendix(doc: jsPDF, rd: any, result: SimulationPDFData["result"]) {
+  const mlRec = rd?.mlRecommendation;
+  const fallback = result?.recommendation;
+  if (!mlRec && !fallback) return;
+
+  doc.addPage();
+  let y = 20;
+  y = sectionHeader(doc, "7. Complete ML Recommendation & Analysis", y);
+
+  // Summary section
+  const summary = [
+    ["Current Technique", mlRec?.current_technique ?? rd?.simulation_type ?? "—"],
+    ["Recommended Technique", mlRec?.model_recommendation ?? fallback ?? "—"],
+    ["Confidence", mlRec?.confidence ?? "—"],
+    ["Generated UTC", mlRec?.generated_at_utc ? new Date(mlRec.generated_at_utc).toLocaleString() : "—"],
+  ];
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Parameter", "Value"]],
+    body: summary,
+    theme: "grid",
+    margin: { left: 14, right: 14 },
+    styles: { fontSize: 8.5, cellPadding: 2.5, halign: "left" },
+    headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: "bold", fontSize: 9 },
+    alternateRowStyles: { fillColor: LIGHT },
+    columnStyles: { 0: { fontStyle: "bold", cellWidth: 60 }, 1: { fontStyle: "bold", textColor: DARK } },
+  });
+  
+  let legendY = (doc as any).lastAutoTable.finalY + 5;
+  legendY = addColumnLegend(doc, legendY, [
+    { key: "Current Technique", description: "Active cooling technique" },
+    { key: "Recommended Technique", description: "ML-suggested optimal technique" },
+    { key: "Confidence", description: "Recommendation confidence level" },
+    { key: "Generated UTC", description: "Timestamp of recommendation generation" },
+  ]);
+  y = legendY + 4;
+
+  // Why this recommendation
+  if (Array.isArray(mlRec?.why_this_is_recommended) && mlRec.why_this_is_recommended.length > 0) {
+    y = sectionHeader(doc, "7.1 Why This Recommendation", y);
+    const reasons = mlRec.why_this_is_recommended.filter((r: any) => r && !r.includes("available when"));
+    if (reasons.length > 0) {
+      const reasonsText = reasons.join("\n\n");
+      y = addWrappedTextBlock(
+        doc,
+        reasonsText,
+        14,
+        y,
+        doc.internal.pageSize.getWidth() - 28,
+        8.5,
+        4,
+        DARK,
+      ) + 4;
+    }
+  }
+
+  // Future impact
+  if (mlRec?.future_impact_paragraph && !mlRec.future_impact_paragraph.includes("available when")) {
+    y = sectionHeader(doc, "7.2 Future Impact & Analysis", y);
+    y = addWrappedTextBlock(
+      doc,
+      mlRec.future_impact_paragraph,
+      14,
+      y,
+      doc.internal.pageSize.getWidth() - 28,
+      8.5,
+      4,
+      DARK,
+    ) + 4;
+  }
+
+  // Technique comparison table
+  if (Array.isArray(mlRec?.comparison_table) && mlRec.comparison_table.length > 0) {
+    y = renderTechniqueTable(doc, "7.3 Technique Comparison Table", mlRec.comparison_table, y);
+  }
+
+
+}
+
+// Removed: appendChartSnapshots - focus is now on complete raw data and metrics
+// This function has been removed to prioritize data-driven reporting over visualizations
+
+/*
+function appendChartSnapshots(doc: jsPDF, rd: any, capturedCharts?: Record<string, CapturedChartImage>) {
+  const hourly: any[] = rd?.results?.hourlyResults ?? rd?.hourlyResults ?? [];
+  const yearly: any[] = rd?.projection?.yearlyData ?? rd?.results?.projection?.yearlyData ?? [];
+  const comp: any[] = rd?.mlRecommendation?.comparison_table ?? [];
+  const copOverTime: number[] = Array.isArray(rd?.copOverTime) ? rd.copOverTime : [];
+  const modeBreakdown = rd?.airflowViolations?.modeBreakdown ?? {};
+  const metrics = rd?.results?.metrics ?? {};
+  const summary = rd?.summary ?? {};
+  const isChilledPDF = !!(metrics.averageCOP !== undefined || rd?.coolingTechnique === "chilled_water");
+  const isAirPDF = !!(rd?.airflowViolations || rd?.coolingTechnique === "air_economizer" || summary.totalItEnergy_kWh);
+  const isEvapPDF = !isChilledPDF && !isAirPDF;
+
+  // Helper to get captured chart image by ID
+  const getChartImage = (chartId: string): CapturedChartImage | undefined => {
+    return capturedCharts?.[chartId];
+  };
+
+  const renderChartOrder = (title: string, rows: [string, string][], y: number) => {
+    y = ensureSpace(doc, y, 30);
+    y = sectionHeader(doc, title, y);
+    autoTable(doc, {
+      startY: y,
+      head: [["Order", "Chart"]],
+      body: rows,
+      theme: "grid",
+      margin: { left: 14, right: 14 },
+      styles: { fontSize: 8.5, cellPadding: 2.2 },
+      headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: LIGHT },
+      columnStyles: { 0: { halign: "center", fontStyle: "bold" } },
+    });
+    return (doc as any).lastAutoTable.finalY + 8;
+  };
+
+  const renderPerformanceRadar = (y: number) => {
+    const values = [
+      Math.max(0, 10 - ((metrics.pue ?? summary.averagePUE ?? 1.5) - 1) * 5),
+      Math.max(0, 10 - (metrics.cue ?? summary.averageCUE ?? 0.5) * 10),
+      Math.min(10, (summary.energySavingsPercent ?? 0) / 5),
+      Math.min(10, (summary.annualSavingsUSD ?? 0) / 20000),
+      Math.min(10, (summary.carbonSavings_kg ?? 0) / 10000),
+    ];
+
+    return renderBarSnapshot(
+      doc,
+      "Performance Radar",
+      "Source: normalised scores (0-10) for PUE, CUE, energy savings, cost savings, and carbon savings.",
+      ["PUE Eff", "CUE Eff", "Energy Sav", "Cost Sav", "Carbon Sav"],
+      values,
+      ACCENT,
+      y,
+      getChartImage("chart-performance-radar"),
+    );
+  };
+
+  doc.addPage();
+  let y = 20;
+  y = sectionHeader(doc, "10. Chart Snapshot Appendix", y);
+
+  if (isChilledPDF) {
+    y = renderChartOrder(
+      "10.1 Chilled Water Chart Order",
+      [
+        ["1", "Annual Consumption Overview"],
+        ["2", "COP Over Time (8760 h sampled)"],
+        ["3", "Hourly Cooling Load vs Chiller Power (kW)"],
+        ["4", "Hourly Power Breakdown (kW)"],
+        ["5", "Hourly Water Usage & Carbon Emissions"],
+        ["6", "Chilled Water Cost Structure"],
+        ["7", "Phase 4 Compliance Gates"],
+        ["8", "Performance Radar"],
+        ["9", "Technique Comparison (ML)"],
+        ["10", "5-Year Financial & Environmental Projection"],
+      ],
+      y,
+    );
+
+    y = renderBarSnapshot(
+      doc,
+      "Annual Consumption Overview",
+      "Source: annual energy, cooling load, water usage, carbon emissions, and cost fields.",
+      ["Energy", "Cooling", "Water", "Carbon", "Cost"],
+      [
+        Number(rd?.results?.annual?.energyConsumption_kWh ?? 0),
+        Number(rd?.results?.annual?.coolingLoad_kWh ?? 0),
+        Number(rd?.results?.annual?.waterUsage_L ?? 0),
+        Number(rd?.results?.annual?.carbonEmissions_kg ?? 0),
+        Number(rd?.results?.annual?.cost_USD ?? 0),
+      ],
+      PRIMARY,
+      y,
+      getChartImage("chart-consumption-overview"),
+    );
+
+    if (copOverTime.length > 0) {
+      const step = Math.max(1, Math.ceil(copOverTime.length / 80));
+      const cops = copOverTime.filter((_, i) => i % step === 0);
+      y = renderLineSnapshot(
+        doc,
+        "COP Over Time (8760 h sampled)",
+        "Source: copOverTime / hourly results.",
+        "Sample Index",
+        "COP",
+        cops.map((_, i) => `P${i + 1}`),
+        [{ name: "COP", values: cops, color: ACCENT }],
+        y,
+        getChartImage("chart-cop-timeline"),
+      );
+    }
+
+    y = renderPerformanceRadar(y);
+
+    if (comp.length > 0) {
+      const labels = comp.map((r) => r.tech ?? "");
+      const values = comp.map((r) => Number(r.score ?? 0));
+      y = renderBarSnapshot(doc, "Technique Comparison (ML)", "Source: mlRecommendation.comparison_table.score.", labels, values, PRIMARY, y);
+    }
+
+    if (hourly.length > 0) {
+      const step = Math.max(1, Math.ceil(hourly.length / 80));
+      const sample = hourly.filter((_, i) => i % step === 0);
+      y = renderLineSnapshot(
+        doc,
+        "Hourly Cooling Load vs Chiller Power (kW)",
+        "Source: hourlyResults.coolingLoad_kW and chillerPower_kW.",
+        "Sample Index",
+        "kW",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "Cooling Load", values: sample.map((h) => Number(h.coolingLoad_kW ?? 0)), color: PRIMARY },
+          { name: "Chiller Power", values: sample.map((h) => Number(h.chillerPower_kW ?? 0)), color: GREEN },
+          { name: "IT Load", values: sample.map((h) => Number(h.itLoad_kW ?? 0)), color: YELLOW },
+        ],
+        y,
+      );
+
+      y = renderLineSnapshot(
+        doc,
+        "Hourly Power Breakdown (kW)",
+        "Source: hourlyResults.itLoad_kW, fanPower_kW, chillerPower_kW, totalPower_kW.",
+        "Sample Index",
+        "kW",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "IT Load", values: sample.map((h) => Number(h.itLoad_kW ?? 0)), color: ACCENT },
+          { name: "Fan Power", values: sample.map((h) => Number(h.fanPower_kW ?? 0)), color: GREEN },
+          { name: "Chiller Power", values: sample.map((h) => Number(h.chillerPower_kW ?? 0)), color: YELLOW },
+          { name: "Total", values: sample.map((h) => Number(h.totalPower_kW ?? h.totalElectricalKW ?? 0)), color: RED },
+        ],
+        y,
+      );
+
+      y = renderLineSnapshot(
+        doc,
+        "Hourly Water Usage & Carbon Emissions",
+        "Source: hourlyResults.waterUsage_L and carbonEmissions_kg.",
+        "Sample Index",
+        "L / kg",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "Water Usage", values: sample.map((h) => Number(h.waterUsage_L ?? 0)), color: PRIMARY },
+          { name: "Carbon", values: sample.map((h) => Number(h.carbonEmissions_kg ?? 0)), color: RED },
+        ],
+        y,
+      );
+    }
+
+    y = renderBarSnapshot(
+      doc,
+      "Chilled Water Cost Structure",
+      "Source: results.economics and annual cost fields.",
+      ["OPEX", "CAPEX", "LCCP", "NPV", "Payback"],
+      [
+        Number(rd?.results?.annual?.cost_USD ?? rd?.results?.economics?.opex_annual_USD ?? 0),
+        Number(rd?.results?.economics?.capex_USD ?? 0),
+        Number(rd?.results?.economics?.lccp_USD ?? 0),
+        Math.abs(Number(rd?.results?.economics?.npv_USD ?? 0)),
+        Number(rd?.results?.economics?.paybackPeriod_years ?? 0),
+      ],
+      PRIMARY,
+      y,
+    );
+
+    const gates = rd?.results?.phase4Gates ?? {};
+    if (Object.keys(gates).length > 0) {
+      y = renderBarSnapshot(
+        doc,
+        "Phase 4 Compliance Gates",
+        "Source: results.phase4Gates.*.",
+        Object.keys(gates),
+        Object.values(gates).map((v: any) => (String(v).toUpperCase() === "PASS" ? 1 : 0)),
+        GREEN,
+        y,
+      );
+    }
+
+    if (yearly.length > 0) {
+      y = renderBarSnapshot(
+        doc,
+        "5-Year Financial & Environmental Projection",
+        "Source: projection.yearlyData.totalCostUSD and costSavingsUSD.",
+        yearly.map((d) => `Y${d.year}`),
+        yearly.map((d) => Number(d.totalCostUSD ?? 0)),
+        PRIMARY,
+        y,
+      );
+    }
+  }
+
+  if (isAirPDF) {
+    y = renderChartOrder(
+      "10.2 Air Economizer Chart Order",
+      [
+        ["1", "Hourly Power Breakdown (kW)"],
+        ["2", "Airflow & Free Cooling vs Mechanical (kW)"],
+        ["3", "Cooling Mode Distribution"],
+        ["4", "Full Cost Structure"],
+        ["5", "Rack Analysis (CloudSim)"],
+        ["6", "Hourly PUE & CUE"],
+        ["7", "Ambient Temperature & Humidity"],
+        ["8", "Performance Radar"],
+        ["9", "Technique Comparison (ML)"],
+        ["10", "5-Year Financial & Environmental Projection"],
+      ],
+      y,
+    );
+
+    if (hourly.length > 0) {
+      const step = Math.max(1, Math.ceil(hourly.length / 80));
+      const sample = hourly.filter((_, i) => i % step === 0);
+
+      y = renderLineSnapshot(
+        doc,
+        "Hourly Power Breakdown (kW)",
+        "Source: hourlyResults.itLoad_kW, fanPower_kW, mechPower_kW, totalPower_kW.",
+        "Sample Index",
+        "kW",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "IT Load", values: sample.map((h) => Number(h.itLoad_kW ?? 0)), color: ACCENT },
+          { name: "Fan Power", values: sample.map((h) => Number(h.fanPower_kW ?? 0)), color: GREEN },
+          { name: "Mech Power", values: sample.map((h) => Number(h.mechPower_kW ?? 0)), color: YELLOW },
+          { name: "Total", values: sample.map((h) => Number(h.totalPower_kW ?? 0)), color: RED },
+        ],
+        y,
+      );
+
+      y = renderLineSnapshot(
+        doc,
+        "Airflow & Free Cooling vs Mechanical (kW)",
+        "Source: requiredAirflow_CFM, q_free_kW, mech_load_kW, and airflowViolation.",
+        "Sample Index",
+        "CFM / kW",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "Required Airflow", values: sample.map((h) => Number(h.requiredAirflow_CFM ?? 0)), color: PRIMARY },
+          { name: "Free Cooling", values: sample.map((h) => Number(h.q_free_kW ?? 0)), color: GREEN },
+          { name: "Mechanical Load", values: sample.map((h) => Number(h.mech_load_kW ?? 0)), color: YELLOW },
+        ],
+        y,
+      );
+
+      if (Object.keys(modeBreakdown).length > 0) {
+        y = renderBarSnapshot(
+          doc,
+          "Cooling Mode Distribution",
+          "Source: airflowViolations.modeBreakdown.",
+          Object.keys(modeBreakdown),
+          Object.values(modeBreakdown).map((v: any) => Number(v ?? 0)),
+          GREEN,
+          y,
+        );
+      }
+
+      y = renderBarSnapshot(
+        doc,
+        "Full Cost Structure",
+        "Source: summary.electricityCostUSD, carbonTaxCostUSD, totalCapexUSD, annualSavingsUSD.",
+        ["Electricity", "Carbon Tax", "CAPEX", "Savings"],
+        [
+          Number(summary.electricityCostUSD ?? 0),
+          Number(summary.carbonTaxCostUSD ?? 0),
+          Number(summary.totalCapexUSD ?? 0),
+          Number(summary.annualSavingsUSD ?? 0),
+        ],
+        PRIMARY,
+        y,
+      );
+
+      if (rd?.rackAnalysis) {
+        y = renderBarSnapshot(
+          doc,
+          "Rack Analysis (CloudSim)",
+          "Source: rackAnalysis.averageRackLoadKW, maxRackLoadKW, hotspotRacks, totalRacks.",
+          ["Avg", "Max", "Hotspots", "Total"],
+          [
+            Number(rd.rackAnalysis.averageRackLoadKW ?? 0),
+            Number(rd.rackAnalysis.maxRackLoadKW ?? 0),
+            Number(rd.rackAnalysis.hotspotRacks ?? 0),
+            Number(rd.rackAnalysis.totalRacks ?? 0),
+          ],
+          ACCENT,
+          y,
+        );
+      }
+
+      y = renderLineSnapshot(
+        doc,
+        "Hourly PUE & CUE",
+        "Source: hourlyResults.pue and hourlyResults.cue.",
+        "Sample Index",
+        "PUE / CUE",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "PUE", values: sample.map((h) => Number(h.pue ?? 0)), color: ACCENT },
+          { name: "CUE", values: sample.map((h) => Number(h.cue ?? 0)), color: GREEN },
+        ],
+        y,
+      );
+
+      y = renderLineSnapshot(
+        doc,
+        "Ambient Temperature & Humidity",
+        "Source: hourlyResults.outdoorTempC and outdoorRH.",
+        "Sample Index",
+        "°C / %",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "Temperature", values: sample.map((h) => Number(h.outdoorTempC ?? h.tempC ?? 0)), color: YELLOW },
+          { name: "Humidity", values: sample.map((h) => Number(h.outdoorRH ?? h.rh ?? 0)), color: PRIMARY },
+        ],
+        y,
+      );
+
+      y = renderPerformanceRadar(y);
+
+      if (comp.length > 0) {
+        y = renderBarSnapshot(
+          doc,
+          "Technique Comparison (ML)",
+          "Source: mlRecommendation.comparison_table.score.",
+          comp.map((r) => r.tech ?? ""),
+          comp.map((r) => Number(r.score ?? 0)),
+          PRIMARY,
+          y,
+        );
+      }
+    }
+
+    if (yearly.length > 0) {
+      y = renderBarSnapshot(
+        doc,
+        "5-Year Financial & Environmental Projection",
+        "Source: projection.yearlyData.totalCostUSD and costSavingsUSD.",
+        yearly.map((d) => `Y${d.year}`),
+        yearly.map((d) => Number(d.totalCostUSD ?? 0)),
+        PRIMARY,
+        y,
+      );
+    }
+  }
+
+  if (isEvapPDF) {
+    const hourlyEvap: any[] = rd?.hourlyData ?? rd?.rawEvaporativeData?.hourly_data ?? [];
+    const step = Math.max(1, Math.ceil(Math.max(hourlyEvap.length, hourly.length) / 80));
+    const sample = (hourlyEvap.length > 0 ? hourlyEvap : hourly).filter((_: any, i: number) => i % step === 0);
+
+    y = renderChartOrder(
+      "10.3 Evaporative Chart Order",
+      [
+        ["1", "Annual Evaporative Cooling Summary"],
+        ["2", "Hourly Power Breakdown (kW)"],
+        ["3", "Cooling Capacity vs IT Load per Hour (kW)"],
+        ["4", "Hourly PUE vs Annual Average & Max"],
+        ["5", "Temperature & Humidity per Hour"],
+        ["6", "Supply Air Conditions per Hour"],
+        ["7", "Cooling Mode Distribution"],
+        ["8", "PUE per Hour"],
+        ["9", "Cooling Assessment"],
+        ["10", "Performance Radar"],
+        ["11", "Technique Comparison (ML)"],
+        ["12", "5-Year Financial & Environmental Projection"],
+      ],
+      y,
+    );
+
+    if (sample.length > 0) {
+      y = renderBarSnapshot(
+        doc,
+        "Annual Evaporative Cooling Summary",
+        "Source: results.energy, results.cost, results.performance, and cooling assessment metrics.",
+        ["IT", "Fan", "DX", "Pump"],
+        [
+          Number(rd?.rawEvaporativeData?.results?.energy?.it_kwh ?? 0),
+          Number(rd?.rawEvaporativeData?.results?.energy?.fan_kwh ?? 0),
+          Number(rd?.rawEvaporativeData?.results?.energy?.dx_kwh ?? 0),
+          Number(rd?.rawEvaporativeData?.results?.energy?.pump_kwh ?? 0),
+        ],
+        PRIMARY,
+        y,
+      );
+
+      y = renderLineSnapshot(
+        doc,
+        "Hourly Power Breakdown (kW)",
+        "Source: itLoadKW, fanPowerKW, dxPowerKW, totalElectricalKW, coolingCapacityKW.",
+        "Sample Index",
+        "kW",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "IT Load", values: sample.map((h) => Number(h.itLoadKW ?? 0)), color: ACCENT },
+          { name: "Fan Power", values: sample.map((h) => Number(h.fanPowerKW ?? 0)), color: GREEN },
+          { name: "DX Backup", values: sample.map((h) => Number(h.dxPowerKW ?? 0)), color: RED },
+          { name: "Total", values: sample.map((h) => Number(h.totalElectricalKW ?? 0)), color: YELLOW },
+        ],
+        y,
+      );
+
+      y = renderLineSnapshot(
+        doc,
+        "Cooling Capacity vs IT Load per Hour (kW)",
+        "Source: coolingCapacityKW, itLoadKW, waterEvaporationLph.",
+        "Sample Index",
+        "kW",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "Cooling Capacity", values: sample.map((h) => Number(h.coolingCapacityKW ?? 0)), color: GREEN },
+          { name: "IT Load", values: sample.map((h) => Number(h.itLoadKW ?? 0)), color: ACCENT },
+        ],
+        y,
+      );
+
+      y = renderLineSnapshot(
+        doc,
+        "Hourly PUE vs Annual Average & Max",
+        "Source: hourly PUE compared with annual average and max.",
+        "Sample Index",
+        "PUE",
+        sample.map((_, i) => `H${i + 1}`),
+        [{ name: "PUE", values: sample.map((h) => Number(h.pue ?? 0)), color: PRIMARY }],
+        y,
+      );
+
+      y = renderLineSnapshot(
+        doc,
+        "Temperature & Humidity per Hour",
+        "Source: ambientTempC and ambientHumidity.",
+        "Sample Index",
+        "°C / %",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "Temperature", values: sample.map((h) => Number(h.ambientTempC ?? 0)), color: YELLOW },
+          { name: "Humidity", values: sample.map((h) => Number(h.ambientHumidity ?? 0)), color: PRIMARY },
+        ],
+        y,
+      );
+
+      y = renderLineSnapshot(
+        doc,
+        "Supply Air Conditions per Hour",
+        "Source: supplyTempC, supplyHumidity, ambientHumidity, inletTempC.",
+        "Sample Index",
+        "°C / %",
+        sample.map((_, i) => `H${i + 1}`),
+        [
+          { name: "Supply Temp", values: sample.map((h) => Number(h.supplyTempC ?? 0)), color: GREEN },
+          { name: "Inlet Temp", values: sample.map((h) => Number(h.inletTempC ?? 0)), color: RED },
+          { name: "Humidity", values: sample.map((h) => Number(h.supplyHumidity ?? 0)), color: PRIMARY },
+        ],
+        y,
+      );
+
+      y = renderBarSnapshot(
+        doc,
+        "Cooling Mode Distribution",
+        "Source: hourly_data[i].coolingMode.",
+        sample.map((_, i) => `H${i + 1}`),
+        sample.map((h) => Number(h.coolingMode ? 1 : 0)),
+        GREEN,
+        y,
+      );
+
+      y = renderLineSnapshot(
+        doc,
+        "PUE per Hour",
+        "Source: pue series from hourly evaporative results.",
+        "Sample Index",
+        "PUE",
+        sample.map((_, i) => `H${i + 1}`),
+        [{ name: "PUE", values: sample.map((h) => Number(h.pue ?? 0)), color: PRIMARY }],
+        y,
+      );
+    }
+
+    const checks = rd?.coolingAdequacy?.checks ?? rd?.rawEvaporativeData?.cooling_assessment?.checks ?? {};
+    if (Object.keys(checks).length > 0) {
+      y = renderBarSnapshot(
+        doc,
+        "Cooling Assessment",
+        "Source: cooling_assessment.checks.",
+        Object.keys(checks),
+        Object.values(checks).map((v: any) => (String(v).toLowerCase() === "true" ? 1 : 0)),
+        GREEN,
+        y,
+      );
+    }
+
+    y = renderPerformanceRadar(y);
+
+    if (comp.length > 0) {
+      y = renderBarSnapshot(
+        doc,
+        "Technique Comparison (ML)",
+        "Source: mlRecommendation.comparison_table.score.",
+        comp.map((r) => r.tech ?? ""),
+        comp.map((r) => Number(r.score ?? 0)),
+        PRIMARY,
+        y,
+      );
+    }
+
+    if (yearly.length > 0) {
+      y = renderBarSnapshot(
+        doc,
+        "5-Year Financial & Environmental Projection",
+        "Source: projection.yearlyData.totalCostUSD and costSavingsUSD.",
+        yearly.map((d) => `Y${d.year}`),
+        yearly.map((d) => Number(d.totalCostUSD ?? 0)),
+        PRIMARY,
+        y,
+      );
+    }
+  }
+}
+*/
 
 function coverPage(doc: jsPDF, data: SimulationPDFData) {
   const pw = doc.internal.pageSize.getWidth();
   const ph = doc.internal.pageSize.getHeight();
 
-  fc(doc, DARK);
+  // ── Full dark background ──────────────────────────────────────────────────
+  fc(doc, [10, 14, 39]);
   doc.rect(0, 0, pw, ph, "F");
-  fc(doc, MID);
-  doc.rect(0, ph * 0.65, pw, ph * 0.35, "F");
-  fc(doc, ACCENT);
-  doc.rect(0, 0, 6, ph, "F");
 
-  // Logo pill
-  fc(doc, PRIMARY);
-  doc.roundedRect(20, 20, 44, 14, 3, 3, "F");
-  doc.setFontSize(11);
-  tc(doc, WHITE);
+  // ── Left accent bar ───────────────────────────────────────────────────────
+  fc(doc, ACCENT);
+  doc.rect(0, 0, 5, ph, "F");
+
+  // ── Top gradient band ─────────────────────────────────────────────────────
+  fc(doc, [15, 23, 58]);
+  doc.rect(5, 0, pw - 5, 90, "F");
+
+  // ── Decorative corner circle ──────────────────────────────────────────────
+  fc(doc, [92, 225, 229, 0.08] as any);
+  doc.circle(pw - 20, 20, 60, "F");
+  fc(doc, [14, 165, 233, 0.05] as any);
+  doc.circle(pw, 80, 50, "F");
+
+  // ── COOLIENCE brand mark ──────────────────────────────────────────────────
+  fc(doc, ACCENT);
+  doc.roundedRect(14, 14, 8, 8, 1.5, 1.5, "F");
+  doc.setFontSize(7);
+  tc(doc, [10, 14, 39]);
   doc.setFont("helvetica", "bold");
-  doc.text("COOLience Simulation Report", 42, 29, { align: "center" });
+  doc.text("C", 18, 20, { align: "center" });
 
-  // Title
-  doc.setFontSize(26);
-  tc(doc, WHITE);
-  doc.text("Technical Simulation", 20, 78);
-  doc.text("Report", 20, 92);
-
-  fc(doc, ACCENT);
-  doc.rect(20, 97, 55, 1.5, "F");
-
-  // Sim name
   doc.setFontSize(13);
   tc(doc, ACCENT);
+  doc.setFont("helvetica", "bold");
+  doc.text("COOLIENCE", 26, 20);
+  doc.setFontSize(7);
+  tc(doc, [148, 163, 184]);
   doc.setFont("helvetica", "normal");
-  const nameLines = doc.splitTextToSize(data.simulation.name, pw - 40);
-  doc.text(nameLines, 20, 110);
+  doc.text("Data Center Cooling Intelligence Platform", 26, 25);
 
-  // Meta
+  // ── Report type label ─────────────────────────────────────────────────────
+  doc.setFontSize(8);
+  tc(doc, [148, 163, 184]);
+  doc.setFont("helvetica", "normal");
+  doc.text("TECHNICAL SIMULATION REPORT", pw - 14, 20, { align: "right" });
+  doc.setFontSize(7);
+  tc(doc, [100, 116, 139]);
+  doc.text(`Generated: ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })}`, pw - 14, 25, { align: "right" });
+
+  // ── Horizontal rule ───────────────────────────────────────────────────────
+  fc(doc, [30, 41, 82]);
+  doc.rect(14, 32, pw - 28, 0.4, "F");
+
+  // ── Main title block ──────────────────────────────────────────────────────
+  doc.setFontSize(36);
+  tc(doc, WHITE);
+  doc.setFont("helvetica", "bold");
+  doc.text("Simulation", 14, 58);
+
+  doc.setFontSize(36);
+  tc(doc, ACCENT);
+  doc.setFont("helvetica", "bold");
+  doc.text("Analysis Report", 14, 74);
+
+  // ── Simulation name ───────────────────────────────────────────────────────
+  fc(doc, [20, 30, 70]);
+  doc.roundedRect(14, 84, pw - 28, 0.5, 0, 0, "F");
+
+  doc.setFontSize(14);
+  tc(doc, WHITE);
+  doc.setFont("helvetica", "bold");
+  const nameLines = doc.splitTextToSize(data.simulation.name, pw - 28);
+  doc.text(nameLines.slice(0, 2), 14, 96);
+
+  // ── Technique badge ───────────────────────────────────────────────────────
+  const techName = data.simulation.simulation_type;
+  const badgeW = Math.min(doc.getTextWidth(techName) * 1.1 + 16, 100);
+  fc(doc, PRIMARY);
+  doc.roundedRect(14, 106, badgeW, 10, 2, 2, "F");
+  doc.setFontSize(8);
+  tc(doc, WHITE);
+  doc.setFont("helvetica", "bold");
+  doc.text(techName.toUpperCase(), 14 + badgeW / 2, 112.5, { align: "center" });
+
+  // ── Status badge ──────────────────────────────────────────────────────────
+  const statusColor: RGB = data.simulation.status === "completed" ? GREEN : data.simulation.status === "failed" ? RED : YELLOW;
+  fc(doc, statusColor);
+  doc.roundedRect(14 + badgeW + 4, 106, 28, 10, 2, 2, "F");
+  doc.setFontSize(8);
+  tc(doc, WHITE);
+  doc.setFont("helvetica", "bold");
+  doc.text(data.simulation.status.toUpperCase(), 14 + badgeW + 4 + 14, 112.5, { align: "center" });
+
+  // ── Divider ───────────────────────────────────────────────────────────────
+  fc(doc, [30, 41, 82]);
+  doc.rect(14, 122, pw - 28, 0.4, "F");
+
+  // ── Metadata grid ─────────────────────────────────────────────────────────
   const meta: [string, string][] = [
-    ["Type", data.simulation.simulation_type.toUpperCase()],
+    ["Simulation ID", `#${data.simulation.id}`],
     ["Status", data.simulation.status.toUpperCase()],
     ["Created", new Date(data.simulation.created_at).toLocaleString()],
-    [
-      "Completed",
-      data.result.completed_at
-        ? new Date(data.result.completed_at).toLocaleString()
-        : "—",
-    ],
-    ["Generated", new Date().toLocaleString()],
+    ["Completed", data.result.completed_at ? new Date(data.result.completed_at).toLocaleString() : "—"],
+    ["Runtime", `${data.result.runtime_minutes ?? "—"} min`],
+    ["Report Generated", new Date().toLocaleString()],
   ];
-  let my = 130;
-  doc.setFontSize(9);
-  meta.forEach(([k, v]) => {
-    tc(doc, ACCENT);
-    doc.setFont("helvetica", "bold");
-    doc.text(`${k}:`, 20, my);
-    tc(doc, WHITE);
+
+  const colW = (pw - 28) / 2;
+  meta.forEach(([k, v], i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const mx = 14 + col * (colW + 4);
+    const my = 132 + row * 16;
+
+    fc(doc, [20, 28, 65]);
+    doc.roundedRect(mx, my - 4, colW - 4, 13, 1.5, 1.5, "F");
+
+    doc.setFontSize(6.5);
+    tc(doc, [100, 116, 139]);
     doc.setFont("helvetica", "normal");
-    doc.text(v, 58, my);
-    my += 8;
+    doc.text(k.toUpperCase(), mx + 4, my + 1);
+
+    doc.setFontSize(8.5);
+    tc(doc, WHITE);
+    doc.setFont("helvetica", "bold");
+    const vLines = doc.splitTextToSize(v, colW - 10);
+    doc.text(vLines[0], mx + 4, my + 7);
   });
 
+  // ── Description ───────────────────────────────────────────────────────────
   if (data.simulation.description) {
-    doc.setFontSize(9);
-    doc.setTextColor(170, 180, 205);
-    const dl = doc.splitTextToSize(data.simulation.description, pw - 40);
-    doc.text(dl.slice(0, 4), 20, my + 5);
+    const descY = 132 + Math.ceil(meta.length / 2) * 16 + 6;
+    fc(doc, [20, 28, 65]);
+    doc.roundedRect(14, descY, pw - 28, 20, 2, 2, "F");
+    doc.setFontSize(7);
+    tc(doc, [148, 163, 184]);
+    doc.setFont("helvetica", "normal");
+    doc.text("DESCRIPTION", 18, descY + 5);
+    doc.setFontSize(8);
+    tc(doc, WHITE);
+    const descLines = doc.splitTextToSize(data.simulation.description, pw - 36);
+    doc.text(descLines.slice(0, 2), 18, descY + 11);
   }
 
-  doc.setFontSize(8);
-  tc(doc, MID);
-  doc.text("CONFIDENTIAL — Generated by CoolSim Platform", pw / 2, ph - 10, {
-    align: "center",
+  // ── Key metrics strip ─────────────────────────────────────────────────────
+  const rd = data.result.result_data ?? {};
+  const pue = rd?.results?.metrics?.pue ?? rd?.summary?.averagePUE ?? rd?.pue;
+  const energy = rd?.results?.annual?.energyConsumption_kWh ?? rd?.summary?.totalEnergy_kWh;
+  const carbon = rd?.results?.annual?.carbonEmissions_kg ?? rd?.summary?.totalCarbonEmissions_kg;
+  const cost = rd?.results?.annual?.cost_USD ?? rd?.summary?.annualOpExUSD;
+
+  const kpis = [
+    { label: "PUE", value: pue != null ? Number(pue).toFixed(4) : "—", color: ACCENT },
+    { label: "Energy (kWh)", value: energy != null ? Number(energy).toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—", color: PRIMARY },
+    { label: "Carbon (kg)", value: carbon != null ? Number(carbon).toLocaleString(undefined, { maximumFractionDigits: 0 }) : "—", color: GREEN },
+    { label: "Annual Cost", value: cost != null ? `$${Number(cost).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—", color: YELLOW },
+  ];
+
+  const kpiY = ph - 55;
+  fc(doc, [15, 23, 58]);
+  doc.rect(0, kpiY - 6, pw, 42, "F");
+
+  doc.setFontSize(7);
+  tc(doc, [100, 116, 139]);
+  doc.setFont("helvetica", "normal");
+  doc.text("KEY PERFORMANCE INDICATORS", 14, kpiY - 1);
+
+  const kpiW = (pw - 28 - 9) / 4;
+  kpis.forEach((k, i) => {
+    const kx = 14 + i * (kpiW + 3);
+    fc(doc, [20, 30, 70]);
+    doc.roundedRect(kx, kpiY + 3, kpiW, 22, 2, 2, "F");
+    fc(doc, k.color);
+    doc.roundedRect(kx, kpiY + 3, 3, 22, 1, 1, "F");
+    doc.setFontSize(6.5);
+    tc(doc, [148, 163, 184]);
+    doc.setFont("helvetica", "normal");
+    doc.text(k.label, kx + 5, kpiY + 9);
+    doc.setFontSize(11);
+    tc(doc, WHITE);
+    doc.setFont("helvetica", "bold");
+    doc.text(k.value, kx + 5, kpiY + 20);
   });
+
+  // ── Footer ────────────────────────────────────────────────────────────────
+  fc(doc, [5, 8, 22]);
+  doc.rect(0, ph - 12, pw, 12, "F");
+  fc(doc, ACCENT);
+  doc.rect(0, ph - 12, 5, 12, "F");
+  doc.setFontSize(7);
+  tc(doc, [100, 116, 139]);
+  doc.setFont("helvetica", "normal");
+  doc.text("COOLIENCE Platform  ·  Confidential Simulation Report", pw / 2, ph - 5.5, { align: "center" });
+  doc.setFontSize(6.5);
+  tc(doc, [60, 75, 100]);
+  doc.text(`Report ID: SIM-${data.simulation.id}-${Date.now().toString(36).toUpperCase()}`, pw - 14, ph - 5.5, { align: "right" });
 }
 
 export const generateSimulationPDF = (data: SimulationPDFData) => {
@@ -263,17 +1620,17 @@ export const generateSimulationPDF = (data: SimulationPDFData) => {
       unit: "mm",
       format: "a4",
     });
-    const pw = doc.internal.pageSize.getWidth();
     const rd = data.result.result_data ?? {};
 
-    // ── Page 1: Cover ────────────────────────────────────────────────────────
+    // ── Page 1: Cover Page ────────────────────────────────────────────────────
     coverPage(doc, data);
 
-    // ── Page 2: Executive Summary ────────────────────────────────────────────
+    // ── Page 2: Executive Summary ─────────────────────────────────────────────
     doc.addPage();
     let y = 20;
     y = sectionHeader(doc, "1. Executive Summary", y);
 
+    // KPI Cards
     y = kpiRow(doc, y, [
       {
         label: "Energy Consumed",
@@ -282,7 +1639,7 @@ export const generateSimulationPDF = (data: SimulationPDFData) => {
         color: PRIMARY,
       },
       {
-        label: "Cooling Eff. (PUE)",
+        label: "Cooling Efficiency (PUE)",
         value: (data.result.cooling_efficiency ?? 0).toFixed(3),
         unit: "",
         color: ACCENT,
@@ -301,422 +1658,40 @@ export const generateSimulationPDF = (data: SimulationPDFData) => {
       },
     ]);
 
-    const annual  = rd?.results?.annual  ?? rd?.summary ?? {};
+    // Summary metrics table
+    y = ensureSpace(doc, y, 60);
+    const annual = rd?.results?.annual ?? rd?.summary ?? {};
     const metrics = rd?.results?.metrics ?? {};
-    const econ    = rd?.results?.economics ?? {};
-    const s       = rd?.summary ?? {};
+    const econ = rd?.results?.economics ?? {};
+    const s = rd?.summary ?? {};
 
-    // Detect technique from result data
-    const isChilledPDF  = !!(rd?.results?.metrics?.averageCOP !== undefined || rd?.coolingTechnique === "chilled_water");
-    const isAirPDF      = !!(rd?.airflowViolations || rd?.coolingTechnique === "air_economizer" || s.totalItEnergy_kWh);
-    const isEvapPDF     = !isChilledPDF && !isAirPDF;
-
-    // Build technique-specific summary rows
-    const commonRows: [string, string][] = [
-      ["PUE",                   fmt(metrics.pue ?? s.averagePUE)],
-      ["CUE",                   fmt(metrics.cue ?? s.averageCUE)],
-      ["Total Energy (kWh)",    fmt(annual.energyConsumption_kWh ?? s.totalEnergy_kWh)],
-      ["Carbon Emissions (kg)", fmt(annual.carbonEmissions_kg ?? s.totalCarbonEmissions_kg)],
-      ["Annual Cost (USD)",     fmt(annual.cost_USD ?? econ.opex_annual_USD ?? s.annualOpExUSD)],
-      ["Payback (yrs)",         fmt(econ.paybackPeriod_years ?? s.paybackPeriodYears)],
-    ];
-
-    const chilledRows: [string, string][] = isChilledPDF ? [
-      ["Average COP",           fmt(metrics.averageCOP)],
-      ["WUE (L/kWh)",           fmt(metrics.wue)],
-      ["Peak Cooling Load (kW)", fmt(metrics.peakCoolingLoad_kW)],
-      ["Cooling Load (kWh)",    fmt(annual.coolingLoad_kWh)],
-      ["Water Usage (L)",       fmt(annual.waterUsage_L)],
-      ["CAPEX (USD)",           fmt(econ.capex_USD)],
-      ["Annual OPEX (USD)",     fmt(econ.opex_annual_USD)],
-      ["LCCP (USD)",            fmt(econ.lccp_USD)],
-      ["NPV (USD)",             fmt(econ.npv_USD)],
-    ] : [];
-
-    const airRows: [string, string][] = isAirPDF ? [
-      ["IT Energy (kWh)",       fmt(s.totalItEnergy_kWh)],
-      ["Cooling Energy (kWh)",  fmt(s.totalCoolingEnergy_kWh)],
-      ["Electricity Cost (USD)", fmt(s.electricityCostUSD)],
-      ["Carbon Tax (USD)",      fmt(s.carbonTaxCostUSD)],
-      ["Annual OpEx (USD)",     fmt(s.annualOpExUSD)],
-      ["Annual Savings (USD)",  fmt(s.annualSavingsUSD)],
-      ["Energy Savings %",      fmt(s.energySavingsPercent)],
-      ["Carbon Savings (kg)",   fmt(s.carbonSavings_kg)],
-      ["CAPEX (USD)",           fmt(s.totalCapexUSD)],
-      ["Water Usage (L)",       fmt(s.waterUsage_liters)],
-    ] : [];
-
-    const evapRows: [string, string][] = isEvapPDF ? [
-      ["Average COP",           fmt(metrics.averageCOP)],
-      ["WUE (L/kWh)",           fmt(metrics.wue)],
-      ["Cooling Load (kWh)",    fmt(annual.coolingLoad_kWh)],
-      ["Water Usage (L)",       fmt(annual.waterUsage_L)],
-      ["CAPEX (USD)",           fmt(econ.capex_USD)],
-      ["Annual OPEX (USD)",     fmt(econ.opex_annual_USD)],
-      ["LCCP (USD)",            fmt(econ.lccp_USD)],
-      ["NPV (USD)",             fmt(econ.npv_USD)],
-    ] : [];
-
-    const summaryRows: [string, string][] = [
-      ...commonRows,
-      ...chilledRows,
-      ...airRows,
-      ...evapRows,
-    ].filter(([, v]) => v !== "—") as [string, string][];
+    const summaryData = [
+      ["PUE (Power Usage Efficiency)", fmt(metrics.pue ?? s.averagePUE)],
+      ["CUE (Carbon Usage Effectiveness)", fmt(metrics.cue ?? s.averageCUE)],
+      ["Total Energy Consumption", fmt(annual.energyConsumption_kWh ?? s.totalEnergy_kWh) + " kWh"],
+      ["Annual Carbon Emissions", fmt(annual.carbonEmissions_kg ?? s.totalCarbonEmissions_kg) + " kg CO₂"],
+      ["Annual Operating Cost", "$" + (annual.cost_USD ?? econ.opex_annual_USD ?? s.annualOpExUSD ?? 0).toLocaleString()],
+      ["Payback Period", fmt(econ.paybackPeriod_years ?? s.paybackPeriodYears) + " years"],
+    ].filter(([, v]) => !v.includes("—"));
 
     autoTable(doc, {
       startY: y,
       head: [["Metric", "Value"]],
-      body: summaryRows,
+      body: summaryData,
       theme: "grid",
       margin: { left: 14, right: 14 },
-      styles: { fontSize: 9, cellPadding: 2.5 },
-      headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold" },
+      styles: { fontSize: 9, cellPadding: 3 },
+      headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: "bold", fontSize: 10 },
       alternateRowStyles: { fillColor: LIGHT },
-      columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
+      columnStyles: { 0: { fontStyle: "bold" }, 1: { halign: "right", fontStyle: "bold" } },
     });
-    y = (doc as any).lastAutoTable.finalY + 8;
 
-    // Phase 4 gates
-    const gates = rd?.results?.phase4Gates;
-    if (gates && Object.keys(gates).length > 0) {
-      if (y > 240) {
-        doc.addPage();
-        y = 20;
-      }
-      y = sectionHeader(doc, "Phase 4 Compliance Gates", y);
-      const gateRows = Object.entries(gates).map(([k, v]) => [
-        k.replace(/([A-Z])/g, " $1").trim(),
-        String(v),
-      ]);
-      autoTable(doc, {
-        startY: y,
-        head: [["Gate", "Result"]],
-        body: gateRows,
-        theme: "grid",
-        margin: { left: 14, right: 14 },
-        styles: { fontSize: 9, cellPadding: 2.5 },
-        headStyles: { fillColor: DARK, textColor: WHITE },
-        didParseCell: (d) => {
-          if (d.column.index === 1) {
-            const v = String(d.cell.raw);
-            if (v === "PASS") d.cell.styles.textColor = GREEN;
-            else if (v === "FAIL") d.cell.styles.textColor = RED;
-          }
-        },
-      });
-      y = (doc as any).lastAutoTable.finalY + 8;
-    }
+    // ── Pages 3+: Detailed Sections ───────────────────────────────────────────
+    appendRawDataAppendix(doc, rd);
+    appendMetricsAppendix(doc, rd);
+    appendRecommendationsAppendix(doc, rd, data.result);
 
-    // ── Page 3: Visualizations ───────────────────────────────────────────────
-    doc.addPage();
-    y = 20;
-    y = sectionHeader(doc, "2. Visualizations & Charts", y);
-
-    const hourly: any[] = rd?.results?.hourlyResults ?? rd?.hourlyResults ?? [];
-    const yearly: any[] = rd?.projection?.yearlyData ?? rd?.results?.projection?.yearlyData ?? [];
-    const comp: any[]   = rd?.mlRecommendation?.comparison_table ?? [];
-    const copOverTime: number[] = Array.isArray(rd?.copOverTime) ? rd.copOverTime : [];
-
-    // ── Chilled water: COP over time from copOverTime array ──────────────────
-    if (isChilledPDF && copOverTime.length > 0) {
-      const step = Math.ceil(copOverTime.length / 120);
-      const cops = copOverTime.filter((_, i) => i % step === 0);
-      sparkline(doc, 14, y, pw - 28, 35, cops, ACCENT, "COP Over Time — results.hourlyResults[i].cop (sampled)");
-      y += 45;
-    }
-
-    // ── Chilled water: Chiller power + IT load ───────────────────────────────
-    if (isChilledPDF && hourly.length > 0) {
-      const step = Math.ceil(hourly.length / 120);
-      const chillerPow = hourly.filter((_, i) => i % step === 0).map(h => h.chillerPower_kW ?? 0);
-      const itLoad     = hourly.filter((_, i) => i % step === 0).map(h => h.itLoad_kW ?? 0);
-      if (chillerPow.some(v => v > 0)) {
-        sparkline(doc, 14, y, (pw - 32) / 2, 30, chillerPow, PRIMARY, "Chiller Power kW — hourlyResults[i].chillerPower_kW");
-        sparkline(doc, 14 + (pw - 32) / 2 + 4, y, (pw - 32) / 2, 30, itLoad, ACCENT, "IT Load kW — hourlyResults[i].itLoad_kW");
-        y += 40;
-      }
-      // Water usage
-      const water = hourly.filter((_, i) => i % step === 0).map(h => h.waterUsage_L ?? 0);
-      if (water.some(v => v > 0)) {
-        sparkline(doc, 14, y, pw - 28, 30, water, [59, 130, 246] as RGB, "Hourly Water Usage (L) — hourlyResults[i].waterUsage_L");
-        y += 40;
-      }
-    }
-
-    // ── Air economizer: IT load + fan/mech power ─────────────────────────────
-    if (isAirPDF && hourly.length > 0) {
-      const step = Math.ceil(hourly.length / 120);
-      const itLoad  = hourly.filter((_, i) => i % step === 0).map(h => h.itLoad_kW ?? 0);
-      const fanPow  = hourly.filter((_, i) => i % step === 0).map(h => h.fanPower_kW ?? 0);
-      const mechPow = hourly.filter((_, i) => i % step === 0).map(h => h.mechPower_kW ?? 0);
-      if (itLoad.some(v => v > 0)) {
-        sparkline(doc, 14, y, (pw - 32) / 2, 30, itLoad, ACCENT, "IT Load kW — hourlyResults[i].itLoad_kW");
-        sparkline(doc, 14 + (pw - 32) / 2 + 4, y, (pw - 32) / 2, 30, fanPow, GREEN, "Fan Power kW — hourlyResults[i].fanPower_kW");
-        y += 40;
-      }
-      if (mechPow.some(v => v > 0)) {
-        sparkline(doc, 14, y, pw - 28, 30, mechPow, YELLOW, "Mechanical Cooling kW — hourlyResults[i].mechPower_kW");
-        y += 40;
-      }
-    }
-
-    // ── Shared: hourly IT load (fallback for any technique) ──────────────────
-    if (!isChilledPDF && !isAirPDF && hourly.length > 0) {
-      const step = Math.ceil(hourly.length / 120);
-      const loads = hourly.filter((_, i) => i % step === 0).map(h => h.itLoad_kW ?? h.it_kW ?? h.coolingLoad_kW ?? 0);
-      if (loads.some(v => v > 0)) {
-        sparkline(doc, 14, y, pw - 28, 35, loads, PRIMARY, "Hourly IT Load kW (sampled)");
-        y += 45;
-      }
-    }
-
-    if (yearly.length > 0) {
-      const half = (pw - 28) / 2 - 4;
-      miniBar(
-        doc,
-        14,
-        y + 8,
-        half,
-        40,
-        yearly.map((d) => ({
-          label: `Y${d.year}`,
-          value: d.totalCostUSD ?? 0,
-          color: PRIMARY,
-        })),
-        "5-Year Cost (USD)",
-      );
-      miniBar(
-        doc,
-        14 + half + 8,
-        y + 8,
-        half,
-        40,
-        yearly.map((d) => ({
-          label: `Y${d.year}`,
-          value: Math.max(d.costSavingsUSD ?? 0, 0),
-          color: GREEN,
-        })),
-        "5-Year Savings (USD)",
-      );
-      y += 60;
-    }
-
-    if (comp.length > 0) {
-      const half = (pw - 28) / 2 - 4;
-      miniBar(
-        doc,
-        14,
-        y + 8,
-        half,
-        40,
-        comp.map((r) => ({
-          label: r.tech ?? "",
-          value: r.annual_cost ?? 0,
-          color: PRIMARY,
-        })),
-        "Annual Cost by Technique (USD)",
-      );
-      miniBar(
-        doc,
-        14 + half + 8,
-        y + 8,
-        half,
-        40,
-        comp.map((r) => ({
-          label: r.tech ?? "",
-          value: r.annual_emissions_kg ?? 0,
-          color: YELLOW,
-        })),
-        "Annual CO₂ by Technique (kg)",
-      );
-      y += 60;
-    }
-
-    // ── Page 4: ML Recommendation ────────────────────────────────────────────
-    const mlRec = rd?.mlRecommendation;
-    if (mlRec) {
-      doc.addPage();
-      y = 20;
-      y = sectionHeader(doc, "3. ML Recommendation Analysis", y);
-
-      fc(doc, GREEN);
-      doc.roundedRect(14, y, pw - 28, 14, 3, 3, "F");
-      doc.setFontSize(11);
-      tc(doc, WHITE);
-      doc.setFont("helvetica", "bold");
-      doc.text(
-        `Recommended: ${mlRec.model_recommendation ?? "—"}`,
-        pw / 2,
-        y + 9,
-        { align: "center" },
-      );
-      doc.setFont("helvetica", "normal");
-      y += 20;
-
-      if (
-        Array.isArray(mlRec.why_this_is_recommended) &&
-        mlRec.why_this_is_recommended.length > 0
-      ) {
-        y = sectionHeader(doc, "Why This Is Recommended", y);
-        doc.setFontSize(9);
-        tc(doc, DARK);
-        const lines = doc.splitTextToSize(
-          mlRec.why_this_is_recommended.join(" "),
-          pw - 28,
-        );
-        doc.text(lines, 14, y);
-        y += lines.length * 4.5 + 6;
-      }
-
-      if (
-        mlRec.future_impact_paragraph &&
-        !mlRec.future_impact_paragraph.includes("available when")
-      ) {
-        if (y > 230) {
-          doc.addPage();
-          y = 20;
-        }
-        y = sectionHeader(doc, "Future Impact Projection (1-5 Years)", y);
-        doc.setFontSize(9);
-        tc(doc, DARK);
-        const lines = doc.splitTextToSize(
-          mlRec.future_impact_paragraph,
-          pw - 28,
-        );
-        doc.text(lines, 14, y);
-        y += lines.length * 4.5 + 6;
-      }
-
-      if (
-        Array.isArray(mlRec.comparison_table) &&
-        mlRec.comparison_table.length > 0
-      ) {
-        if (y > 220) {
-          doc.addPage();
-          y = 20;
-        }
-        y = sectionHeader(doc, "Technique Comparison Table", y);
-        const rows = mlRec.comparison_table.map((r: any) => [
-          r.tech ?? "—",
-          r.feasible ? "Yes" : "No",
-          fmt(r.score, 4),
-          `$${(r.annual_cost ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-          `${(r.annual_emissions_kg ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} kg`,
-          `${(r.annual_water_liters ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} L`,
-          String(r.violations ?? 0),
-        ]);
-        autoTable(doc, {
-          startY: y,
-          head: [
-            [
-              "Technique",
-              "Feasible",
-              "Score",
-              "Annual Cost",
-              "CO₂",
-              "Water",
-              "Violations",
-            ],
-          ],
-          body: rows,
-          theme: "grid",
-          margin: { left: 14, right: 14 },
-          styles: { fontSize: 8, cellPadding: 2 },
-          headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold" },
-          didParseCell: (d) => {
-            if (d.section === "body" && d.column.index === 0) {
-              if (String(d.cell.raw) === mlRec.model_recommendation) {
-                d.cell.styles.fillColor = [220, 252, 231] as any;
-                d.cell.styles.fontStyle = "bold";
-              }
-            }
-          },
-        });
-        y = (doc as any).lastAutoTable.finalY + 8;
-      }
-    }
-
-    // ── Page 5: Hourly Data Sample ───────────────────────────────────────────
-    if (hourly.length > 0) {
-      doc.addPage();
-      y = 20;
-      y = sectionHeader(doc, "4. Hourly Simulation Data (First 50 Hours)", y);
-
-      // Use technique-specific columns for clarity
-      let cols: string[];
-      if (isChilledPDF) {
-        cols = ["hour", "ambientTemp_C", "itLoad_kW", "coolingLoad_kW", "chillerPower_kW", "cop", "waterUsage_L", "cost_USD"];
-      } else if (isAirPDF) {
-        cols = ["hour", "outdoorTempC", "outdoorRH", "itLoad_kW", "fanPower_kW", "mechPower_kW", "totalPower_kW", "pue"];
-      } else {
-        cols = Object.keys(hourly[0] ?? {}).slice(0, 8);
-      }
-      // Filter to only cols that exist in the data
-      const availCols = cols.filter(c => c in (hourly[0] ?? {}));
-      const rows = hourly.slice(0, 50).map(h => availCols.map(c => fmt(h[c])));
-
-      autoTable(doc, {
-        startY: y,
-        head: [availCols],
-        body: rows,
-        theme: "striped",
-        margin: { left: 14, right: 14 },
-        styles: { fontSize: 7, cellPadding: 1.5, overflow: "ellipsize" },
-        headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold", fontSize: 7 },
-        alternateRowStyles: { fillColor: LIGHT },
-      });
-      y = (doc as any).lastAutoTable.finalY + 6;
-      doc.setFontSize(8);
-      tc(doc, MID);
-      doc.text(`Showing 50 of ${hourly.length} hourly records. Technique: ${isChilledPDF ? "Chilled Water" : isAirPDF ? "Air Economizer" : "Evaporative"}`, 14, y);
-    }
-
-    // ── Page 6: 5-Year Projection ────────────────────────────────────────────
-    if (yearly.length > 0) {
-      doc.addPage();
-      y = 20;
-      y = sectionHeader(doc, "5. 5-Year Financial Projection", y);
-      const projRows = yearly.map((d) => [
-        `Year ${d.year}`,
-        `${(d.energyKWh ?? 0).toFixed(0)} kWh`,
-        `$${(d.energyCostUSD ?? 0).toFixed(2)}`,
-        `$${(d.carbonTaxUSD ?? 0).toFixed(2)}`,
-        `$${(d.totalCostUSD ?? 0).toFixed(2)}`,
-        `$${(d.costSavingsUSD ?? 0).toFixed(2)}`,
-        `$${(d.cumulativeCost ?? 0).toFixed(2)}`,
-        `$${(d.cumulativeSavings ?? 0).toFixed(2)}`,
-      ]);
-      autoTable(doc, {
-        startY: y,
-        head: [
-          [
-            "Year",
-            "Energy",
-            "Energy Cost",
-            "Carbon Tax",
-            "Total Cost",
-            "Savings",
-            "Cumul. Cost",
-            "Cumul. Savings",
-          ],
-        ],
-        body: projRows,
-        theme: "grid",
-        margin: { left: 14, right: 14 },
-        styles: { fontSize: 8, cellPadding: 2 },
-        headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold" },
-        alternateRowStyles: { fillColor: LIGHT },
-        didParseCell: (d) => {
-          if (d.section === "body" && d.column.index === 5) {
-            const v = parseFloat(String(d.cell.raw).replace(/[$,]/g, ""));
-            d.cell.styles.textColor = (v >= 0 ? GREEN : RED) as any;
-            d.cell.styles.fontStyle = "bold";
-          }
-        },
-      });
-    }
-
+    // ── Final: Page Numbers ───────────────────────────────────────────────────
     addPageNumbers(doc);
 
     const fileName = `TechnicalReport_${data.simulation.name.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`;

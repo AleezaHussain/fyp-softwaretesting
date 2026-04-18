@@ -19,9 +19,15 @@ export default {
         'border-light': '#e0e0e0',
       },
       fontFamily: {
-        'poppins': ['Poppins', 'sans-serif'],
-        'inter': ['Inter', 'sans-serif'],
-        'roboto-mono': ['Roboto Mono', 'monospace'],
+        'sans':        ['Bricolage Grotesque', 'sans-serif'],
+        'serif':       ['Bricolage Grotesque', 'sans-serif'],
+        'mono':        ['Bricolage Grotesque', 'sans-serif'],
+        'figtree':     ['Bricolage Grotesque', 'sans-serif'],
+        'cormorant':   ['Bricolage Grotesque', 'sans-serif'],
+        'quicksand':   ['Bricolage Grotesque', 'sans-serif'],
+        'poppins':     ['Bricolage Grotesque', 'sans-serif'],
+        'inter':       ['Bricolage Grotesque', 'sans-serif'],
+        'roboto-mono': ['Bricolage Grotesque', 'sans-serif'],
       },
       boxShadow: {
         'card': '0 2px 8px rgba(0, 0, 0, 0.08)',

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Full-page report view — opened when user clicks a template card.
  * Route: /reports/:templateId
  * Shows a simulation selector at the top, then the full report for that sim.
@@ -74,7 +74,7 @@ export const ReportPage: React.FC = () => {
   return (
     <div className={`min-h-screen ${isDark ? "bg-[#0a0e27]" : "bg-gray-50"}`}>
       <Sidebar />
-      <main className="lg:ml-64">
+      <main className="lg:ml-56">
 
         {/* Sticky header */}
         <div className={`sticky top-0 z-20 border-b ${isDark ? "bg-[#0a0e27]/95 border-[#3f4a68]" : "bg-white/95 border-gray-200"} backdrop-blur-sm`}>
@@ -199,3 +199,4 @@ export const ReportPage: React.FC = () => {
     </div>
   );
 };
+

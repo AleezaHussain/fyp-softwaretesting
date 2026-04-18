@@ -19,7 +19,6 @@ import { InputManagement } from "./pages/InputManagement";
 import { SimulationResults } from "./pages/SimulationResults";
 import Advisory from "./pages/Advisory";
 import { Reporting } from "./pages/Reporting";
-import { ReportPage } from "./pages/ReportPage";
 import { Profile } from "./pages/Profile";
 import { Simulations } from "./pages/Simulations";
 import SimulationDetail from "./pages/SimulationDetail";
@@ -27,6 +26,9 @@ import { NewSimulation } from "./pages/NewSimulation";
 import Homepage from "./pages/Homepage";
 
 import RawResultsPage from "./pages/RawResultsPage";
+import TechnicalGuide from "./pages/TechnicalGuide";
+import { Terms } from "./pages/Terms";
+import { Privacy } from "./pages/Privacy";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -120,14 +122,6 @@ function App() {
           }
         />
         <Route
-          path="/reports/:templateId"
-          element={
-            <ProtectedRoute>
-              <ReportPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/profile"
           element={
             <ProtectedRoute>
@@ -159,8 +153,18 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/technical-guide"
+          element={
+            <ProtectedRoute>
+              <TechnicalGuide />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Default Route */}
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route
           path="/dashboard-redirect"
           element={<Navigate to="/dashboard" replace />}

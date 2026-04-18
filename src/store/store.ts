@@ -1,4 +1,4 @@
-import { create } from "zustand";
+﻿import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import * as authService from "../services/authService";
 import type { UserProfile } from "../services/authService";
@@ -288,8 +288,9 @@ export const useAuthStore = create<AuthStore>()(
             return { success: false, error: response.error };
           }
 
-          // Always fetch the full user profile from the users table
-          const profile = await authService.getCurrentUserProfile();
+          // Prefer profile returned by signup; fallback to session-based fetch.
+          const profile =
+            response.profile || (await authService.getCurrentUserProfile());
           if (!profile) {
             set({ isLoading: false, error: "Failed to fetch user profile" });
             return { success: false, error: "Failed to fetch user profile" };
@@ -436,12 +437,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     }
 
     // Check cooling technique to determine which API to call
-    const coolingTechnique = (input as any).coolingTechnique || "air";
+    const coolingTechnique = (input as any).coolingTechnique || "Air Side Economization";
 
     // Create simulation record in database
     const simName =
-      input.dataCenterName || `${coolingTechnique.toUpperCase()} Simulation`;
-    const simDescription = `Simulation initialized for ${coolingTechnique} cooling. Detailed summary will be generated after execution.`;
+      input.dataCenterName || `${coolingTechnique} Simulation`;
+    const simDescription = `Simulation initialized for ${coolingTechnique}. Detailed summary will be generated after execution.`;
 
     set({
       simulationProgress: 10,
@@ -579,7 +580,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     // ========================================================================
     // CHILLED WATER COOLING
     // ========================================================================
-    if (coolingTechnique === "water") {
+    if (coolingTechnique === "Chilled Water Cooling") {
       console.log("🌊 [CHILLED WATER] Using Chilled Water Cooling API");
 
       const chilledWaterConfig = (input as any).chilledWaterConfig;
@@ -708,7 +709,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     // ========================================================================
     // EVAPORATIVE COOLING
     // ========================================================================
-    if (coolingTechnique === "evaporative") {
+    if (coolingTechnique === "Evaporative Cooling") {
       console.log("💧 [EVAPORATIVE] Using Evaporative Cooling API");
 
       const evapConfig = (input as any).evaporativeConfig;
@@ -964,22 +965,22 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
         // Transform evaporative cooling results
         const transformEvaporativeResults = (evapData: any): any => {
-          const results    = evapData.results    || {};
+          const results = evapData.results || {};
           const assessment = evapData.cooling_assessment || {};
           const hourlyData: any[] = evapData.hourly_data || [];
 
           // ── Derived hourly arrays from hourly_data[] ──────────────────────
-          const evapHourlyIT      = hourlyData.map((h: any) => h.itLoadKW          ?? 0);
-          const evapHourlyFan     = hourlyData.map((h: any) => h.fanPowerKW         ?? 0);
-          const evapHourlyTotal   = hourlyData.map((h: any) => h.totalElectricalKW  ?? 0);
-          const evapHourlyPUE     = hourlyData.map((h: any) => h.pue                ?? 0);
-          const evapHourlyInlet   = hourlyData.map((h: any) => h.inletTempC         ?? 0);
-          const evapHourlySupply  = hourlyData.map((h: any) => h.supplyTempC        ?? 0);
-          const evapHourlyAmbient = hourlyData.map((h: any) => h.ambientTempC       ?? 0);
-          const evapHourlyHumid   = hourlyData.map((h: any) => h.ambientHumidity    ?? 0);
-          const evapHourlyCooling = hourlyData.map((h: any) => h.coolingCapacityKW  ?? 0);
-          const evapHourlyWater   = hourlyData.map((h: any) => h.waterEvaporationLph ?? 0);
-          const evapHourlyDX      = hourlyData.map((h: any) => h.dxPowerKW          ?? 0);
+          const evapHourlyIT = hourlyData.map((h: any) => h.itLoadKW ?? 0);
+          const evapHourlyFan = hourlyData.map((h: any) => h.fanPowerKW ?? 0);
+          const evapHourlyTotal = hourlyData.map((h: any) => h.totalElectricalKW ?? 0);
+          const evapHourlyPUE = hourlyData.map((h: any) => h.pue ?? 0);
+          const evapHourlyInlet = hourlyData.map((h: any) => h.inletTempC ?? 0);
+          const evapHourlySupply = hourlyData.map((h: any) => h.supplyTempC ?? 0);
+          const evapHourlyAmbient = hourlyData.map((h: any) => h.ambientTempC ?? 0);
+          const evapHourlyHumid = hourlyData.map((h: any) => h.ambientHumidity ?? 0);
+          const evapHourlyCooling = hourlyData.map((h: any) => h.coolingCapacityKW ?? 0);
+          const evapHourlyWater = hourlyData.map((h: any) => h.waterEvaporationLph ?? 0);
+          const evapHourlyDX = hourlyData.map((h: any) => h.dxPowerKW ?? 0);
 
           return {
             simulationId: `evap_${Date.now()}`,
@@ -988,77 +989,77 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
             // ── Top-level summary fields ──────────────────────────────────
             totalEnergyConsumption: results.energy?.electricity_kwh_total || 0,
-            estimatedCost:          results.cost?.total_energy_cost_usd   || 0,
-            carbonFootprint:        results.emissions?.co2_kg_total        || 0,
-            waterConsumption:       results.water?.water_liters_total      || 0,
-            pue:                    results.performance?.pue_average        || 1.0,
-            wue:                    results.performance?.wue_average        || 0,
-            cue:                    results.performance?.cue_average        || 0,
-            availability_percent:   results.performance?.availability_percent || 0,
-            cooling_failure_hours:  results.performance?.cooling_failure_hours || 0,
-            pue_max:                results.performance?.pue_max            || 0,
+            estimatedCost: results.cost?.total_energy_cost_usd || 0,
+            carbonFootprint: results.emissions?.co2_kg_total || 0,
+            waterConsumption: results.water?.water_liters_total || 0,
+            pue: results.performance?.pue_average || 1.0,
+            wue: results.performance?.wue_average || 0,
+            cue: results.performance?.cue_average || 0,
+            availability_percent: results.performance?.availability_percent || 0,
+            cooling_failure_hours: results.performance?.cooling_failure_hours || 0,
+            pue_max: results.performance?.pue_max || 0,
 
             // ── Energy breakdown ──────────────────────────────────────────
-            it_kwh:         results.energy?.it_kwh         || 0,
-            fan_kwh:        results.energy?.fan_kwh        || 0,
-            dx_kwh:         results.energy?.dx_kwh         || 0,
-            pump_kwh:       results.energy?.pump_kwh       || 0,
-            auxiliary_kwh:  results.energy?.auxiliary_kwh  || 0,
+            it_kwh: results.energy?.it_kwh || 0,
+            fan_kwh: results.energy?.fan_kwh || 0,
+            dx_kwh: results.energy?.dx_kwh || 0,
+            pump_kwh: results.energy?.pump_kwh || 0,
+            auxiliary_kwh: results.energy?.auxiliary_kwh || 0,
 
             // ── Cost / OpEx ───────────────────────────────────────────────
-            electricity_usd:        results.cost?.electricity_usd         || 0,
-            water_usd:              results.cost?.water_usd               || 0,
-            opex_total_usd:         results.opex?.opex_total_usd          || 0,
-            opex_per_kwh_it:        results.opex?.opex_per_kwh_it         || 0,
-            opex_per_server_annual: results.opex?.opex_per_server_annual  || 0,
+            electricity_usd: results.cost?.electricity_usd || 0,
+            water_usd: results.cost?.water_usd || 0,
+            opex_total_usd: results.opex?.opex_total_usd || 0,
+            opex_per_kwh_it: results.opex?.opex_per_kwh_it || 0,
+            opex_per_server_annual: results.opex?.opex_per_server_annual || 0,
 
             // ── Emissions ─────────────────────────────────────────────────
-            co2_kg_per_kwh_it:      results.emissions?.co2_kg_per_kwh_it       || 0,
+            co2_kg_per_kwh_it: results.emissions?.co2_kg_per_kwh_it || 0,
             co2_kg_per_server_annual: results.emissions?.co2_kg_per_server_annual || 0,
 
             // ── Water ─────────────────────────────────────────────────────
             evaporation_liters: results.water?.evaporation_liters || 0,
-            blowdown_liters:    results.water?.blowdown_liters    || 0,
-            makeup_liters:      results.water?.makeup_liters      || 0,
+            blowdown_liters: results.water?.blowdown_liters || 0,
+            makeup_liters: results.water?.makeup_liters || 0,
 
             // ── Hourly arrays (from hourly_data[]) ────────────────────────
             hourlyData,                   // full raw hourly_data array
-            hourlyEnergyUse:  evapHourlyTotal,
-            hourlyITLoad:     evapHourlyIT,
-            hourlyFanPower:   evapHourlyFan,
-            hourlyDXPower:    evapHourlyDX,
-            hourlyPUE:        evapHourlyPUE,
-            hourlyInletTemp:  evapHourlyInlet,
+            hourlyEnergyUse: evapHourlyTotal,
+            hourlyITLoad: evapHourlyIT,
+            hourlyFanPower: evapHourlyFan,
+            hourlyDXPower: evapHourlyDX,
+            hourlyPUE: evapHourlyPUE,
+            hourlyInletTemp: evapHourlyInlet,
             hourlySupplyTemp: evapHourlySupply,
             temperatureTrends: evapHourlyAmbient,
-            hourlyHumidity:   evapHourlyHumid,
+            hourlyHumidity: evapHourlyHumid,
             hourlyCoolingCap: evapHourlyCooling,
-            hourlyWaterEvap:  evapHourlyWater,
-            copOverTime:      [],   // evaporative has no COP field
+            hourlyWaterEvap: evapHourlyWater,
+            copOverTime: [],   // evaporative has no COP field
 
             // ── Cooling assessment ────────────────────────────────────────
             coolingAdequacy: {
-              status:           assessment.status           || "UNKNOWN",
-              confidence:       assessment.confidence       || 0.5,
-              checks:           assessment.checks           || {},
-              keyMetrics:       assessment.key_metrics      || {},
+              status: assessment.status || "UNKNOWN",
+              confidence: assessment.confidence || 0.5,
+              checks: assessment.checks || {},
+              keyMetrics: assessment.key_metrics || {},
               engineeringNotes: assessment.engineering_notes || [],
-              recommendations:  assessment.recommendations  || [],
-              hourlyFailures:   assessment.hourly_failures  || {},
+              recommendations: assessment.recommendations || [],
+              hourlyFailures: assessment.hourly_failures || {},
             },
 
             // ── Derived summary ───────────────────────────────────────────
             evaporativeResults: {
-              fanEnergy:           results.energy?.fan_kwh                          || 0,
-              pumpEnergy:          results.energy?.pump_kwh                         || 0,
-              dxBackupEnergy:      results.energy?.dx_kwh                           || 0,
-              itEnergy:            results.energy?.it_kwh                           || 0,
-              waterEvaporation:    results.water?.evaporation_liters                || 0,
-              waterBlowdown:       results.water?.blowdown_liters                   || 0,
-              maxInletTemp:        assessment.key_metrics?.max_inlet_temp_c         || 0,
-              coolingCapacityAvg:  assessment.key_metrics?.cooling_capacity_avg_kw  || 0,
-              heatLoadAvg:         assessment.key_metrics?.heat_load_avg_kw         || 0,
-              coolingFailureHours: results.performance?.cooling_failure_hours       || 0,
+              fanEnergy: results.energy?.fan_kwh || 0,
+              pumpEnergy: results.energy?.pump_kwh || 0,
+              dxBackupEnergy: results.energy?.dx_kwh || 0,
+              itEnergy: results.energy?.it_kwh || 0,
+              waterEvaporation: results.water?.evaporation_liters || 0,
+              waterBlowdown: results.water?.blowdown_liters || 0,
+              maxInletTemp: assessment.key_metrics?.max_inlet_temp_c || 0,
+              coolingCapacityAvg: assessment.key_metrics?.cooling_capacity_avg_kw || 0,
+              heatLoadAvg: assessment.key_metrics?.heat_load_avg_kw || 0,
+              coolingFailureHours: results.performance?.cooling_failure_hours || 0,
             },
 
             // ── Raw API response (full) ───────────────────────────────────
@@ -1111,10 +1112,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     const weatherData = Array.isArray((input as any).locationData)
       ? (input as any).locationData.map((d: any) => ({
-          timestamp: d.timestamp,
-          temperature: d.temperature,
-          humidity: d.humidity,
-        }))
+        timestamp: d.timestamp,
+        temperature: d.temperature,
+        humidity: d.humidity,
+      }))
       : [];
 
     const payload = {
@@ -1139,9 +1140,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       electricityTariff: val(input.electricityTariff),
       carbonIntensity: val(
         input.co2EmissionFactor ??
-          (input as any).carbon_intensity ??
-          (input as any).carbonIntensity ??
-          (input as any).co2_grid_factor,
+        (input as any).carbon_intensity ??
+        (input as any).carbonIntensity ??
+        (input as any).co2_grid_factor,
       ),
       weatherData,
       airflowCFM: val(input.airflowCFM),
@@ -1237,7 +1238,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const _h0 = data?.hourlyResults?.[0] ?? data?.hourlyProfile?.[0];
       console.group("⚡ IT LOAD FROM CLOUDSIM (EconomizerController fields)");
       console.log("Hour 0 itLoad_kW (EconomizerController):", _h0?.itLoad_kW ?? "NOT FOUND — check if using /api/simulate");
-      console.log("Hour 0 itLoadKW  (SimulationController):", _h0?.itLoadKW  ?? "NOT FOUND");
+      console.log("Hour 0 itLoadKW  (SimulationController):", _h0?.itLoadKW ?? "NOT FOUND");
       console.log("Hour 0 coolingLoad_kW:", _h0?.coolingLoad_kW ?? _h0?.coolingLoadKW ?? "NOT FOUND");
       console.log("Hour 0 fanPower_kW:", _h0?.fanPower_kW ?? _h0?.fanPowerKW ?? "NOT FOUND");
       console.log("Hour 0 mechPower_kW:", _h0?.mechPower_kW ?? _h0?.mechPowerKW ?? "NOT FOUND");
@@ -1296,13 +1297,13 @@ const transformChilledWaterResults = (chilledWaterData: any): any => {
   const hourlyResults = results.hourlyResults || [];
 
   // Extract hourly arrays for charts (keep full arrays — stripped before Supabase save)
-  const hourlyCOP     = hourlyResults.map((h: any) => h.cop ?? 0);
+  const hourlyCOP = hourlyResults.map((h: any) => h.cop ?? 0);
   const hourlyChiller = hourlyResults.map((h: any) => h.chillerPower_kW ?? 0);
-  const hourlyIT      = hourlyResults.map((h: any) => h.itLoad_kW ?? 0);
-  const hourlyWater   = hourlyResults.map((h: any) => h.waterUsage_L ?? 0);
-  const hourlyCarbon  = hourlyResults.map((h: any) => h.carbonEmissions_kg ?? 0);
-  const hourlyAmb     = hourlyResults.map((h: any) => h.ambientTemp_C ?? 25);
-  const hourlyCost    = hourlyResults.map((h: any) => h.cost_USD ?? 0);
+  const hourlyIT = hourlyResults.map((h: any) => h.itLoad_kW ?? 0);
+  const hourlyWater = hourlyResults.map((h: any) => h.waterUsage_L ?? 0);
+  const hourlyCarbon = hourlyResults.map((h: any) => h.carbonEmissions_kg ?? 0);
+  const hourlyAmb = hourlyResults.map((h: any) => h.ambientTemp_C ?? 25);
+  const hourlyCost = hourlyResults.map((h: any) => h.cost_USD ?? 0);
 
   return {
     // ── Identity ──────────────────────────────────────────────────────────
@@ -1314,99 +1315,99 @@ const transformChilledWaterResults = (chilledWaterData: any): any => {
     // ── Direct CoolSim API fields (preserved exactly as returned) ─────────
     // results.annual.*
     totalEnergyConsumption: annual.energyConsumption_kWh || 0,
-    totalEnergy_kWh:        annual.energyConsumption_kWh || 0,
-    coolingLoad_kWh:        annual.coolingLoad_kWh || 0,
-    waterUsage_L:           annual.waterUsage_L || 0,
-    estimatedCost:          annual.cost_USD || 0,
-    carbonFootprint:        annual.carbonEmissions_kg || 0,
+    totalEnergy_kWh: annual.energyConsumption_kWh || 0,
+    coolingLoad_kWh: annual.coolingLoad_kWh || 0,
+    waterUsage_L: annual.waterUsage_L || 0,
+    estimatedCost: annual.cost_USD || 0,
+    carbonFootprint: annual.carbonEmissions_kg || 0,
     totalCarbonEmissions_kg: annual.carbonEmissions_kg || 0,
-    annual_emissions_kg:    annual.carbonEmissions_kg || 0,
-    annual_water_liters:    annual.waterUsage_L || 0,
+    annual_emissions_kg: annual.carbonEmissions_kg || 0,
+    annual_water_liters: annual.waterUsage_L || 0,
 
     // results.metrics.*
-    pue:         metrics.pue || 1.5,
-    wue:         metrics.wue || 0,
-    averagePUE:  metrics.pue || 1.5,
-    averageCUE:  metrics.cue || 0,
-    averageCOP:  metrics.averageCOP || 0,
+    pue: metrics.pue || 1.5,
+    wue: metrics.wue || 0,
+    averagePUE: metrics.pue || 1.5,
+    averageCUE: metrics.cue || 0,
+    averageCOP: metrics.averageCOP || 0,
     peakCoolingLoad_kW: metrics.peakCoolingLoad_kW || 0,
 
     // results.economics.*
-    capex_USD:          economics.capex_USD || 0,
-    opex_annual_USD:    economics.opex_annual_USD || 0,
-    lccp_USD:           economics.lccp_USD || 0,
-    npv_USD:            economics.npv_USD || 0,
+    capex_USD: economics.capex_USD || 0,
+    opex_annual_USD: economics.opex_annual_USD || 0,
+    lccp_USD: economics.lccp_USD || 0,
+    npv_USD: economics.npv_USD || 0,
     paybackPeriod_years: economics.paybackPeriod_years || 0,
     // annualSavings = opex * 0.1 (backend formula: ChilledWaterSimulationService.java)
-    annualSavingsUSD:   (economics.opex_annual_USD || 0) * 0.1,
+    annualSavingsUSD: (economics.opex_annual_USD || 0) * 0.1,
 
     // results.phase4Gates.*
     phase4Gates: results.phase4Gates || {},
 
     // ── Hourly arrays for charts ──────────────────────────────────────────
-    copOverTime:     hourlyCOP,
+    copOverTime: hourlyCOP,
     hourlyEnergyUse: hourlyChiller,
     temperatureTrends: hourlyAmb,
-    hourlyITLoad:    hourlyIT,
-    hourlyWaterUse:  hourlyWater,
-    hourlyCarbon:    hourlyCarbon,
-    hourlyCost:      hourlyCost,
+    hourlyITLoad: hourlyIT,
+    hourlyWaterUse: hourlyWater,
+    hourlyCarbon: hourlyCarbon,
+    hourlyCost: hourlyCost,
 
     // ── Cost breakdown for charts ─────────────────────────────────────────
     cost_breakdown: [
-      { label: "Annual OpEx",  value: economics.opex_annual_USD || 0 },
-      { label: "CAPEX",        value: economics.capex_USD || 0 },
-      { label: "LCCP",         value: economics.lccp_USD || 0 },
-      { label: "NPV",          value: Math.abs(economics.npv_USD || 0) },
+      { label: "Annual OpEx", value: economics.opex_annual_USD || 0 },
+      { label: "CAPEX", value: economics.capex_USD || 0 },
+      { label: "LCCP", value: economics.lccp_USD || 0 },
+      { label: "NPV", value: Math.abs(economics.npv_USD || 0) },
     ],
     all_metrics: [
-      { label: "PUE",     value: metrics.pue || 1.5 },
-      { label: "WUE",     value: metrics.wue || 0 },
-      { label: "COP",     value: metrics.averageCOP || 0 },
-      { label: "Energy",  value: annual.energyConsumption_kWh || 0 },
-      { label: "Carbon",  value: annual.carbonEmissions_kg || 0 },
-      { label: "Water",   value: annual.waterUsage_L || 0 },
+      { label: "PUE", value: metrics.pue || 1.5 },
+      { label: "WUE", value: metrics.wue || 0 },
+      { label: "COP", value: metrics.averageCOP || 0 },
+      { label: "Energy", value: annual.energyConsumption_kWh || 0 },
+      { label: "Carbon", value: annual.carbonEmissions_kg || 0 },
+      { label: "Water", value: annual.waterUsage_L || 0 },
     ],
-    water_usage:    [{ label: "Total Water", value: annual.waterUsage_L || 0 }],
+    water_usage: [{ label: "Total Water", value: annual.waterUsage_L || 0 }],
     carbon_sources: [{ label: "Total Emissions", value: annual.carbonEmissions_kg || 0 }],
-    savings_trend:  [],
+    savings_trend: [],
     scenario_projections: [],
 
     // ── Nested aliases for SimulationDetailedView / extractMetrics ─────────
     energy: {
       electricity_kwh_total: annual.energyConsumption_kWh || 0,
-      cooling_load_kwh:      annual.coolingLoad_kWh || 0,
+      cooling_load_kwh: annual.coolingLoad_kWh || 0,
       it_kwh: (annual.energyConsumption_kWh || 0) - (annual.coolingLoad_kWh || 0),
     },
     water: { consumption_liters_total: annual.waterUsage_L || 0 },
     cost: {
       total_energy_cost_usd: annual.cost_USD || 0,
-      capex_usd:             economics.capex_USD || 0,
-      opex_annual_usd:       economics.opex_annual_USD || 0,
-      lccp_usd:              economics.lccp_USD || 0,
-      npv_usd:               economics.npv_USD || 0,
+      capex_usd: economics.capex_USD || 0,
+      opex_annual_usd: economics.opex_annual_USD || 0,
+      lccp_usd: economics.lccp_USD || 0,
+      npv_usd: economics.npv_USD || 0,
     },
     emissions: { total_kg_co2: annual.carbonEmissions_kg || 0 },
     performance: {
-      pue_average:           metrics.pue || 1.5,
-      wue_average:           metrics.wue || 0,
-      average_cop:           metrics.averageCOP || 0,
-      peak_cooling_load_kw:  metrics.peakCoolingLoad_kW || 0,
+      pue_average: metrics.pue || 1.5,
+      wue_average: metrics.wue || 0,
+      average_cop: metrics.averageCOP || 0,
+      peak_cooling_load_kw: metrics.peakCoolingLoad_kW || 0,
     },
     economics: {
-      capex_USD:          economics.capex_USD || 0,
-      opex_annual_USD:    economics.opex_annual_USD || 0,
-      lccp_USD:           economics.lccp_USD || 0,
-      npv_USD:            economics.npv_USD || 0,
+      capex_USD: economics.capex_USD || 0,
+      opex_annual_USD: economics.opex_annual_USD || 0,
+      lccp_USD: economics.lccp_USD || 0,
+      npv_USD: economics.npv_USD || 0,
       paybackPeriod_years: economics.paybackPeriod_years || 0,
-      annualSavingsUSD:   (economics.opex_annual_USD || 0) * 0.1,
+      annualSavingsUSD: (economics.opex_annual_USD || 0) * 0.1,
     },
     summary: {
-      totalEnergy_kWh:    annual.energyConsumption_kWh || 0,
-      averagePUE:         metrics.pue || 1.5,
-      estimatedOpExUSD:   annual.cost_USD || 0,
-      totalCarbon_kgCO2:  annual.carbonEmissions_kg || 0,
-      waterUsage_L:       annual.waterUsage_L || 0,
+      totalEnergy_kWh: annual.energyConsumption_kWh || 0,
+      averagePUE: metrics.pue || 1.5,
+      estimatedOpExUSD: annual.cost_USD || 0,
+      totalCarbon_kgCO2: annual.carbonEmissions_kg || 0,
+      waterUsage_L: annual.waterUsage_L || 0,
     },
 
     // ── Full results object (for SimulationDetailedView) ──────────────────
@@ -1429,64 +1430,64 @@ const transformChilledWaterResults = (chilledWaterData: any): any => {
 //         carbonSavings_kg, totalCapexUSD are NOT in this response — set to 0 unless present
 const transformAirEconomizerResults = (data: any, executionTimeMs: number): any => {
   const s = data?.summary ?? {};
-  const totalEnergy   = s.totalEnergy_kWh    ?? s.totalEnergyKWh    ?? 0;
-  const totalItEnergy = s.totalItEnergy_kWh  ?? s.totalItEnergyKWh  ?? 0;
-  const totalCooling  = s.totalCoolingEnergy_kWh ?? s.totalCoolingEnergyKWh ?? 0;
-  const totalCarbon   = s.totalCarbonEmissions_kg ?? s.totalCarbonKg ?? 0;
-  const avgPUE        = s.averagePUE ?? 0;
-  const avgCUE        = s.averageCUE ?? 0;
-  const elecCostUSD   = s.electricityCostUSD ?? s.estimatedOpExUSD ?? 0;
-  const carbonTaxUSD  = s.carbonTaxCostUSD ?? 0;
-  const opExUSD       = s.annualOpExUSD ?? s.estimatedOpExUSD ?? 0;
-  const capexUSD      = s.totalCapexUSD ?? 0;
+  const totalEnergy = s.totalEnergy_kWh ?? s.totalEnergyKWh ?? 0;
+  const totalItEnergy = s.totalItEnergy_kWh ?? s.totalItEnergyKWh ?? 0;
+  const totalCooling = s.totalCoolingEnergy_kWh ?? s.totalCoolingEnergyKWh ?? 0;
+  const totalCarbon = s.totalCarbonEmissions_kg ?? s.totalCarbonKg ?? 0;
+  const avgPUE = s.averagePUE ?? 0;
+  const avgCUE = s.averageCUE ?? 0;
+  const elecCostUSD = s.electricityCostUSD ?? s.estimatedOpExUSD ?? 0;
+  const carbonTaxUSD = s.carbonTaxCostUSD ?? 0;
+  const opExUSD = s.annualOpExUSD ?? s.estimatedOpExUSD ?? 0;
+  const capexUSD = s.totalCapexUSD ?? 0;
   const annualSavings = s.annualSavingsUSD ?? 0;
-  const payback       = s.paybackPeriodYears ?? 999;
-  const energySavPct  = s.energySavingsPercent ?? 0;
+  const payback = s.paybackPeriodYears ?? 999;
+  const energySavPct = s.energySavingsPercent ?? 0;
   const carbonSavings = s.carbonSavings_kg ?? 0;
-  const waterLiters   = s.waterUsage_liters ?? 0;
+  const waterLiters = s.waterUsage_liters ?? 0;
 
   const rawHourly: any[] = data?.hourlyResults ?? data?.hourlyProfile ?? [];
   const normaliseHourly = (h: any) => ({
-    hour:               h.hour ?? h.timestampHour ?? 0,
-    timestamp:          h.timestamp ?? h.timestampHour ?? h.hour ?? 0,
-    outdoorTempC:       h.outdoorTempC ?? h.tempC ?? 0,
-    outdoorRH:          h.outdoorRH ?? h.rh ?? 0,
-    itLoad_kW:          h.itLoad_kW ?? h.itLoadKW ?? 0,
-    coolingLoad_kW:     h.coolingLoad_kW ?? h.coolingLoadKW ?? 0,
-    fanPower_kW:        h.fanPower_kW ?? h.fanPowerKW ?? 0,
-    mechPower_kW:       h.mechPower_kW ?? h.mechPowerKW ?? 0,
-    totalPower_kW:      h.totalPower_kW ?? h.totalPowerKW ?? 0,
+    hour: h.hour ?? h.timestampHour ?? 0,
+    timestamp: h.timestamp ?? h.timestampHour ?? h.hour ?? 0,
+    outdoorTempC: h.outdoorTempC ?? h.tempC ?? 0,
+    outdoorRH: h.outdoorRH ?? h.rh ?? 0,
+    itLoad_kW: h.itLoad_kW ?? h.itLoadKW ?? 0,
+    coolingLoad_kW: h.coolingLoad_kW ?? h.coolingLoadKW ?? 0,
+    fanPower_kW: h.fanPower_kW ?? h.fanPowerKW ?? 0,
+    mechPower_kW: h.mechPower_kW ?? h.mechPowerKW ?? 0,
+    totalPower_kW: h.totalPower_kW ?? h.totalPowerKW ?? 0,
     requiredAirflow_CFM: h.requiredAirflow_CFM ?? null,
-    airflowViolation:   h.airflowViolation ?? false,
-    mode:               h.mode ?? "UNKNOWN",
-    pue:                h.pue ?? 0,
-    cue:                h.cue ?? 0,
-    q_free_kW:          h.q_free_kW ?? null,
-    mech_load_kW:       h.mech_load_kW ?? null,
-    violationMsg:       h.violationMsg ?? null,
-    electricityPrice:   h.electricityPrice ?? null,
-    waterPrice:         h.waterPrice ?? null,
-    carbonFactor:       h.carbonFactor ?? null,
+    airflowViolation: h.airflowViolation ?? false,
+    mode: h.mode ?? "UNKNOWN",
+    pue: h.pue ?? 0,
+    cue: h.cue ?? 0,
+    q_free_kW: h.q_free_kW ?? null,
+    mech_load_kW: h.mech_load_kW ?? null,
+    violationMsg: h.violationMsg ?? null,
+    electricityPrice: h.electricityPrice ?? null,
+    waterPrice: h.waterPrice ?? null,
+    carbonFactor: h.carbonFactor ?? null,
   });
   const normalisedHourly = rawHourly.map(normaliseHourly);
 
   const proj = data?.projection ?? {};
   const rawYearly: any[] = proj?.yearlyData ?? data?.tcoForecast ?? [];
   const normaliseYearly = (y: any) => ({
-    year:                    y.year,
-    energyKWh:               y.energyKWh ?? 0,
-    energyCostUSD:           y.energyCostUSD ?? y.gridCost ?? 0,
-    carbonTaxUSD:            y.carbonTaxUSD ?? y.carbonCost ?? 0,
-    totalCostUSD:            y.totalCostUSD ?? y.totalTCO ?? 0,
-    costSavingsUSD:          y.costSavingsUSD ?? 0,
-    cumulativeSavings:       y.cumulativeSavings ?? 0,
-    cumulativeCost:          y.cumulativeCost ?? 0,
-    carbonTaxRate:           y.carbonTaxRate ?? null,
-    energySavingsKWh:        y.energySavingsKWh ?? 0,
-    emissionsTonsCO2:        y.emissionsTonsCO2 ?? 0,
+    year: y.year,
+    energyKWh: y.energyKWh ?? 0,
+    energyCostUSD: y.energyCostUSD ?? y.gridCost ?? 0,
+    carbonTaxUSD: y.carbonTaxUSD ?? y.carbonCost ?? 0,
+    totalCostUSD: y.totalCostUSD ?? y.totalTCO ?? 0,
+    costSavingsUSD: y.costSavingsUSD ?? 0,
+    cumulativeSavings: y.cumulativeSavings ?? 0,
+    cumulativeCost: y.cumulativeCost ?? 0,
+    carbonTaxRate: y.carbonTaxRate ?? null,
+    energySavingsKWh: y.energySavingsKWh ?? 0,
+    emissionsTonsCO2: y.emissionsTonsCO2 ?? 0,
     emissionsSavingsTonsCO2: y.emissionsSavingsTonsCO2 ?? 0,
-    temperatureOffsetC:      y.temperatureOffsetC ?? 0,
-    coolingLoadIncrease:     y.coolingLoadIncrease ?? 0,
+    temperatureOffsetC: y.temperatureOffsetC ?? 0,
+    coolingLoadIncrease: y.coolingLoadIncrease ?? 0,
   });
   const normalisedYearly = rawYearly.map(normaliseYearly);
 
@@ -1594,3 +1595,4 @@ const transformAirEconomizerResults = (data: any, executionTimeMs: number): any 
 //   projection.yearlyData[i].totalCostUSD
 //   projection.yearlyData[i].costSavingsUSD
 //   projection.yearlyData[i].cumulativeSavings
+

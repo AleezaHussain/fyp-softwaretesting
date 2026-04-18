@@ -30,7 +30,7 @@ $apis = @(
     }
 )
 
-# Start each API in a new PowerShell window
+# Start each Java API in a new PowerShell window
 foreach ($api in $apis) {
     Write-Host "🚀 Starting $($api.Name) on port $($api.Port)..." -ForegroundColor $api.Color
     
@@ -41,6 +41,12 @@ foreach ($api in $apis) {
     Start-Sleep -Seconds 2
 }
 
+# Start Weather API (Python FastAPI) on port 8085
+Write-Host "🌤️  Starting Weather EPW API on port 8085..." -ForegroundColor Yellow
+$weatherCmd = "uvicorn weather_api:app --host 0.0.0.0 --port 8085 --reload; Read-Host 'Press Enter to close'"
+Start-Process powershell -ArgumentList "-NoExit", "-Command", $weatherCmd -WindowStyle Normal
+Start-Sleep -Seconds 1
+
 Write-Host ""
 Write-Host "╔═══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Green
 Write-Host "║                    All APIs Started Successfully!                     ║" -ForegroundColor Green
@@ -50,6 +56,7 @@ Write-Host "API Endpoints:" -ForegroundColor Yellow
 Write-Host "  • Air Economizer:      http://localhost:8080/api/v1/air-economizer/simulate" -ForegroundColor White
 Write-Host "  • Chilled Water:       http://localhost:8081/api/v1/chilled-water/simulate" -ForegroundColor White
 Write-Host "  • Evaporative Cooling: http://localhost:8082/api/v1/evaporative/simulate" -ForegroundColor White
+Write-Host "  • Weather EPW API:     http://localhost:8085/regions  (regions/countries/cities/weather)" -ForegroundColor White
 Write-Host ""
 Write-Host "Swagger UI:" -ForegroundColor Yellow
 Write-Host "  • Air Economizer:      http://localhost:8080/swagger-ui.html" -ForegroundColor White

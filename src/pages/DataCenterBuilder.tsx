@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, Suspense } from "react";
+﻿import React, { useEffect, useRef, useState, Suspense } from "react";
 import {
   Save,
   Trash2,
@@ -689,7 +689,7 @@ export const DataCenterBuilder: React.FC = () => {
       {/* Use shared Sidebar component */}
       <Sidebar />
 
-      <div className="lg:ml-64">
+      <div className="lg:ml-56">
         {/* Top Navigation Bar */}
         <div
           className={`sticky top-0 z-30 p-4 border-b backdrop-blur-sm ${
@@ -1799,3 +1799,4 @@ export const DataCenterBuilder: React.FC = () => {
 };
 
 export default DataCenterBuilder;
+

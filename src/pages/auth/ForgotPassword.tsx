@@ -1,17 +1,10 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useThemeStore } from "../../hooks/useTheme";
 import * as authService from "../../services/authService";
 import {
-  Mail,
-  ArrowLeft,
-  Lock,
-  Eye,
-  EyeOff,
-  Shield,
-  Zap,
-  AlertCircle,
-  ChevronRight,
+  Mail, ArrowLeft, Lock, Eye, EyeOff,
+  Shield, AlertCircle, ChevronRight,
 } from "lucide-react";
 
 export const ForgotPassword: React.FC = () => {
@@ -111,383 +104,146 @@ export const ForgotPassword: React.FC = () => {
   };
 
   return (
-    <div
-      className={`min-h-screen transition-colors duration-500 ${
-        isDark
-          ? "bg-gradient-to-br from-[#0a0e27] via-[#1a1f3a] to-[#0a0e27]"
-          : "bg-gradient-to-br from-slate-50 via-white to-slate-50"
-      } flex items-center justify-center p-4`}
-    >
-      {/* Animated Background Elements */}
-      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
-        <div
-          className={`absolute top-1/4 -left-32 w-96 h-96 rounded-full blur-3xl ${
-            isDark ? "bg-[#fd5757]/5" : "bg-[#fd5757]/5"
-          }`}
-          style={{ animation: "float 8s ease-in-out infinite" }}
-        />
-        <div
-          className={`absolute bottom-1/4 -right-32 w-96 h-96 rounded-full blur-3xl ${
-            isDark ? "bg-[#8b5cf6]/5" : "bg-[#8b5cf6]/5"
-          }`}
-          style={{ animation: "float 10s ease-in-out infinite reverse" }}
-        />
+    <div className={`min-h-screen flex items-center justify-center transition-colors duration-500 overflow-hidden ${
+      isDark ? "bg-gradient-to-br from-[#0a0e27] via-[#1a1f3a] to-[#0a0e27]"
+             : "bg-gradient-to-br from-slate-50 via-white to-slate-50"
+    }`}>
+
+
+      <Link to="/" className="fixed top-2 left-2 z-50 ">
+        <img src={isDark ? "/logo1.png" : "/logo.png"} alt="COOLIENCE" className="w-28 h-28" />
+      </Link>
+      
+      {/* Background orbs + floating particles */}
+      <div className="fixed inset-0 pointer-events-none">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div key={i}
+            className={`absolute rounded-full ${isDark ? "bg-gradient-to-br from-[#5ce1e5]/10 to-[#fd5757]/10" : "bg-gradient-to-br from-[#0ea5e9]/10 to-[#ef4444]/10"}`}
+            style={{ width: `${40 + i * 10}px`, height: `${40 + i * 10}px`, left: `${10 + i * 5}%`, top: `${20 + i * 8}%`, animation: `float ${8 + i * 2}s ease-in-out infinite`, animationDelay: `${i * 0.5}s` }} />
+        ))}
+        <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${isDark ? "bg-[#5ce1e5]/5" : "bg-[#0ea5e9]/5"}`}
+          style={{ animation: "float 8s ease-in-out infinite" }} />
+        <div className={`absolute bottom-0 left-0 w-96 h-96 rounded-full blur-3xl ${isDark ? "bg-[#fd5757]/5" : "bg-[#ef4444]/5"}`}
+          style={{ animation: "float 6s ease-in-out 2s infinite reverse" }} />
       </div>
 
-      <div
-        className={`relative z-10 rounded-3xl p-8 w-full max-w-md transition-all duration-500 transform hover:scale-[1.01] ${
-          isDark
-            ? "bg-gradient-to-br from-[#1a1f3a]/80 to-[#27304a]/80 backdrop-blur-xl border border-[#3f4a68] shadow-2xl shadow-black/30"
-            : "bg-gradient-to-br from-white/80 to-gray-50/80 backdrop-blur-xl border border-gray-200 shadow-2xl shadow-gray-200/30"
-        }`}
-      >
-        {/* Back Button */}
-        <button
-          onClick={() => navigate("/login")}
-          className={`flex items-center gap-2 mb-6 font-medium transition-all duration-300 hover:gap-3 ${
-            isDark
-              ? "text-[#5ce1e5] hover:text-[#5ce1e5]/80"
-              : "text-[#0ea5e9] hover:text-[#0ea5e9]/80"
-          }`}
-        >
-          <ArrowLeft className="w-5 h-5" />
-          Back to Login
-        </button>
+      <div className="relative z-10 w-full max-w-md mx-auto">
+        <div className={`relative rounded-3xl overflow-hidden shadow-2xl ${
+          isDark ? "bg-gradient-to-b from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]"
+                 : "bg-gradient-to-b from-white to-gray-50 border border-gray-200"
+        }`}>
+          {/* Animated border glow */}
+          <div className="absolute inset-0 rounded-3xl p-1">
+            <div className={`absolute inset-0 rounded-3xl opacity-20 ${isDark ? "bg-gradient-to-r from-[#5ce1e5] via-[#fd5757] to-[#5ce1e5]" : "bg-gradient-to-r from-[#0ea5e9] via-[#ef4444] to-[#0ea5e9]"}`}
+              style={{ backgroundSize: "200% 100%", animation: "gradientShift 3s ease-in-out infinite" }} />
+          </div>
 
-        {/* Header */}
-        <div className="text-center mb-8 space-y-6">
-          <div className="flex flex-col items-center">
-            <div
-              className={`p-4 rounded-2xl mb-4 ${
-                isDark
-                  ? "bg-gradient-to-br from-[#fd5757]/10 to-[#ff8888]/10"
-                  : "bg-gradient-to-br from-[#fd5757]/10 to-[#ff8888]/10"
-              }`}
-            >
-              <Shield
-                className={`w-12 h-12 ${isDark ? "text-[#fd5757]" : "text-[#fd5757]"}`}
-              />
-            </div>
-            <div>
-              <h1
-                className={`text-3xl font-bold mb-2 ${
-                  isDark ? "text-white" : "text-gray-900"
-                }`}
-              >
-                Reset Password
-              </h1>
-              <p
-                className={`text-lg ${
-                  isDark ? "text-gray-400" : "text-gray-600"
-                }`}
-              >
-                {step === "email"
-                  ? "Enter your email to receive a reset link"
-                  : "Create a new password for your account"}
+          <div className="relative p-5">
+            {/* Back button */}
+            <button onClick={() => navigate("/login")}
+              className={`flex items-center gap-2 mb-4 text-sm font-medium transition-colors ${isDark ? "text-[#5ce1e5] hover:text-[#5ce1e5]/80" : "text-[#0ea5e9] hover:text-[#0ea5e9]/80"}`}>
+              <ArrowLeft className="w-4 h-4" />
+              Back to Login
+            </button>
+
+            {/* Header */}
+            <div className="text-center mb-4 space-y-2">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto ${isDark ? "bg-gradient-to-br from-[#5ce1e5] to-[#fd5757]" : "bg-gradient-to-br from-[#0ea5e9] to-[#5ce1e5]"}`}>
+                <Shield className="w-6 h-6 text-white" />
+              </div>
+              <h2 className={`text-3xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Reset Password</h2>
+              <p className={`text-base ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                {step === "email" ? "Enter your email to verify your account" : "Create a new password for your account"}
               </p>
             </div>
+
+            {/* Input helper */}
+            {(() => {
+              const inputCls = (hasError: boolean) =>
+                `flex items-center gap-3 p-3 rounded-xl border-2 transition-colors duration-200 ${
+                  hasError
+                    ? isDark ? "border-red-500/50 bg-red-500/5" : "border-red-400 bg-red-50"
+                    : isDark ? "border-[#3f4a68] bg-[#1a1f3a] focus-within:border-[#5ce1e5]"
+                             : "border-gray-200 bg-white focus-within:border-[#0ea5e9]"
+                }`;
+              const inputText = `flex-1 bg-transparent outline-none text-base ${isDark ? "text-white placeholder-gray-500" : "text-gray-900 placeholder-gray-400"}`;
+              const iconCls = `w-4 h-4 shrink-0 ${isDark ? "text-gray-400" : "text-gray-400"}`;
+
+              return step === "email" ? (
+                <form onSubmit={handleEmailSubmit} className="space-y-3">
+                  <div>
+                    <div className={inputCls(!!errors.email)}>
+                      <Mail className={iconCls} />
+                      <input type="email" value={email}
+                        onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors((p) => ({ ...p, email: "" })); }}
+                        placeholder="Enter your email" className={inputText} />
+                    </div>
+                    {errors.email && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.email}</p>}
+                  </div>
+                  <button type="submit" disabled={isLoading}
+                    className={`group relative w-full py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden disabled:opacity-80 disabled:cursor-not-allowed ${isDark ? "bg-gradient-to-r from-[#5ce1e5] to-[#fd5757] text-white" : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"}`}>
+                    <div className="absolute top-0 -left-full w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 transition-all duration-700 group-hover:left-full" />
+                    <span className="relative flex items-center justify-center gap-2">
+                      {isLoading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Verifying...</> : <><span>Continue</span><ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>}
+                    </span>
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleReset} className="space-y-3">
+                  {/* New password */}
+                  <div>
+                    <div className={inputCls(!!errors.newPassword)}>
+                      <Lock className={iconCls} />
+                      <input type={showNewPassword ? "text" : "password"} value={newPassword}
+                        onChange={(e) => { setNewPassword(e.target.value); if (errors.newPassword) setErrors((p) => ({ ...p, newPassword: "" })); }}
+                        placeholder="New password" className={inputText} />
+                      <button type="button" onClick={() => setShowNewPassword(!showNewPassword)}
+                        className={`p-1 rounded-lg ${isDark ? "hover:bg-[#27304a]" : "hover:bg-gray-100"}`}>
+                        {showNewPassword ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                      </button>
+                    </div>
+                    {newPassword && (
+                      <div className="mt-2">
+                        <div className={`h-1 rounded-full overflow-hidden ${isDark ? "bg-gray-700" : "bg-gray-200"}`}>
+                          <div className="h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min((newPassword.length / 12) * 100, 100)}%`, background: passwordStrength(newPassword).color }} />
+                        </div>
+                        <p className="text-xs mt-1" style={{ color: passwordStrength(newPassword).color }}>{passwordStrength(newPassword).label}</p>
+                      </div>
+                    )}
+                    {errors.newPassword && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.newPassword}</p>}
+                  </div>
+                  {/* Confirm password */}
+                  <div>
+                    <div className={inputCls(!!errors.confirmPassword)}>
+                      <Lock className={iconCls} />
+                      <input type={showConfirmPassword ? "text" : "password"} value={confirmPassword}
+                        onChange={(e) => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors((p) => ({ ...p, confirmPassword: "" })); }}
+                        placeholder="Confirm new password" className={inputText} />
+                      <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className={`p-1 rounded-lg ${isDark ? "hover:bg-[#27304a]" : "hover:bg-gray-100"}`}>
+                        {showConfirmPassword ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                      </button>
+                    </div>
+                    {errors.confirmPassword && <p className="text-red-500 text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.confirmPassword}</p>}
+                  </div>
+                  <button type="submit" disabled={isLoading}
+                    className={`group relative w-full py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden disabled:opacity-80 disabled:cursor-not-allowed ${isDark ? "bg-gradient-to-r from-[#5ce1e5] to-[#fd5757] text-white" : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"}`}>
+                    <div className="absolute top-0 -left-full w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 transition-all duration-700 group-hover:left-full" />
+                    <span className="relative flex items-center justify-center gap-2">
+                      {isLoading ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Resetting...</> : <><span>Reset Password</span><ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" /></>}
+                    </span>
+                  </button>
+                </form>
+              );
+            })()}
           </div>
         </div>
-
-        {/* Email Step */}
-        {step === "email" ? (
-          <form onSubmit={handleEmailSubmit} className="space-y-6">
-            <div>
-              <label
-                className={`block text-sm font-medium mb-2 ${
-                  isDark ? "text-gray-300" : "text-gray-700"
-                }`}
-              >
-                Email Address
-              </label>
-              <div
-                className={`relative flex items-center gap-3 p-3 rounded-xl transition-all duration-300 ${
-                  isDark
-                    ? "bg-[#1a1f3a] border border-[#3f4a68] focus-within:border-[#fd5757] focus-within:shadow-[0_0_0_2px_#fd5757/20]"
-                    : "bg-gray-100 border border-gray-300 focus-within:border-[#fd5757] focus-within:shadow-[0_0_0_2px_#fd5757/20]"
-                }`}
-              >
-                <Mail
-                  className={`w-5 h-5 ${isDark ? "text-gray-500" : "text-gray-400"}`}
-                />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (errors.email)
-                      setErrors((prev) => ({ ...prev, email: "" }));
-                  }}
-                  placeholder="user.xyz@gmail.com"
-                  className={`flex-1 bg-transparent outline-none text-lg ${
-                    isDark
-                      ? "text-white placeholder-gray-500"
-                      : "text-gray-900 placeholder-gray-400"
-                  }`}
-                />
-              </div>
-              {errors.email && (
-                <div className="flex items-center gap-1 mt-2">
-                  <AlertCircle
-                    className={`w-4 h-4 ${isDark ? "text-red-400" : "text-red-500"}`}
-                  />
-                  <span
-                    className={`text-sm ${isDark ? "text-red-400" : "text-red-500"}`}
-                  >
-                    {errors.email}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`relative w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
-                isDark
-                  ? "bg-gradient-to-r from-[#fd5757] to-[#ff8888] text-white shadow-lg shadow-[#fd5757]/20"
-                  : "bg-gradient-to-r from-[#fd5757] to-[#ff8888] text-white shadow-lg shadow-[#fd5757]/20"
-              }`}
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Verifying Email...
-                </div>
-              ) : (
-                <>
-                  Continue
-                  <div className="absolute right-6 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ChevronRight className="w-5 h-5" />
-                  </div>
-                </>
-              )}
-            </button>
-          </form>
-        ) : (
-          /* Reset Step */
-          <form onSubmit={handleReset} className="space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label
-                  className={`block text-sm font-medium ${
-                    isDark ? "text-gray-300" : "text-gray-700"
-                  }`}
-                >
-                  New Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className={`text-sm font-medium transition-colors ${
-                    isDark
-                      ? "text-[#fd5757] hover:text-[#fd5757]/80"
-                      : "text-[#fd5757] hover:text-[#fd5757]/80"
-                  }`}
-                >
-                </button>
-              </div>
-              <div
-                className={`relative flex items-center gap-3 p-3 rounded-xl transition-all duration-300 ${
-                  isDark
-                    ? "bg-[#1a1f3a] border border-[#3f4a68] focus-within:border-[#fd5757] focus-within:shadow-[0_0_0_2px_#fd5757/20]"
-                    : "bg-gray-100 border border-gray-300 focus-within:border-[#fd5757] focus-within:shadow-[0_0_0_2px_#fd5757/20]"
-                }`}
-              >
-                <Lock
-                  className={`w-5 h-5 ${isDark ? "text-gray-500" : "text-gray-400"}`}
-                />
-                <input
-                  type={showNewPassword ? "text" : "password"}
-                  value={newPassword}
-                  onChange={(e) => {
-                    setNewPassword(e.target.value);
-                    if (errors.newPassword)
-                      setErrors((prev) => ({ ...prev, newPassword: "" }));
-                  }}
-                  placeholder="Enter new password"
-                  className={`flex-1 bg-transparent outline-none text-lg ${
-                    isDark
-                      ? "text-white placeholder-gray-500"
-                      : "text-gray-900 placeholder-gray-400"
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
-                  className={`p-1 rounded-lg ${
-                    isDark ? "hover:bg-[#27304a]" : "hover:bg-gray-200"
-                  }`}
-                >
-                  {showNewPassword ? (
-                    <EyeOff
-                      className={`w-5 h-5 ${isDark ? "text-gray-500" : "text-gray-400"}`}
-                    />
-                  ) : (
-                    <Eye
-                      className={`w-5 h-5 ${isDark ? "text-gray-500" : "text-gray-400"}`}
-                    />
-                  )}
-                </button>
-              </div>
-
-              {/* Password Strength */}
-              {newPassword && (
-                <div className="mt-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={`text-sm ${
-                        isDark ? "text-gray-400" : "text-gray-600"
-                      }`}
-                    >
-                      Password strength
-                    </span>
-                    <span
-                      className={`text-sm font-medium`}
-                      style={{
-                        color: passwordStrength(newPassword).color,
-                      }}
-                    >
-                      {passwordStrength(newPassword).label}
-                    </span>
-                  </div>
-                  <div
-                    className={`h-1 rounded-full overflow-hidden ${
-                      isDark ? "bg-gray-800" : "bg-gray-300"
-                    }`}
-                  >
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${(newPassword.length / 16) * 100}%`,
-                        background: passwordStrength(newPassword).color,
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {errors.newPassword && (
-                <div className="flex items-center gap-1 mt-2">
-                  <AlertCircle
-                    className={`w-4 h-4 ${isDark ? "text-red-400" : "text-red-500"}`}
-                  />
-                  <span
-                    className={`text-sm ${isDark ? "text-red-400" : "text-red-500"}`}
-                  >
-                    {errors.newPassword}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label
-                className={`block text-sm font-medium mb-2 ${
-                  isDark ? "text-gray-300" : "text-gray-700"
-                }`}
-              >
-                Confirm Password
-              </label>
-              <div
-                className={`relative flex items-center gap-3 p-3 rounded-xl transition-all duration-300 ${
-                  isDark
-                    ? "bg-[#1a1f3a] border border-[#3f4a68] focus-within:border-[#fd5757] focus-within:shadow-[0_0_0_2px_#fd5757/20]"
-                    : "bg-gray-100 border border-gray-300 focus-within:border-[#fd5757] focus-within:shadow-[0_0_0_2px_#fd5757/20]"
-                }`}
-              >
-                <Lock
-                  className={`w-5 h-5 ${isDark ? "text-gray-500" : "text-gray-400"}`}
-                />
-                <input
-                  type={showConfirmPassword ? "text" : "password"}
-                  value={confirmPassword}
-                  onChange={(e) => {
-                    setConfirmPassword(e.target.value);
-                    if (errors.confirmPassword)
-                      setErrors((prev) => ({ ...prev, confirmPassword: "" }));
-                  }}
-                  placeholder="Confirm new password"
-                  className={`flex-1 bg-transparent outline-none text-lg ${
-                    isDark
-                      ? "text-white placeholder-gray-500"
-                      : "text-gray-900 placeholder-gray-400"
-                  }`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  className={`p-1 rounded-lg ${
-                    isDark ? "hover:bg-[#27304a]" : "hover:bg-gray-200"
-                  }`}
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff
-                      className={`w-5 h-5 ${isDark ? "text-gray-500" : "text-gray-400"}`}
-                    />
-                  ) : (
-                    <Eye
-                      className={`w-5 h-5 ${isDark ? "text-gray-500" : "text-gray-400"}`}
-                    />
-                  )}
-                </button>
-              </div>
-              {errors.confirmPassword && (
-                <div className="flex items-center gap-1 mt-2">
-                  <AlertCircle
-                    className={`w-4 h-4 ${isDark ? "text-red-400" : "text-red-500"}`}
-                  />
-                  <span
-                    className={`text-sm ${isDark ? "text-red-400" : "text-red-500"}`}
-                  >
-                    {errors.confirmPassword}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className={`relative w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${
-                isDark
-                  ? "bg-gradient-to-r from-[#fd5757] to-[#ff8888] text-white shadow-lg shadow-[#fd5757]/20"
-                  : "bg-gradient-to-r from-[#fd5757] to-[#ff8888] text-white shadow-lg shadow-[#fd5757]/20"
-              }`}
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Resetting Password...
-                </div>
-              ) : (
-                <>
-                  Reset Password
-                  <div className="absolute right-6 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <ChevronRight className="w-5 h-5" />
-                  </div>
-                </>
-              )}
-            </button>
-          </form>
-        )}
       </div>
 
-      {/* Custom Animations */}
       <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
-        }
-        
-        @keyframes scale-in {
-          from { transform: scale(0.95); opacity: 0; }
-          to { transform: scale(1); opacity: 1; }
-        }
-        
-        .animate-scale-in {
-          animation: scale-in 0.3s ease-out;
-        }
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-20px)} }
+        @keyframes gradientShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
       `}</style>
     </div>
   );

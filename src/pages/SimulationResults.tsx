@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+﻿import React, { useState } from "react";
 import { Sidebar } from "../components/shared/Sidebar";
 import { useSimulationStore } from "../store/store";
 import { Download, RefreshCw, TrendingDown } from "lucide-react";
@@ -37,7 +37,7 @@ export const SimulationResults: React.FC = () => {
     return (
       <div className="min-h-screen bg-bg-light flex">
         <Sidebar />
-        <main className="flex-1 lg:ml-64 p-8 flex items-center justify-center">
+        <main className="flex-1 lg:ml-56 p-8 flex items-center justify-center">
           <div className="text-center">
             <p className="text-gray-600 mb-4">
               No simulation results available
@@ -221,7 +221,7 @@ export const SimulationResults: React.FC = () => {
     <div className="min-h-screen bg-bg-light flex">
       <Sidebar />
 
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
+      <main className="flex-1 lg:ml-56 p-4 lg:p-8">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -431,3 +431,4 @@ export const SimulationResults: React.FC = () => {
     </div>
   );
 };
+

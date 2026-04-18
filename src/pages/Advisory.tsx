@@ -1,1053 +1,716 @@
-import { useState, useEffect, useRef } from "react";
-import { supabase } from "../utils/supabaseClient";
-import { Modal } from "../components/shared/Common";
-import { getCurrentAuthUser, getUserUUID } from "../services/simulationService";
-import { getUserSimulations } from "../services/simulationService";
-import { useSearchParams } from "react-router-dom";
+﻿import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChevronDown, Sparkles, MessageCircle, PanelTop, PlusCircle, Bot, User as UserIcon, Zap } from "lucide-react";
 import { Sidebar } from "../components/shared/Sidebar";
+import { useAuthStore } from "../store/store";
+import { useThemeStore } from "../hooks/useTheme";
 import {
-  Sliders,
-  Loader,
-  Zap,
-  TrendingDown,
-  AlertTriangle,
-  Sparkles,
-  Send,
-  Bot,
-  Database,
-} from "lucide-react";
+  getCurrentAuthUser,
+  getUserSimulations,
+  getUserUUID,
+  SimulationWithResults,
+} from "../services/simulationService";
 
-interface ChatHistoryItem {
+type ChatMessage = {
   id: string;
-  question: string;
-  answer: string;
-  llm_answer: string;
-  rf_result: any;
-  imageUrl: string | null;
-  graphUrl: string | null;
-  loading: boolean;
+  role: "user" | "assistant";
+  content: string;
   timestamp: Date;
-  metadata?: any;
-}
+  metadata?: {
+    source?: string;
+    model?: string;
+    simulationId?: string;
+  };
+};
 
-interface StreamingChunk {
-  type: string;
-  content: any;
-}
+type StoredChatMessage = Omit<ChatMessage, "timestamp"> & {
+  timestamp: string;
+};
 
-const WHATIF_API_BASE = (
-  (import.meta as any).env?.VITE_WHATIF_API_URL || "http://localhost:8000/api"
+type StoredChatSession = {
+  chatId: string;
+  chatTitle: string;
+  simulationId: number;
+  simulationName: string;
+  updatedAt: string;
+  messages: StoredChatMessage[];
+};
+
+type ChatThreadPreview = {
+  chatId: string;
+  chatTitle: string;
+  simulationId: number;
+  simulationName: string;
+  updatedAt: string;
+  messageCount: number;
+  lastMessage?: string;
+};
+
+const formatTechniqueLabel = (value?: string) => {
+  const rawValue = value || "";
+  const text = rawValue.toLowerCase().replace(/[_\s-]+/g, "");
+
+  if (!text) return "Unknown";
+  if (text.includes("air")) return "Air Side Economization";
+  if (text.includes("water") || text.includes("chilled")) return "Chilled Water Cooling";
+  if (text.includes("evap")) return "Evaporative Cooling";
+
+  // If already an official name, return as-is
+  return rawValue
+    .replace(/[_-]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim();
+};
+
+const getChatStorageKey = (userKey: string) => `advisory_chat_history:${userKey}`;
+
+const toStoredMessages = (messages: ChatMessage[]): StoredChatMessage[] =>
+  messages.map((message) => ({
+    ...message,
+    timestamp: message.timestamp.toISOString(),
+  }));
+
+const fromStoredMessages = (messages: StoredChatMessage[]): ChatMessage[] =>
+  messages.map((message) => ({
+    ...message,
+    timestamp: new Date(message.timestamp),
+  }));
+
+const safeParseChatSessions = (raw: string | null): StoredChatSession[] => {
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.map((session: any, index: number) => {
+      const simulationId = Number(session.simulationId || 0);
+      const updatedAt = typeof session.updatedAt === "string" ? session.updatedAt : new Date().toISOString();
+      const normalizedMessages: StoredChatMessage[] = Array.isArray(session.messages)
+        ? session.messages
+        : [];
+
+      // Stable legacy id so old chats remain selectable across reloads.
+      const legacyStableId = `legacy-${simulationId}-${updatedAt}-${index}`;
+
+      const firstUser = normalizedMessages.find((message) => message.role === "user");
+      const inferredTitle = firstUser?.content
+        ? (firstUser.content.length <= 54
+          ? firstUser.content
+          : `${firstUser.content.slice(0, 54)}...`)
+        : "New Chat";
+
+      return {
+        chatId: typeof session.chatId === "string" && session.chatId.trim()
+          ? session.chatId
+          : legacyStableId,
+        chatTitle: typeof session.chatTitle === "string" && session.chatTitle.trim()
+          ? session.chatTitle
+          : inferredTitle,
+        simulationId,
+        simulationName:
+          typeof session.simulationName === "string" && session.simulationName.trim()
+            ? session.simulationName
+            : `Simulation #${simulationId}`,
+        updatedAt,
+        messages: normalizedMessages,
+      };
+    });
+  } catch {
+    return [];
+  }
+};
+
+const createChatId = () => `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const buildChatTitle = (messages: ChatMessage[], fallback = "New Chat") => {
+  const firstUser = messages.find((message) => message.role === "user");
+  if (!firstUser?.content) {
+    return fallback;
+  }
+
+  const trimmed = firstUser.content.trim();
+  if (trimmed.length <= 54) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, 54)}...`;
+};
+
+const ADVISORY_API_BASE = (
+  (import.meta as any).env?.VITE_ADVISORY_API_URL || "http://localhost:8002/api"
 ).replace(/\/$/, "");
 
-const clampValue = (value: number, min: number, max: number): number => {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, value));
-};
-
-const formatNumber = (value: any, digits = 1) => {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue.toFixed(digits) : "N/A";
-};
-
-const formatCurrency = (value: any, digits = 2) => {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue)
-    ? `$${numericValue.toFixed(digits)}`
-    : "N/A";
-};
-
-const cleanAdvisoryText = (text: string) => {
-  if (!text) return "";
-
-  let cleaned = text
-    .replace(/\*\*/g, "")
-    .replace(/__+/g, "")
-    .replace(/^\s*raw\s+/i, "")
-    .replace(/\s+\n/g, "\n")
-    .replace(/[ \t]{2,}/g, " ");
-
-  cleaned = cleaned.replace(
-    /\b([A-Za-z][A-Za-z0-9'\-]*)\b(?:\s+\1\b)+/gi,
-    "$1",
-  );
-  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
-
-  return cleaned.trim();
-};
-
-const getAdvisoryBullets = (text: string) =>
-  cleanAdvisoryText(text)
-    .split(/\n+/)
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("-") || line.startsWith("•"))
-    .map((line) => line.replace(/^[-•]\s*/, ""));
-
-const getAdvisorySections = (text: string) => {
-  const cleaned = cleanAdvisoryText(text);
-  const paragraphs = cleaned
-    .split(/\n{2,}/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  const sectionOrder = [
-    "Direct Answer",
-    "Impact",
-    "Technical Analysis",
-    "Recommended Actions",
-    "Trade-offs",
-    "What this means",
-    "Key Factors",
-    "Recommendations",
-    "Next Steps",
-  ];
-
-  const sections: Array<{ title: string; items: string[] }> = [];
-
-  for (const title of sectionOrder) {
-    const pattern = new RegExp(
-      `${title}:?\\s*([\\s\\S]*?)(?=\\n\\n[A-Z][A-Za-z ]+:|$)`,
-      "i",
-    );
-    const match = cleaned.match(pattern);
-    if (match?.[1]) {
-      const body = match[1]
-        .split(/\n+/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .map((line) => line.replace(/^[-•\d.]+\s*/, ""));
-
-      if (body.length > 0) {
-        sections.push({ title, items: body });
-      }
-    }
-  }
-
-  if (sections.length > 0) {
-    return sections;
-  }
-
-  const bullets = getAdvisoryBullets(cleaned);
-  if (bullets.length > 0) {
-    return [{ title: "Key Points", items: bullets }];
-  }
-
-  return [
-    {
-      title: "Advisory",
-      items: paragraphs.length > 0 ? paragraphs : [cleaned],
-    },
-  ];
-};
-
-const getRfSummary = (rfResult: any) => {
-  if (!rfResult) return null;
-
-  const metrics = rfResult.metrics || {};
-  const recommendations = Array.isArray(metrics.recommendations)
-    ? metrics.recommendations.filter(Boolean)
-    : [];
-
-  return {
-    predictedPower: formatNumber(rfResult.predicted_power_kw, 1),
-    efficiency: formatNumber(rfResult.efficiency_percent, 1),
-    costPerHour: formatCurrency(rfResult.cost_usd_per_hour, 2),
-    wue: formatNumber(rfResult.wue_l_per_kwh, 2),
-    pue: formatNumber(metrics.pue, 2),
-    coolingEfficiency: formatNumber(metrics.cooling_efficiency, 0),
-    totalPower: formatNumber(metrics.total_power_kw, 1),
-    coolingPower: formatNumber(metrics.cooling_power_kw, 1),
-    hourlyCost: formatCurrency(metrics.hourly_cost, 2),
-    dailyCost: formatCurrency(metrics.daily_cost, 2),
-    monthlyCost: formatCurrency(metrics.monthly_cost, 2),
-    hourlyCo2: formatNumber(metrics.hourly_co2, 1),
-    waterUsage: formatNumber(metrics.water_usage_l_per_hour, 1),
-    recommendations,
-  };
-};
-
-const persistChatHistory = async (params: {
-  question: string;
-  scenario: Record<string, any>;
-  model: string;
-  outputText: string;
-  outputLlm: string;
-  outputRf: any;
-  outputImageUrl: string | null;
-  outputGraphUrl: string | null;
-}) => {
-  const authUser = await getCurrentAuthUser();
-  if (!authUser) {
-    throw new Error("You must be logged in to save chat history.");
-  }
-
-  const userId = await getUserUUID(authUser.id);
-  if (!userId) {
-    throw new Error("User profile ID not found for chat history save.");
-  }
-
-  const chatLog = {
-    user_id: userId,
-    input_question: params.question,
-    input_scenario: params.scenario,
-    model_used: params.model,
-    output_text: params.outputText,
-    output_llm: params.outputLlm,
-    output_rf: params.outputRf || null,
-    output_image_url: params.outputImageUrl,
-    output_graph_url: params.outputGraphUrl,
-    created_at: new Date().toISOString(),
-  };
-
-  const { error } = await supabase.from("chat_history").insert([chatLog]);
-  if (error) {
-    throw error;
-  }
-};
-
 const Advisory = () => {
-  const [searchParams] = useSearchParams();
+  const user = useAuthStore((state) => state.user);
+  const [simulations, setSimulations] = useState<SimulationWithResults[]>([]);
+  const [loadingSims, setLoadingSims] = useState(false);
+  const [simError, setSimError] = useState("");
 
-  // Form state
-  const [tempC, setTempC] = useState(24);
-  const [rh, setRh] = useState(50);
-  const [itLoadKW, setItLoadKW] = useState(500);
-  const [electricityPrice, setElectricityPrice] = useState(0.12);
-  const [waterPrice, setWaterPrice] = useState(0.001);
-  const [carbonFactor, setCarbonFactor] = useState(0.45);
-  const [airflowPercent, setAirflowPercent] = useState(100);
+  const [selectedSimulationId, setSelectedSimulationId] = useState<number | null>(
+    null,
+  );
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
 
-  // What-If chat state
-  const [chatInput, setChatInput] = useState("");
-  const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
-  const [chatLoading, setChatLoading] = useState(false);
+  const [question, setQuestion] = useState("");
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatThreads, setChatThreads] = useState<ChatThreadPreview[]>([]);
+  const [asking, setAsking] = useState(false);
   const [chatError, setChatError] = useState("");
-  const [selectedModel, setSelectedModel] = useState("all");
-  const [streamingMode, setStreamingMode] = useState(true);
 
-  // Suggestions state
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const chatStorageKey = user?.authUserId ? getChatStorageKey(user.authUserId) : "";
 
-  // Modal state
-  const [llmGenerating, setLlmGenerating] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [simulations, setSimulations] = useState<any[]>([]);
-  const [simDropdownLoading, setSimDropdownLoading] = useState(false);
-  const [selectedSimId, setSelectedSimId] = useState<string | null>(null);
-
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-  const simulationId = searchParams.get("simulationId");
-
-  const getSanitizedScenario = () => ({
-    airflow_percent: clampValue(airflowPercent, 0, 200),
-    inlet_temp_c: clampValue(tempC, 0, 50),
-    humidity_percent: clampValue(rh, 0, 100),
-    cooling_setpoint_c: clampValue(tempC, 0, 35),
-    workload_kw: clampValue(itLoadKW, 0, 5000),
-    electricity_price: clampValue(electricityPrice, 0, 999),
-    water_price: clampValue(waterPrice, 0, 999),
-    carbon_factor: clampValue(carbonFactor, 0, 999),
-  });
-
-  // Scroll to bottom of chat
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop =
-        chatContainerRef.current.scrollHeight;
+  const refreshChatThreads = (storeKey: string) => {
+    if (!storeKey || typeof window === "undefined") {
+      setChatThreads([]);
+      return;
     }
-  }, [chatHistory]);
 
-  // Fetch suggestions based on current scenario
+    const sessions = safeParseChatSessions(localStorage.getItem(storeKey));
+    const previews = sessions
+      .map((session) => ({
+        chatId: session.chatId,
+        chatTitle: session.chatTitle,
+        simulationId: session.simulationId,
+        simulationName: session.simulationName,
+        updatedAt: session.updatedAt,
+        messageCount: session.messages.length,
+        lastMessage:
+          session.messages.length > 0
+            ? session.messages[session.messages.length - 1].content
+            : undefined,
+      }))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+    setChatThreads(previews);
+  };
+
+  const saveChatSession = (
+    storeKey: string,
+    chatId: string,
+    simulation: SimulationWithResults,
+    messages: ChatMessage[],
+  ) => {
+    if (!storeKey || typeof window === "undefined") return;
+
+    const sessions = safeParseChatSessions(localStorage.getItem(storeKey));
+    const updatedSession: StoredChatSession = {
+      chatId,
+      chatTitle: buildChatTitle(messages),
+      simulationId: simulation.id,
+      simulationName: simulation.name || `Simulation #${simulation.id}`,
+      updatedAt: new Date().toISOString(),
+      messages: toStoredMessages(messages),
+    };
+
+    const nextSessions = [
+      updatedSession,
+      ...sessions.filter((session) => session.chatId !== chatId),
+    ];
+
+    localStorage.setItem(storeKey, JSON.stringify(nextSessions));
+    refreshChatThreads(storeKey);
+  };
+
+  const selectedSimulation = useMemo(
+    () => simulations.find((sim) => sim.id === selectedSimulationId) || null,
+    [simulations, selectedSimulationId],
+  );
+
   useEffect(() => {
-    const fetchSuggestions = async () => {
+    if (!selectedSimulationId && simulations.length > 0) {
+      setSelectedSimulationId(simulations[0].id);
+    }
+  }, [simulations, selectedSimulationId]);
+
+  useEffect(() => {
+    if (!chatStorageKey) {
+      setChatMessages([]);
+      setChatThreads([]);
+      return;
+    }
+
+    refreshChatThreads(chatStorageKey);
+  }, [chatStorageKey]);
+
+  useEffect(() => {
+    const loadSimulations = async () => {
+      setLoadingSims(true);
+      setSimError("");
+
       try {
-        const scenario = getSanitizedScenario();
+        let userUUID: string | null = null;
 
-        const response = await fetch(
-          `${WHATIF_API_BASE}/whatif/suggestions?${new URLSearchParams(scenario as any)}`,
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          setSuggestions(data.suggestions);
-        } else {
-          const errorText = await response.text();
-          throw new Error(
-            `Suggestion API ${response.status}: ${errorText || "No response body"}`,
-          );
+        if (user?.authUserId) {
+          userUUID = await getUserUUID(user.authUserId);
         }
-      } catch (error) {
-        console.error(
-          "Failed to fetch suggestions:",
-          error,
-          "API base:",
-          WHATIF_API_BASE,
-        );
+
+        if (!userUUID) {
+          const authUser = await getCurrentAuthUser();
+          if (!authUser) {
+            throw new Error("You must be logged in to view simulations.");
+          }
+          userUUID = await getUserUUID(authUser.id);
+        }
+
+        if (!userUUID) {
+          throw new Error("User profile not found.");
+        }
+
+        const { success, data, error } = await getUserSimulations(userUUID);
+
+        if (!success || !data) {
+          throw new Error(error || "Failed to load simulations.");
+        }
+
+        setSimulations(data.simulations);
+      } catch (err) {
+        setSimError(err instanceof Error ? err.message : "Unknown error.");
+      } finally {
+        setLoadingSims(false);
       }
     };
 
-    fetchSuggestions();
-  }, [tempC, rh, itLoadKW, airflowPercent]);
+    loadSimulations();
+  }, [user?.authUserId]);
 
-  // Load simulation data
   useEffect(() => {
-    if (simulationId) {
-      const fetchSimulationData = async () => {
-        try {
-          const response = await fetch(`/api/simulation/${simulationId}`);
-          if (response.ok) {
-            const data = await response.json();
-            setTempC(clampValue(data.tempC || 24, 0, 50));
-            setRh(clampValue(data.rh || 50, 0, 100));
-            setItLoadKW(clampValue(data.itLoadKW || 500, 0, 5000));
-            setElectricityPrice(
-              clampValue(data.electricityPrice || 0.12, 0, 999),
-            );
-            setWaterPrice(clampValue(data.waterPrice || 0.001, 0, 999));
-            setCarbonFactor(clampValue(data.carbonFactor || 0.45, 0, 999));
-            setAirflowPercent(clampValue(data.airflowPercent || 100, 0, 200));
-          }
-        } catch (error) {
-          console.error("Failed to load simulation data:", error);
-        }
-      };
-      fetchSimulationData();
+    if (!chatStorageKey || !selectedSimulationId) {
+      setChatMessages([]);
+      setSelectedChatId(null);
+      setChatError("");
+      return;
     }
-  }, [simulationId]);
 
-  const handleChatSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || chatLoading) return;
+    const sessions = safeParseChatSessions(localStorage.getItem(chatStorageKey));
+    const simulationSessions = sessions
+      .filter((session) => session.simulationId === selectedSimulationId)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
-    setChatLoading(true);
+    const selectedSession = selectedChatId
+      ? simulationSessions.find((session) => session.chatId === selectedChatId)
+      : undefined;
+    const targetSession = selectedSession || simulationSessions[0];
+
+    if (!targetSession) {
+      setSelectedChatId(null);
+      setChatMessages([]);
+      setChatError("");
+      return;
+    }
+
+    setSelectedChatId(targetSession.chatId);
+    setChatMessages(fromStoredMessages(targetSession.messages));
+    setChatError("");
+  }, [chatStorageKey, selectedSimulationId, selectedChatId]);
+
+  const handleStartNewChat = () => {
+    const newChatId = createChatId();
+    setSelectedChatId(newChatId);
+    setChatMessages([]);
+    setQuestion("");
     setChatError("");
 
-    const newChatEntry: ChatHistoryItem = {
-      id: Date.now().toString(),
-      question: chatInput,
-      answer: "",
-      llm_answer: "",
-      rf_result: null,
-      imageUrl: null,
-      graphUrl: null,
-      loading: true,
+    // Persist an empty thread immediately so it appears as its own chat.
+    if (chatStorageKey && selectedSimulation) {
+      saveChatSession(chatStorageKey, newChatId, selectedSimulation, []);
+    }
+  };
+
+  const handleAsk = async (e: FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedSimulation || !question.trim() || asking) {
+      return;
+    }
+
+    const userMessage: ChatMessage = {
+      id: `${Date.now()}-user`,
+      role: "user",
+      content: question.trim(),
       timestamp: new Date(),
     };
 
-    setChatHistory((prev) => [...prev, newChatEntry]);
+    const activeChatId = selectedChatId || createChatId();
+    const draftMessages = [...chatMessages, userMessage];
 
-    try {
-      const simId = simulationId ? simulationId : null;
-      const scenarioPayload = getSanitizedScenario();
-
-      const payload = {
-        question: chatInput,
-        scenario: scenarioPayload,
-        ...(simId ? { simulationId: simId } : {}),
-        model: selectedModel,
-        stream: streamingMode,
-      };
-
-      console.log("Sending payload:", payload);
-
-      // Update the streaming handling code (around line 206)
-      if (streamingMode) {
-        // Handle streaming response
-        const response = await fetch(`${WHATIF_API_BASE}/whatif`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(
-            `What-if API ${response.status}: ${errorText || "No response body"}`,
-          );
-        }
-
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-
-        let accumulatedLLM = "";
-        let latestRfResult: any = null;
-        let buffer = "";
-
-        while (reader) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          // Decode the chunk and add to buffer
-          buffer += decoder.decode(value, { stream: true });
-
-          // Split by newlines and process each complete line
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || ""; // Keep incomplete line in buffer
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-
-            try {
-              const data: StreamingChunk = JSON.parse(line);
-
-              setChatHistory((prev) => {
-                const updated = [...prev];
-                const lastIndex = updated.length - 1;
-
-                if (lastIndex >= 0) {
-                  switch (data.type) {
-                    case "rf_prediction":
-                      latestRfResult = data.content;
-                      updated[lastIndex] = {
-                        ...updated[lastIndex],
-                        rf_result: data.content,
-                      };
-                      break;
-                    case "llm_chunk":
-                      accumulatedLLM += data.content;
-                      updated[lastIndex] = {
-                        ...updated[lastIndex],
-                        llm_answer: cleanAdvisoryText(accumulatedLLM),
-                      };
-                      break;
-                    case "error":
-                      updated[lastIndex] = {
-                        ...updated[lastIndex],
-                        answer: `Error: ${data.content}`,
-                        loading: false,
-                      };
-                      break;
-                    case "complete":
-                      updated[lastIndex] = {
-                        ...updated[lastIndex],
-                        loading: false,
-                      };
-                      break;
-                  }
-                }
-                return updated;
-              });
-            } catch (e) {
-              console.error(
-                "Failed to parse streaming chunk:",
-                e,
-                "Line:",
-                line,
-              );
-              // Don't throw - continue processing other chunks
-            }
-          }
-        }
-
-        setChatInput("");
-
-        try {
-          await persistChatHistory({
-            question: chatInput,
-            scenario: scenarioPayload,
-            model: selectedModel,
-            outputText: cleanAdvisoryText(accumulatedLLM),
-            outputLlm: cleanAdvisoryText(accumulatedLLM),
-            outputRf: latestRfResult,
-            outputImageUrl: null,
-            outputGraphUrl: null,
-          });
-        } catch (logErr) {
-          console.error("Supabase logging failed:", logErr);
-        }
-      } else {
-        // Handle regular response
-        const res = await fetch(`${WHATIF_API_BASE}/whatif`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(
-            `What-if API ${res.status}: ${errorText || "No response body"}`,
-          );
-        }
-
-        const data = await res.json();
-
-        setChatHistory((prev) => {
-          const updated = [...prev];
-          const lastIndex = updated.length - 1;
-          if (lastIndex >= 0) {
-            updated[lastIndex] = {
-              ...updated[lastIndex],
-              answer: data.answer || "",
-              llm_answer: cleanAdvisoryText(data.llm_answer || ""),
-              rf_result: data.rf_result || null,
-              imageUrl: data.imageUrl || null,
-              graphUrl: data.graphUrl || null,
-              metadata: data.metadata,
-              loading: false,
-            };
-          }
-          return updated;
-        });
-
-        setChatInput("");
-
-        try {
-          await persistChatHistory({
-            question: chatInput,
-            scenario: scenarioPayload,
-            model: selectedModel,
-            outputText: cleanAdvisoryText(data.answer || data.llm_answer || ""),
-            outputLlm: cleanAdvisoryText(data.llm_answer || data.answer || ""),
-            outputRf: data.rf_result || null,
-            outputImageUrl: data.imageUrl || null,
-            outputGraphUrl: data.graphUrl || null,
-          });
-        } catch (logErr) {
-          console.error("Supabase logging failed:", logErr);
-        }
-      }
-    } catch (err) {
-      setChatError(
-        "Error: " + (err instanceof Error ? err.message : "Unknown error"),
-      );
-      setChatHistory((prev) => {
-        const updated = [...prev];
-        const lastIndex = updated.length - 1;
-        if (lastIndex >= 0) {
-          updated[lastIndex] = {
-            ...updated[lastIndex],
-            answer: "Sorry, I encountered an error processing your request.",
-            loading: false,
-          };
-        }
-        return updated;
-      });
-    } finally {
-      setChatLoading(false);
-    }
-  };
-
-  const handleOpenSimulationModal = async () => {
-    setModalOpen(true);
-    setSimDropdownLoading(true);
-    setSimulations([]);
-    setSelectedSimId(null);
+    setSelectedChatId(activeChatId);
+    setChatMessages(draftMessages);
+    setQuestion("");
+    setAsking(true);
     setChatError("");
-    try {
-      const authUser = await getCurrentAuthUser();
-      if (!authUser) throw new Error("Not logged in");
-      const userUUID = await getUserUUID(authUser.id);
-      if (!userUUID) throw new Error("User UUID not found");
-      const { success, data, error } = await getUserSimulations(userUUID);
-      if (!success || !data)
-        throw new Error(error || "Failed to fetch simulations");
-      setSimulations(data.simulations);
-    } catch (err) {
-      setChatError(
-        "Could not load simulations: " +
-          (err instanceof Error ? err.message : "Unknown error"),
-      );
-    } finally {
-      setSimDropdownLoading(false);
+
+    if (chatStorageKey && selectedSimulation) {
+      saveChatSession(chatStorageKey, activeChatId, selectedSimulation, draftMessages);
     }
-  };
 
-  const handleGenerateFromSimulation = async () => {
-    if (!selectedSimId) return;
-    setLlmGenerating(true);
-    setChatError("");
     try {
-      const scenario = getSanitizedScenario();
-
-      const res = await fetch(`${WHATIF_API_BASE}/whatif/generate-question`, {
+      const response = await fetch(`${ADVISORY_API_BASE}/advisory/ask`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          simulationId: selectedSimId,
-          scenario: scenario,
-          question_type: "optimization",
+          question: userMessage.content,
+          simulationId: String(selectedSimulation.id),
+          simulation: selectedSimulation,
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to generate what-if question");
-      const data = await res.json();
-      if (data && data.generated_question) {
-        setChatInput(data.generated_question);
-        setModalOpen(false);
-      } else {
-        setChatError("No question generated.");
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error(details || `Request failed with ${response.status}`);
+      }
+
+      const data = await response.json();
+      const content = data?.answer || "No response text was returned by the advisory API.";
+
+      const assistantMessage: ChatMessage = {
+        id: `${Date.now()}-assistant`,
+        role: "assistant",
+        content,
+        timestamp: new Date(),
+        metadata: data?.metadata,
+      };
+
+      const finalMessages = [...draftMessages, assistantMessage];
+
+      setChatMessages(finalMessages);
+
+      if (chatStorageKey && selectedSimulation) {
+        saveChatSession(chatStorageKey, activeChatId, selectedSimulation, finalMessages);
+      }
+
+      // ── Save to Supabase chat_history ──────────────────────────────────
+      try {
+        const { supabase } = await import("../lib/supabase");
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          // chat_history.user_id references users(id) — resolve via auth_user_id
+          const usersRow = await supabase
+            .from("users")
+            .select("id")
+            .eq("auth_user_id", authUser.id)
+            .single();
+          const usersId = usersRow.data?.id;
+          if (usersId) {
+            const { error } = await supabase.from("chat_history").insert({
+              user_id:        usersId,
+              input_question: userMessage.content,
+              input_scenario: {
+                simulationId:   selectedSimulation?.id,
+                simulationName: selectedSimulation?.name,
+                simulationType: selectedSimulation?.simulation_type,
+              },
+              model_used:  data?.metadata?.model ?? data?.metadata?.source ?? null,
+              output_text: content,
+              output_llm:  data?.metadata?.source ?? null,
+            });
+            if (error) console.warn("[Advisory] chat_history insert failed:", error.message);
+            else        console.log("[Advisory] chat saved to chat_history ✓");
+          }
+        }
+      } catch (saveErr) {
+        console.warn("[Advisory] Could not save chat to DB:", saveErr);
       }
     } catch (err) {
-      setChatError(
-        "Error generating what-if: " +
-          (err instanceof Error ? err.message : "Unknown error"),
-      );
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to get advisory response from backend.";
+
+      setChatError(message);
+
+      const assistantMessage: ChatMessage = {
+        id: `${Date.now()}-assistant-error`,
+        role: "assistant",
+        content:
+          "I could not fetch the advisory answer right now. Please confirm the Advisory API is running and try again.",
+        timestamp: new Date(),
+      };
+
+      const finalMessages = [...draftMessages, assistantMessage];
+
+      setChatMessages(finalMessages);
+
+      if (chatStorageKey && selectedSimulation) {
+        saveChatSession(chatStorageKey, activeChatId, selectedSimulation, finalMessages);
+      }
     } finally {
-      setLlmGenerating(false);
+      setAsking(false);
     }
   };
 
-  const suggestedQuestions = [
-    "What's the optimal temperature setpoint for current IT load?",
-    "How much can I save by increasing temperature by 2°C?",
-    "What's the impact of reducing humidity to 40%?",
-    "Compare air-side vs water-side cooling efficiency",
-    "How does evaporative cooling perform in this climate?",
-    "What's the risk of equipment failure at current conditions?",
-  ];
+  const { isDark } = useThemeStore();
+
+  // ── theme helpers ──────────────────────────────────────────────────────────
+  const bg      = isDark ? "bg-[#0a0e27]" : "bg-gradient-to-br from-slate-50 via-white to-slate-50";
+  const card    = isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-white border-slate-200";
+  const cardSub = isDark ? "bg-[#27304a] border-[#3f4a68]" : "bg-slate-50 border-slate-200";
+  const text    = isDark ? "text-white" : "text-slate-950";
+  const muted   = isDark ? "text-gray-400" : "text-slate-500";
+  const label   = isDark ? "text-gray-300" : "text-slate-600";
+  const inp     = isDark
+    ? "bg-[#27304a] border-[#3f4a68] text-white placeholder-gray-500 focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20"
+    : "bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-sky-400 focus:ring-sky-100";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className={`min-h-screen transition-colors duration-300 ${bg}`}>
       <Sidebar />
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-cyan-500 bg-clip-text text-transparent mb-2">
-            AI-Powered Performance Advisory
-          </h1>
-          <p className="text-gray-600">
-            Get intelligent recommendations and what-if analysis for your data
-            center cooling
-          </p>
-        </div>
 
-        {/* Quick Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <div className="flex items-center gap-3">
-              <Zap className="text-yellow-500" size={24} />
-              <div>
-                <p className="text-sm text-gray-500">Current PUE</p>
-                <p className="text-2xl font-bold">
-                  {(1.2 + (tempC - 24) * 0.02).toFixed(2)}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <div className="flex items-center gap-3">
-              <TrendingDown className="text-green-500" size={24} />
-              <div>
-                <p className="text-sm text-gray-500">Potential Savings</p>
-                <p className="text-2xl font-bold">Up to 25%</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="text-orange-500" size={24} />
-              <div>
-                <p className="text-sm text-gray-500">Risk Level</p>
-                <p className="text-2xl font-bold">
-                  {tempC > 28 ? "High" : tempC > 26 ? "Medium" : "Low"}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
-            <div className="flex items-center gap-3">
-              <Sparkles className="text-purple-500" size={24} />
-              <div>
-                <p className="text-sm text-gray-500">AI Insights</p>
-                <p className="text-2xl font-bold">{suggestions.length}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+      <main className="lg:ml-56 p-4 lg:p-8 space-y-6">
 
-        {/* Scenario Parameters Card */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <div className="flex items-center gap-3 mb-6">
-            <Sliders className="text-blue-500" size={24} />
-            <h2 className="text-2xl font-bold text-gray-800">
-              Current Scenario
-            </h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Airflow (%)
-              </label>
-              <input
-                type="number"
-                value={airflowPercent}
-                onChange={(e) =>
-                  setAirflowPercent(
-                    clampValue(parseFloat(e.target.value) || 0, 0, 200),
-                  )
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                step="5"
-                min={0}
-                max={200}
-              />
+        {/* ── Header ── */}
+        <header className={`rounded-2xl border p-6 lg:p-8 bg-gradient-to-r ${isDark ? "from-[#0a1628] to-[#1a1f3a] border-[#3f4a68]" : "from-sky-50 to-blue-50 border-sky-200"}`}>
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+            <div className="max-w-2xl">
+              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold mb-3 ${
+                isDark ? "border-[#5ce1e5]/30 bg-[#5ce1e5]/10 text-[#5ce1e5]" : "border-sky-300 bg-sky-100 text-sky-700"
+              }`}>
+                <Sparkles className="h-3.5 w-3.5" />
+                AI Advisory Workspace
+              </div>
+              <h1 className={`text-3xl lg:text-4xl font-black tracking-tight ${isDark ? "text-white" : "text-sky-950"}`}>
+                Chat with your simulation data
+              </h1>
+              <p className={`mt-2 text-base ${isDark ? "text-gray-300" : "text-sky-700"}`}>
+                Select a simulation, ask questions in plain language, and get AI-powered insights.
+              </p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Temperature (°C)
-              </label>
-              <input
-                type="number"
-                value={tempC}
-                onChange={(e) =>
-                  setTempC(clampValue(parseFloat(e.target.value) || 0, 0, 50))
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                step="0.5"
-                min={0}
-                max={50}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Humidity (%)
-              </label>
-              <input
-                type="number"
-                value={rh}
-                onChange={(e) =>
-                  setRh(clampValue(parseFloat(e.target.value) || 0, 0, 100))
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                step="5"
-                min={0}
-                max={100}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                IT Load (kW)
-              </label>
-              <input
-                type="number"
-                value={itLoadKW}
-                onChange={(e) =>
-                  setItLoadKW(
-                    clampValue(parseFloat(e.target.value) || 0, 0, 5000),
-                  )
-                }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                step="50"
-                min={0}
-                max={5000}
-              />
-            </div>
-          </div>
-        </div>
 
-        {/* AI Suggestions Banner */}
-        {suggestions.length > 0 && (
-          <div className="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-2xl p-6 mb-8 border border-blue-100">
-            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-              <Sparkles size={20} className="text-blue-600" />
-              AI-Powered Suggestions
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {suggestions.slice(0, 4).map((suggestion, idx) => (
-                <div key={idx} className="bg-white rounded-lg p-3 shadow-sm">
-                  <p className="font-semibold text-gray-800">
-                    {suggestion.title}
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {suggestion.description}
-                  </p>
-                  <p className="text-xs text-blue-600 mt-2">
-                    → {suggestion.action}
-                  </p>
+            {/* Stats strip */}
+            <div className="flex gap-4 shrink-0">
+              {[
+                { label: "Simulations", value: simulations.length, color: isDark ? "text-[#5ce1e5]" : "text-sky-600" },
+                { label: "Saved Chats", value: chatThreads.length, color: isDark ? "text-purple-400" : "text-purple-600" },
+              ].map(({ label: l, value, color }) => (
+                <div key={l} className={`rounded-2xl border px-5 py-4 min-w-[110px] ${isDark ? "bg-[#27304a] border-[#3f4a68]" : "bg-white border-sky-200 shadow-sm"}`}>
+                  <p className={`text-xs ${muted}`}>{l}</p>
+                  <p className={`text-3xl font-black mt-1 ${color}`}>{value}</p>
                 </div>
               ))}
             </div>
           </div>
-        )}
+        </header>
 
-        {/* What-If Generator */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <Bot className="text-purple-500" size={24} />
-              <h2 className="text-2xl font-bold text-gray-800">
-                What-If Scenario Generator
-              </h2>
-            </div>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={streamingMode}
-                  onChange={(e) => setStreamingMode(e.target.checked)}
-                  className="rounded"
-                />
-                <span className="text-sm text-gray-600">Streaming Mode</span>
-              </label>
-              <select
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                disabled={chatLoading}
-              >
-                <option value="rf">📊 Random Forest</option>
-                <option value="llm">🤖 AI Analysis</option>
-                <option value="sd">🎨 Visual Analysis</option>
-                <option value="all">✨ All Models</option>
-              </select>
-            </div>
-          </div>
+        {/* ── Main layout ── */}
+        <div className="grid grid-cols-1 xl:grid-cols-[320px_minmax(0,1fr)] gap-6">
 
-          <form onSubmit={handleChatSubmit} className="flex gap-3 mb-6">
-            <input
-              type="text"
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Ask a what-if question (e.g., What if I increase IT load by 20%?)"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              disabled={chatLoading}
-            />
-            <button
-              type="submit"
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-500 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-              disabled={chatLoading || !chatInput.trim()}
-            >
-              {chatLoading ? (
-                <Loader className="animate-spin" size={20} />
+          {/* ── Left panel ── */}
+          <aside className="space-y-4">
+
+            {/* Simulation picker */}
+            <div className={`rounded-2xl border p-5 ${isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-gray-50 border-gray-200 shadow-sm"}`}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? "bg-[#5ce1e5]/20 text-[#5ce1e5]" : "bg-slate-900 text-white"}`}>
+                  <PanelTop className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className={`font-bold ${text}`}>Pick a simulation</h2>
+                  <p className={`text-xs ${muted}`}>Your saved simulations</p>
+                </div>
+              </div>
+
+              {loadingSims ? (
+                <div className={`rounded-xl border px-4 py-3 text-sm ${cardSub} ${muted}`}>Loading…</div>
+              ) : simError ? (
+                <div className={`rounded-xl border px-4 py-3 text-sm ${isDark ? "bg-red-900/20 border-red-700/30 text-red-400" : "bg-rose-50 border-rose-200 text-rose-700"}`}>{simError}</div>
+              ) : simulations.length === 0 ? (
+                <div className={`rounded-xl border px-4 py-3 text-sm ${cardSub} ${muted}`}>No simulations found.</div>
               ) : (
-                <Send size={20} />
-              )}
-            </button>
-            <button
-              type="button"
-              className="px-6 py-3 border-2 border-blue-500 text-blue-600 rounded-xl font-semibold hover:bg-blue-50 transition-all"
-              disabled={llmGenerating || chatLoading}
-              onClick={handleOpenSimulationModal}
-            >
-              <Sparkles size={20} />
-            </button>
-          </form>
-
-          {chatError && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-              {chatError}
-            </div>
-          )}
-
-          {/* Suggested Questions */}
-          {chatHistory.length === 0 && (
-            <div className="mb-6">
-              <p className="text-sm text-gray-600 mb-2">Try asking:</p>
-              <div className="flex flex-wrap gap-2">
-                {suggestedQuestions.map((q, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => setChatInput(q)}
-                    className="text-sm px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
+                <div className="relative">
+                  <select
+                    value={selectedSimulationId ?? ""}
+                    onChange={(e) => setSelectedSimulationId(Number(e.target.value))}
+                    className={`w-full appearance-none rounded-xl border px-4 py-3 pr-10 text-sm font-medium outline-none transition ${inp}`}
                   >
-                    {q}
+                    {simulations.map((sim) => (
+                      <option key={sim.id} value={sim.id}>
+                        {sim.name || `Simulation #${sim.id}`} · {formatTechniqueLabel(sim.coolingTechnique || sim.simulation_type)}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${muted}`} />
+                </div>
+              )}
+
+              {selectedSimulation && (
+                <div className={`mt-4 rounded-xl border p-4 ${cardSub}`}>
+                  <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${muted}`}>Active context</p>
+                  <p className={`font-bold text-sm ${text}`}>{selectedSimulation.name || `Simulation #${selectedSimulation.id}`}</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {[
+                      formatTechniqueLabel(selectedSimulation.coolingTechnique || selectedSimulation.simulation_type),
+                      selectedSimulation.status,
+                    ].map((tag) => (
+                      <span key={tag} className={`text-xs px-2.5 py-1 rounded-full capitalize ${isDark ? "bg-[#1a1f3a] text-gray-300" : "bg-white text-slate-600 shadow-sm"}`}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Chat threads */}
+            <div className={`rounded-2xl border p-5 ${isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-gray-50 border-gray-200 shadow-sm"}`}>
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className={`font-semibold text-sm ${text}`}>Saved Chats</p>
+                  <p className={`text-xs ${muted}`}>Continue or start new</p>
+                </div>
+                <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${isDark ? "bg-[#27304a] text-gray-300" : "bg-slate-100 text-slate-600"}`}>{chatThreads.length}</span>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleStartNewChat}
+                disabled={!selectedSimulationId}
+                className={`w-full flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition mb-3
+                  ${isDark
+                    ? "border-[#5ce1e5]/40 bg-gradient-to-r from-[#5ce1e5]/20 to-[#0ea5e9]/20 text-[#5ce1e5] hover:from-[#5ce1e5]/30 hover:to-[#0ea5e9]/30 disabled:opacity-40"
+                    : "border-sky-300 bg-gradient-to-r from-sky-500 to-blue-500 text-white hover:from-sky-600 hover:to-blue-600 disabled:opacity-40"}`}
+              >
+                <PlusCircle className="h-4 w-4" />
+                New Chat
+              </button>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {chatThreads.length === 0 ? (
+                  <p className={`text-sm ${muted}`}>No chats yet.</p>
+                ) : chatThreads.map((thread) => (
+                  <button
+                    key={thread.chatId}
+                    type="button"
+                    onClick={() => { setSelectedSimulationId(thread.simulationId); setSelectedChatId(thread.chatId); }}
+                    className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                      thread.chatId === selectedChatId
+                        ? isDark ? "border-[#5ce1e5]/40 bg-[#5ce1e5]/10" : "border-sky-300 bg-sky-50"
+                        : isDark ? "border-[#3f4a68] bg-[#27304a] hover:border-[#5ce1e5]/30" : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={`text-sm font-semibold truncate ${text}`}>{thread.chatTitle || "New Chat"}</p>
+                      <span className={`text-xs shrink-0 ${muted}`}>{thread.messageCount} msgs</span>
+                    </div>
+                    <p className={`text-xs mt-0.5 truncate ${muted}`}>{thread.simulationName}</p>
+                    <p className={`text-xs mt-0.5 ${isDark ? "text-gray-600" : "text-slate-400"}`}>
+                      {new Date(thread.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                      {" · "}
+                      {new Date(thread.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                    </p>
                   </button>
                 ))}
               </div>
             </div>
-          )}
+          </aside>
 
-          {/* Chat History */}
-          <div
-            ref={chatContainerRef}
-            className="space-y-4 max-h-[500px] overflow-y-auto"
-          >
-            {chatHistory.map((item) => (
-              <div
-                key={item.id}
-                className="p-4 rounded-xl bg-gray-50 border border-gray-100"
-              >
-                <div className="font-semibold text-gray-800 mb-2 flex items-start justify-between">
-                  <span>You: {item.question}</span>
-                  <span className="text-xs text-gray-400">
-                    {item.timestamp.toLocaleTimeString()}
-                  </span>
+          {/* ── Right panel ── */}
+          <section className="space-y-4 flex flex-col">
+
+            {/* Ask form */}
+            <div className={`rounded-2xl border p-5 lg:p-6 ${card}`}>
+              <div className="flex items-center gap-3 mb-5">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? "bg-[#5ce1e5]/20 text-[#5ce1e5]" : "bg-sky-100 text-sky-700"}`}>
+                  <MessageCircle className="h-5 w-5" />
                 </div>
-                {item.loading ? (
-                  <div className="flex items-center gap-2 text-blue-600">
-                    <Loader className="animate-spin" size={16} />
-                    <span>Analyzing your question...</span>
-                  </div>
-                ) : (
-                  <>
-                    {item.rf_result && (
-                      <div className="mb-3 p-3 bg-green-50 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Database size={16} className="text-green-600" />
-                          <strong className="text-green-800">
-                            RF Prediction Summary
-                          </strong>
-                        </div>
-                        {(() => {
-                          const rf = getRfSummary(item.rf_result);
-                          if (!rf) {
-                            return null;
-                          }
-
-                          return (
-                            <div className="space-y-3 text-sm text-gray-700">
-                              <p>
-                                The model estimates predicted power at{" "}
-                                {rf.predictedPower} kW with efficiency around{" "}
-                                {rf.efficiency}% and hourly cost around{" "}
-                                {rf.costPerHour}.
-                              </p>
-                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                                <div className="rounded-lg bg-white p-2 border border-green-100">
-                                  <div className="text-gray-500">PUE</div>
-                                  <div className="font-semibold text-gray-800">
-                                    {rf.pue}
-                                  </div>
-                                </div>
-                                <div className="rounded-lg bg-white p-2 border border-green-100">
-                                  <div className="text-gray-500">
-                                    Total Power
-                                  </div>
-                                  <div className="font-semibold text-gray-800">
-                                    {rf.totalPower} kW
-                                  </div>
-                                </div>
-                                <div className="rounded-lg bg-white p-2 border border-green-100">
-                                  <div className="text-gray-500">
-                                    Hourly Cost
-                                  </div>
-                                  <div className="font-semibold text-gray-800">
-                                    {rf.hourlyCost}
-                                  </div>
-                                </div>
-                                <div className="rounded-lg bg-white p-2 border border-green-100">
-                                  <div className="text-gray-500">
-                                    Water Usage
-                                  </div>
-                                  <div className="font-semibold text-gray-800">
-                                    {rf.waterUsage} L/hour
-                                  </div>
-                                </div>
-                              </div>
-                              <p>
-                                Cooling efficiency is about{" "}
-                                {rf.coolingEfficiency}% and water use intensity
-                                is {rf.wue} L/kWh.
-                              </p>
-                              {rf.recommendations.length > 0 ? (
-                                <div>
-                                  <div className="font-medium text-gray-800 mb-1">
-                                    Recommended actions
-                                  </div>
-                                  <p>{rf.recommendations.join(" ")}</p>
-                                </div>
-                              ) : (
-                                <p>
-                                  No specific recommendations were returned by
-                                  the model, so the result should be treated as
-                                  a baseline operating estimate.
-                                </p>
-                              )}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    )}
-                    {item.llm_answer && (
-                      <div className="mb-3 p-3 bg-blue-50 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Bot size={16} className="text-blue-600" />
-                          <strong className="text-blue-800">AI Analysis</strong>
-                        </div>
-                        <div className="space-y-4 text-gray-700">
-                          {getAdvisorySections(item.llm_answer).map(
-                            (section) => (
-                              <div key={section.title} className="space-y-2">
-                                <div className="text-sm font-semibold text-gray-900">
-                                  {section.title}
-                                </div>
-                                <ul className="space-y-2 text-sm leading-relaxed list-disc pl-5">
-                                  {section.items.map((itemText, idx) => (
-                                    <li key={`${section.title}-${idx}`}>
-                                      {itemText}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                            ),
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    {item.imageUrl && (
-                      <img
-                        src={item.imageUrl}
-                        alt="Generated visualization"
-                        className="mt-2 rounded-lg max-w-full"
-                      />
-                    )}
-                    {item.metadata && (
-                      <div className="text-xs text-gray-400 mt-2">
-                        Models used: {item.metadata.models_used?.join(", ")}
-                      </div>
-                    )}
-                  </>
-                )}
+                <div>
+                  <h2 className={`font-bold ${text}`}>Ask the Advisory AI</h2>
+                  <p className={`text-xs ${muted}`}>Questions are answered based on your simulation data</p>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Simulation Modal */}
-        <Modal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          title="Select a Simulation"
-          actions={
-            <>
-              <button
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                disabled={!selectedSimId || llmGenerating}
-                onClick={handleGenerateFromSimulation}
-              >
-                {llmGenerating ? "Generating..." : "Generate What-If"}
-              </button>
-              <button
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-                onClick={() => setModalOpen(false)}
-              >
-                Cancel
-              </button>
-            </>
-          }
-        >
-          {simDropdownLoading ? (
-            <div className="text-center py-4">Loading simulations...</div>
-          ) : simulations.length === 0 ? (
-            <div className="text-center py-4 text-gray-500">
-              No simulations found
+              {/* Context pills */}
+              {selectedSimulation && (
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  {[
+                    { label: "Name", value: selectedSimulation.name || `#${selectedSimulation.id}` },
+                    { label: "Technique", value: formatTechniqueLabel(selectedSimulation.coolingTechnique || selectedSimulation.simulation_type) },
+                    { label: "Created", value: new Date(selectedSimulation.created_at).toLocaleDateString() },
+                  ].map(({ label: l, value }) => (
+                    <div key={l} className={`rounded-xl border p-3 ${cardSub}`}>
+                      <p className={`text-xs ${muted}`}>{l}</p>
+                      <p className={`text-sm font-semibold mt-0.5 truncate ${text}`}>{value}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <form onSubmit={handleAsk} className="flex flex-col gap-3 sm:flex-row">
+                <input
+                  type="text"
+                  className={`flex-1 rounded-xl border px-4 py-3 text-sm outline-none transition focus:ring-2 ${inp}`}
+                  placeholder={selectedSimulation ? "Ask anything about this simulation…" : "Select a simulation first…"}
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  disabled={!selectedSimulation || asking}
+                />
+                <button
+                  type="submit"
+                  disabled={!selectedSimulation || !question.trim() || asking}
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 font-semibold text-sm transition hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
+                    bg-gradient-to-r from-sky-500 to-blue-600 text-white hover:from-sky-600 hover:to-blue-700 shadow-lg shadow-sky-500/20`}
+                >
+                  {asking ? (
+                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Thinking…</>
+                  ) : (
+                    <><Zap className="h-4 w-4" />Ask</>
+                  )}
+                </button>
+              </form>
+
+              {chatError && (
+                <div className={`mt-3 rounded-xl border px-4 py-3 text-sm ${isDark ? "bg-red-900/20 border-red-700/30 text-red-400" : "bg-rose-50 border-rose-200 text-rose-700"}`}>
+                  {chatError}
+                </div>
+              )}
             </div>
-          ) : (
-            <div>
-              <label className="block mb-2 font-semibold">
-                Choose a simulation:
-              </label>
-              <select
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                value={selectedSimId || ""}
-                onChange={(e) => setSelectedSimId(e.target.value)}
-              >
-                <option value="" disabled>
-                  Select simulation...
-                </option>
-                {simulations.map((sim) => (
-                  <option key={sim.id} value={sim.id}>
-                    {sim.name || `Simulation #${sim.id}`} (
-                    {new Date(sim.createdAt).toLocaleDateString()})
-                  </option>
+
+            {/* Conversation */}
+            <div className={`rounded-2xl border p-5 lg:p-6 flex-1 ${card}`}>
+              <h2 className={`font-bold mb-4 ${text}`}>Conversation</h2>
+              <div className="space-y-3 max-h-[32rem] overflow-y-auto pr-1">
+                {chatMessages.length === 0 ? (
+                  <div className={`rounded-xl border border-dashed p-6 text-sm text-center ${isDark ? "border-[#3f4a68] text-gray-500" : "border-slate-200 text-slate-400"}`}>
+                    Select a simulation and ask your first question to start.
+                  </div>
+                ) : chatMessages.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`rounded-xl border px-4 py-4 text-sm ${
+                      msg.role === "user"
+                        ? isDark ? "border-[#5ce1e5]/30 bg-[#5ce1e5]/10" : "border-sky-200 bg-sky-50"
+                        : isDark ? "border-[#3f4a68] bg-[#27304a]" : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                        msg.role === "user"
+                          ? isDark ? "bg-[#5ce1e5]/20 text-[#5ce1e5]" : "bg-sky-100 text-sky-700"
+                          : isDark ? "bg-[#3f4a68] text-gray-300" : "bg-slate-100 text-slate-600"
+                      }`}>
+                        {msg.role === "user" ? <UserIcon className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
+                      </div>
+                      <p className={`font-semibold text-xs ${text}`}>{msg.role === "user" ? "You" : "Advisory AI"}</p>
+                      <span className={`text-xs ml-auto ${muted}`}>{msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                    </div>
+                    <p className={`whitespace-pre-wrap leading-relaxed ${label}`}>{msg.content}</p>
+                    {msg.role === "assistant" && msg.metadata && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {[
+                          `source: ${msg.metadata.source || "unknown"}`,
+                          `model: ${msg.metadata.model || "—"}`,
+                        ].map((tag) => (
+                          <span key={tag} className={`text-xs px-2.5 py-1 rounded-full ${isDark ? "bg-[#1a1f3a] text-gray-400" : "bg-slate-100 text-slate-500"}`}>{tag}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
-              </select>
+              </div>
             </div>
-          )}
-        </Modal>
+          </section>
+        </div>
       </main>
     </div>
   );
+
 };
 
 export default Advisory;

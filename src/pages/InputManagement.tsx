@@ -1,4 +1,4 @@
-// InputManagement.tsx - COMPLETE FIXED VERSION
+﻿// InputManagement.tsx - COMPLETE FIXED VERSION
 import React, {
   useState,
   useCallback,
@@ -42,7 +42,6 @@ import ChilledWaterCooling from "../components/simulation/ChilledWaterCooling";
 import EvaporativeCooling from "../components/simulation/EvaporativeCooling";
 import { SimulationProgressModal } from "../components/simulation/SimulationProgressModal";
 import { useNavigate } from "react-router-dom";
-import DigitalTwin3D from "../components/digitaltwin/DigitalTwin3D";
 const steps = [
   { id: "welcome", label: "Welcome", icon: Sparkles },
   { id: "technique", label: "Cooling Technique", icon: Wind },
@@ -913,10 +912,11 @@ export const InputManagement: React.FC = () => {
     null,
   );
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [isSimulationRunning, setIsSimulationRunning] = useState(false);
-  const [simulationProgress, setSimulationProgress] = useState(0);
+  const [isSimulationRunning, setIsSimulationRunning] = useState(false); // eslint-disable-line @typescript-eslint/no-unused-vars
+  const [simulationProgress, setSimulationProgress] = useState(0); // eslint-disable-line @typescript-eslint/no-unused-vars
   const [currentConfig, setCurrentConfig] = useState<any>(null);
   const [locationData, setLocationData] = useState<any[]>([]);
+  const [step3Errors, setStep3Errors] = useState<string[]>([]);
 
   // ✅ FIX: Store serverId and countryId in parent state
   const [serverId, setServerId] = useState<string>("");
@@ -933,6 +933,72 @@ export const InputManagement: React.FC = () => {
     setSimulationStatus,
   } = useSimulationStore();
   const isDark = useThemeStore((state) => state.isDark);
+
+  // ── Step 3 validation ─────────────────────────────────────────────────────
+  const validateStep3 = (): string[] => {
+    const cfg = configRef.current;
+    const errors: string[] = [];
+
+    if (selectedTechnique === "air") {
+      if (!cfg?.serverId && !serverId)
+        errors.push(
+          "Server type is required — select a server from the Server Configuration section.",
+        );
+      if (!cfg?.countryId && !countryId)
+        errors.push(
+          "Country / electricity tariff is required — select a country in the Server Configuration section.",
+        );
+      if (
+        (!cfg?.numberOfRacks && cfg?.numberOfRacks !== 0) ||
+        cfg?.numberOfRacks < 1
+      )
+        errors.push("Number of racks must be at least 1.");
+      if (
+        (!cfg?.serversPerRack && cfg?.serversPerRack !== 0) ||
+        cfg?.serversPerRack < 1
+      )
+        errors.push("Servers per rack must be at least 1.");
+      if (!cfg?.airflowCFM || cfg?.airflowCFM <= 0)
+        errors.push("Airflow (CFM) must be greater than 0.");
+      if (!cfg?.supplyAirTemp && cfg?.supplyAirTemp !== 0)
+        errors.push("Supply air temperature is required.");
+      if (!cfg?.returnAirTemp && cfg?.returnAirTemp !== 0)
+        errors.push("Return air temperature is required.");
+    }
+
+    if (selectedTechnique === "water") {
+      const wCfg = cfg?.chilledWaterConfig || cfg;
+      if (!wCfg?.weatherData || wCfg.weatherData.length === 0)
+        errors.push(
+          "Weather data is required — select a location in the Weather Data section.",
+        );
+      if (!wCfg?.numberOfRacks || wCfg.numberOfRacks < 1)
+        errors.push("Number of racks must be at least 1.");
+      if (!wCfg?.serversPerRack || wCfg.serversPerRack < 1)
+        errors.push("Servers per rack must be at least 1.");
+      if (!wCfg?.serverMaxPowerW || wCfg.serverMaxPowerW <= 0)
+        errors.push("Server max power (W) must be greater than 0.");
+      if (!wCfg?.chillerType) errors.push("Chiller type is required.");
+      if (!wCfg?.baseElectricityRate || wCfg.baseElectricityRate <= 0)
+        errors.push("Base electricity rate must be greater than 0.");
+    }
+
+    if (selectedTechnique === "evaporative") {
+      const eCfg = cfg?.evaporativeConfig || cfg;
+      if (!eCfg?.weatherData || eCfg.weatherData.length === 0)
+        errors.push(
+          "Weather data is required — select a location in the Weather Data section.",
+        );
+      if (!eCfg?.totalServers || eCfg.totalServers < 1)
+        errors.push("Total servers must be at least 1.");
+      if (!eCfg?.electricityRate || eCfg.electricityRate <= 0)
+        errors.push("Electricity rate must be greater than 0.");
+      if (!eCfg?.saturationEffectiveness || eCfg.saturationEffectiveness <= 0)
+        errors.push("Saturation effectiveness must be greater than 0.");
+    }
+
+    return errors;
+  };
 
   // Handle step transitions
   const handleStepChange = (newStep: number) => {
@@ -984,17 +1050,7 @@ export const InputManagement: React.FC = () => {
 
   // Enhanced simulation run with loader
   const handleSubmit = async () => {
-    // 🔍 DEBUG: Log weatherData at submission time
-    console.log("🔍 [SUBMIT] handleSubmit called");
-    console.log("🔍 [SUBMIT] configRef.current:", configRef.current);
-    console.log(
-      "🔍 [SUBMIT] Has weatherData in configRef?",
-      !!configRef.current?.weatherData,
-    );
-    console.log(
-      "🔍 [SUBMIT] WeatherData length:",
-      configRef.current?.weatherData?.length || 0,
-    );
+    // Validation is handled at step 3 Continue — no alert needed here
 
     // Capture config before submitting
     if (configRef.current) {
@@ -1006,20 +1062,18 @@ export const InputManagement: React.FC = () => {
         ...config,
         serverId: config.serverId || serverId,
         countryId: config.countryId || countryId,
-        coolingTechnique: selectedTechnique || "air", // ← Add cooling technique to config
+        coolingTechnique: selectedTechnique || "Air Side Economization",
       };
 
-      console.log(
-        "🔍 [SUBMIT] completeConfig has weatherData?",
-        !!completeConfig.weatherData,
-      );
-      console.log(
-        "🔍 [SUBMIT] completeConfig weatherData length:",
-        completeConfig.weatherData?.length || 0,
-      );
-
       updateSimulationInput({
-        coolingTechnique: selectedTechnique || "air",
+        coolingTechnique:
+          selectedTechnique === "air"
+            ? "Air Side Economization"
+            : selectedTechnique === "water"
+              ? "Chilled Water Cooling"
+              : selectedTechnique === "evaporative"
+                ? "Evaporative Cooling"
+                : "Air Side Economization",
         airSideConfig: selectedTechnique === "air" ? completeConfig : undefined,
         evaporativeConfig:
           selectedTechnique === "evaporative" ? completeConfig : undefined,
@@ -1058,19 +1112,19 @@ export const InputManagement: React.FC = () => {
           simulationInput = {
             ...configRef.current,
             evaporativeConfig: configRef.current,
-            coolingTechnique: "evaporative",
+            coolingTechnique: "Evaporative Cooling",
           };
         } else if (selectedTechnique === "air") {
           simulationInput = {
             ...configRef.current,
             airSideConfig: configRef.current,
-            coolingTechnique: "air",
+            coolingTechnique: "Air Side Economization",
           };
         } else if (selectedTechnique === "water") {
           simulationInput = {
             ...configRef.current,
             chilledWaterConfig: configRef.current,
-            coolingTechnique: "water",
+            coolingTechnique: "Chilled Water Cooling",
           };
         } else {
           simulationInput = configRef.current;
@@ -1129,7 +1183,7 @@ export const InputManagement: React.FC = () => {
       }
 
       // Debounce state update to prevent excessive re-renders
-      setCurrentConfig((prev) => {
+      setCurrentConfig((prev: any) => {
         if (JSON.stringify(prev) === JSON.stringify(config)) return prev;
         return config;
       });
@@ -1322,7 +1376,7 @@ export const InputManagement: React.FC = () => {
         </div>
 
         {/* Get Started Button */}
-        <div className="text-center pt-8">
+        <div className="text-center pt-1">
           <button
             onClick={() => handleStepChange(1)}
             className={`group relative px-8 py-4 rounded-2xl font-bold transition-all duration-300 transform hover:scale-105 overflow-hidden ${
@@ -1364,14 +1418,14 @@ export const InputManagement: React.FC = () => {
       >
         <div className="text-center space-y-4 mb-12">
           <h2
-            className={`text-4xl font-bold ${
+            className={`text-3xl lg:text-4xl font-bold ${
               isDark ? "text-white" : "text-gray-900"
             }`}
           >
             Select Your Cooling Strategy
           </h2>
           <p
-            className={`text-lg max-w-2xl mx-auto ${
+            className={`text-base max-w-2xl mx-auto ${
               isDark ? "text-gray-400" : "text-gray-600"
             }`}
           >
@@ -1380,14 +1434,14 @@ export const InputManagement: React.FC = () => {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {coolingTechniques.map((technique) => {
             const TechIcon = technique.icon;
             return (
               <button
                 key={technique.id}
                 onClick={() => handleTechniqueSelect(technique.id)}
-                className={`group relative rounded-2xl p-8 text-left transition-all duration-300 transform hover:scale-105 ${
+                className={`group relative rounded-2xl p-6 text-left transition-all duration-300 transform hover:scale-105 ${
                   selectedTechnique === technique.id
                     ? isDark
                       ? "ring-2 ring-opacity-50 bg-gradient-to-br from-[#1a1f3a] to-[#27304a]"
@@ -1419,12 +1473,12 @@ export const InputManagement: React.FC = () => {
                   {/* Icon and Header */}
                   <div className="flex items-start justify-between">
                     <div
-                      className={`p-4 rounded-2xl ${
+                      className={`p-3 rounded-xl ${
                         isDark ? "bg-black/30" : "bg-white/50"
                       }`}
                     >
                       <TechIcon
-                        className="w-8 h-8"
+                        className="w-7 h-7"
                         style={{ color: technique.color }}
                       />
                     </div>
@@ -1439,14 +1493,14 @@ export const InputManagement: React.FC = () => {
                   {/* Content */}
                   <div className="space-y-3">
                     <h3
-                      className={`text-2xl font-bold ${
+                      className={`text-xl font-bold ${
                         isDark ? "text-white" : "text-gray-900"
                       }`}
                     >
                       {technique.name}
                     </h3>
                     <p
-                      className={`leading-relaxed ${
+                      className={`text-sm leading-relaxed ${
                         isDark ? "text-gray-400" : "text-gray-600"
                       }`}
                     >
@@ -1816,8 +1870,8 @@ export const InputManagement: React.FC = () => {
                     {
                       label: "Total Servers",
                       value:
-                        currentConfig?.totalServers ||
-                        currentInput?.totalServers ||
+                        (currentConfig as any)?.totalServers ||
+                        (currentInput as any)?.totalServers ||
                         50,
                       icon: Cpu,
                       description: "Total number of servers",
@@ -2137,9 +2191,6 @@ export const InputManagement: React.FC = () => {
     ],
   );
 
-  // --- 3D Visualization Modal State ---
-  const [show3DModal, setShow3DModal] = useState(false);
-
   return (
     <div
       className={`min-h-screen transition-colors duration-500 ${
@@ -2166,7 +2217,7 @@ export const InputManagement: React.FC = () => {
         />
       </div>
 
-      <main className="lg:ml-64">
+      <main className="lg:ml-56">
         <div className="relative">
           {/* Header with Progress Steps */}
           <div
@@ -2299,37 +2350,6 @@ export const InputManagement: React.FC = () => {
                 {currentStep === 3 && (
                   <>
                     <Step3ReviewSubmit />
-                    <div className="flex justify-center mt-8">
-                      <button
-                        className="px-8 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white shadow-lg"
-                        onClick={() => setShow3DModal(true)}
-                        type="button"
-                      >
-                        Visualize Configuration (3D)
-                      </button>
-                    </div>
-                    {show3DModal && (
-                      <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "#050810" }}>
-                        {/* Modal header */}
-                        <div className={`flex items-center justify-between px-6 py-3 border-b ${isDark ? "border-[#3f4a68] bg-[#0a0e27]" : "border-gray-700 bg-[#0a0e27]"}`}>
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 rounded-full bg-[#5ce1e5] animate-pulse" />
-                            <span className="text-white font-bold tracking-wide">Digital Twin — 3D Visualization</span>
-                            <span className="text-xs text-gray-400 ml-2">360° interactive view · click any component for details</span>
-                          </div>
-                          <button
-                            onClick={() => setShow3DModal(false)}
-                            className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-[#27304a] transition-all"
-                          >
-                            ✕ Close
-                          </button>
-                        </div>
-                        {/* Full-screen canvas */}
-                        <div className="flex-1 overflow-hidden">
-                          <DigitalTwin3D config={currentConfig} isDark={true} />
-                        </div>
-                      </div>
-                    )}
                   </>
                 )}
               </div>
@@ -2346,6 +2366,30 @@ export const InputManagement: React.FC = () => {
               }`}
             >
               <div className="max-w-6xl mx-auto px-6 py-6">
+                {/* Validation errors — shown at step 3 */}
+                {currentStep === 3 && step3Errors.length > 0 && (
+                  <div
+                    className={`mb-4 p-4 rounded-xl border ${isDark ? "bg-red-900/20 border-red-700/40" : "bg-red-50 border-red-200"}`}
+                  >
+                    <p
+                      className={`text-sm font-semibold mb-2 ${isDark ? "text-red-400" : "text-red-700"}`}
+                    >
+                      Please fix the following before continuing:
+                    </p>
+                    <ul className="space-y-1">
+                      {step3Errors.map((err, i) => (
+                        <li
+                          key={i}
+                          className={`text-sm flex items-start gap-2 ${isDark ? "text-red-300" : "text-red-600"}`}
+                        >
+                          <span className="shrink-0 mt-0.5">⚠</span>
+                          <span>{err}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="flex justify-between">
                   <button
                     onClick={() => handleStepChange(currentStep - 1)}
@@ -2361,7 +2405,15 @@ export const InputManagement: React.FC = () => {
 
                   {currentStep < steps.length - 1 && (
                     <button
-                      onClick={() => handleStepChange(currentStep + 1)}
+                      onClick={() => {
+                        if (currentStep === 3) {
+                          const errors = validateStep3();
+                          setStep3Errors(errors);
+                          if (errors.length > 0) return;
+                        }
+                        setStep3Errors([]);
+                        handleStepChange(currentStep + 1);
+                      }}
                       className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
                         isDark
                           ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"

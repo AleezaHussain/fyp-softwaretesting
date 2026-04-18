@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+﻿import React, { useState, useEffect } from "react";
 import { Sidebar } from "../components/shared/Sidebar";
 import { useAuthStore, useSimulationStore } from "../store/store";
 import { useThemeStore } from "../hooks/useTheme";
@@ -15,6 +15,11 @@ import {
   BarChart3,
   Activity,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  Tag,
+  Server,
 } from "lucide-react";
 
 // Delete Button Component with Modal
@@ -34,7 +39,6 @@ const DeleteButtonWithModal: React.FC<DeleteButtonProps> = ({
     setIsDeleting(true);
     try {
       await useSimulationStore.getState().deleteSimulation(Number(sim.id));
-      // Dispatch event to update parent
       window.dispatchEvent(
         new CustomEvent("simulation-deleted", {
           detail: { id: sim.id },
@@ -61,7 +65,6 @@ const DeleteButtonWithModal: React.FC<DeleteButtonProps> = ({
         <Trash2 className="w-4 h-4" />
       </button>
 
-      {/* Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div
@@ -110,7 +113,7 @@ const DeleteButtonWithModal: React.FC<DeleteButtonProps> = ({
   );
 };
 
-// Simulation Card Component
+// Simulation Card Component (Grid View)
 interface SimulationCardProps {
   simulation: any;
   index: number;
@@ -132,37 +135,29 @@ const techniqueColor = (tech: string): string => {
   return "#8b5cf6";
 };
 
-// ── Extract common metrics that exist across ALL three techniques ─────────────
-// Air:     summary.averagePUE, summary.totalEnergy_kWh, summary.annualOpExUSD, summary.totalCarbonEmissions_kg
-// Chilled: results.metrics.pue, results.annual.energyConsumption_kWh, results.annual.cost_USD, results.annual.carbonEmissions_kg
-// Evap:    rawEvaporativeData.results.performance.pue_average, energy.electricity_kwh_total, cost.total_energy_cost_usd, emissions.co2_kg_total
 const extractCardMetrics = (sim: any) => {
-  const rd  = sim?.result?.result_data ?? {};
-  const s   = rd?.summary ?? {};
-  const annual  = rd?.results?.annual ?? {};
+  const rd = sim?.result?.result_data ?? {};
+  const s = rd?.summary ?? {};
+  const annual = rd?.results?.annual ?? {};
   const metrics = rd?.results?.metrics ?? {};
-  const econ    = rd?.results?.economics ?? {};
+  const econ = rd?.results?.economics ?? {};
 
   const name = techniqueDisplayName(sim.coolingTechnique || sim.simulation_type);
-  const isAir  = name.includes("Air");
+  const isAir = name.includes("Air");
   const isEvap = name.includes("Evaporative");
 
   if (isEvap) {
-    // Evaporative: read directly from rawEvaporativeData or top-level transformed fields
-    const evapRes  = rd?.rawEvaporativeData?.results ?? {};
+    const evapRes = rd?.rawEvaporativeData?.results ?? {};
     const evapPerf = evapRes?.performance ?? {};
     const evapAssess = rd?.coolingAdequacy ?? rd?.rawEvaporativeData?.cooling_assessment ?? {};
     const km = evapAssess?.keyMetrics ?? evapAssess?.key_metrics ?? {};
     return {
-      pue:         evapPerf.pue_average        ?? rd?.pue         ?? null,
+      pue: evapPerf.pue_average ?? rd?.pue ?? null,
       totalEnergy: evapRes.energy?.electricity_kwh_total ?? rd?.totalEnergyConsumption ?? null,
-      annualCost:  evapRes.cost?.total_energy_cost_usd   ?? rd?.estimatedCost          ?? null,
-      carbon:      evapRes.emissions?.co2_kg_total       ?? rd?.carbonFootprint         ?? null,
-      // Evap-specific extras shown instead of payback (evap has no payback)
-      pueMax:      evapPerf.pue_max            ?? rd?.pue_max     ?? null,
-      cue:         evapPerf.cue_average        ?? rd?.cue         ?? null,
-      maxInletTemp: km.max_inlet_temp_c        ?? null,
-      assessStatus: evapAssess?.status         ?? null,
+      annualCost: evapRes.cost?.total_energy_cost_usd ?? rd?.estimatedCost ?? null,
+      carbon: evapRes.emissions?.co2_kg_total ?? rd?.carbonFootprint ?? null,
+      pueMax: evapPerf.pue_max ?? rd?.pue_max ?? null,
+      maxInletTemp: km.max_inlet_temp_c ?? null,
       isAir: false,
       isEvap: true,
     };
@@ -170,23 +165,22 @@ const extractCardMetrics = (sim: any) => {
 
   if (isAir) {
     return {
-      pue:        s.averagePUE ?? rd.averagePUE ?? null,
+      pue: s.averagePUE ?? rd.averagePUE ?? null,
       totalEnergy: s.totalEnergy_kWh ?? s.totalEnergyKWh ?? null,
       annualCost: s.annualOpExUSD ?? s.estimatedOpExUSD ?? null,
-      carbon:     s.totalCarbonEmissions_kg ?? s.totalCarbonKg ?? null,
-      payback:    s.paybackPeriodYears ?? null,
+      carbon: s.totalCarbonEmissions_kg ?? s.totalCarbonKg ?? null,
+      payback: s.paybackPeriodYears ?? null,
       isAir: true,
       isEvap: false,
     };
   }
 
-  // Chilled water
   return {
-    pue:        metrics.pue ?? rd.pue ?? null,
+    pue: metrics.pue ?? rd.pue ?? null,
     totalEnergy: annual.energyConsumption_kWh ?? rd.totalEnergy_kWh ?? null,
     annualCost: annual.cost_USD ?? econ.opex_annual_USD ?? null,
-    carbon:     annual.carbonEmissions_kg ?? rd.totalCarbonEmissions_kg ?? null,
-    payback:    econ.paybackPeriod_years ?? rd.paybackPeriod_years ?? null,
+    carbon: annual.carbonEmissions_kg ?? rd.totalCarbonEmissions_kg ?? null,
+    payback: econ.paybackPeriod_years ?? rd.paybackPeriod_years ?? null,
     isAir: false,
     isEvap: false,
   };
@@ -200,12 +194,8 @@ const formatDate = (dateStr?: string) => {
     year: "numeric",
     month: "short",
     day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 };
-
-// Removed isAirSimulation — now using techniqueDisplayName for all techniques
 
 const SimulationCard: React.FC<SimulationCardProps> = ({
   simulation,
@@ -214,7 +204,6 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
   const navigate = useNavigate();
   const isDark = useThemeStore((state) => state.isDark);
 
-  // PDF download handler
   const handleDownload = () => {
     import("../utils/pdfExport").then(({ generateSimulationPDF }) => {
       const pdfData = {
@@ -223,36 +212,16 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
           name: simulation.name,
           description: simulation.description || "",
           simulation_type: simulation.coolingTechnique || "N/A",
-          created_at:
-            simulation.createdAt ||
-            simulation.timestamp ||
-            new Date().toISOString(),
+          created_at: simulation.createdAt || simulation.timestamp || new Date().toISOString(),
           status: simulation.status || "N/A",
         },
         result: {
-          energy_consumed_kwh:
-            simulation.totalEnergyConsumption ||
-            simulation.result?.energy_consumed_kwh ||
-            0,
-          cooling_efficiency:
-            simulation.cooling_efficiency ||
-            simulation.result?.cooling_efficiency ||
-            0,
-          cost_saving_percent:
-            simulation.cost_saving_percent ||
-            simulation.result?.cost_saving_percent ||
-            0,
-          runtime_minutes:
-            simulation.runtimeMinutes ||
-            simulation.result?.runtime_minutes ||
-            0,
-          completed_at:
-            simulation.completedAt || simulation.result?.completed_at || "",
-          result_data:
-            simulation.result_data ||
-            simulation.rawEvaporativeData ||
-            simulation.rawChilledWaterData ||
-            simulation,
+          energy_consumed_kwh: simulation.totalEnergyConsumption || simulation.result?.energy_consumed_kwh || 0,
+          cooling_efficiency: simulation.cooling_efficiency || simulation.result?.cooling_efficiency || 0,
+          cost_saving_percent: simulation.cost_saving_percent || simulation.result?.cost_saving_percent || 0,
+          runtime_minutes: simulation.runtimeMinutes || simulation.result?.runtime_minutes || 0,
+          completed_at: simulation.completedAt || simulation.result?.completed_at || "",
+          result_data: simulation.result_data || simulation.rawEvaporativeData || simulation.rawChilledWaterData || simulation,
         },
       };
       generateSimulationPDF(pdfData);
@@ -280,37 +249,25 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
       style={{ animationDelay: `${index * 50}ms` }}
     >
       <div className="flex items-center justify-between mb-4">
-        <h3
-          className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
-        >
+        <h3 className={`text-xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
           {simulation.name}
         </h3>
         <span
           className={`px-3 py-1 rounded-full text-xs font-medium ${
             simulation.status === "completed"
-              ? isDark
-                ? "bg-green-500/20 text-green-400"
-                : "bg-green-100 text-green-700"
+              ? isDark ? "bg-green-500/20 text-green-400" : "bg-green-100 text-green-700"
               : simulation.status === "running"
-                ? isDark
-                  ? "bg-blue-500/20 text-blue-400"
-                  : "bg-blue-100 text-blue-700"
+                ? isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-100 text-blue-700"
                 : simulation.status === "pending"
-                  ? isDark
-                    ? "bg-yellow-500/20 text-yellow-400"
-                    : "bg-yellow-100 text-yellow-700"
-                  : isDark
-                    ? "bg-gray-500/20 text-gray-400"
-                    : "bg-gray-100 text-gray-700"
+                  ? isDark ? "bg-yellow-500/20 text-yellow-400" : "bg-yellow-100 text-yellow-700"
+                  : isDark ? "bg-gray-500/20 text-gray-400" : "bg-gray-100 text-gray-700"
           }`}
         >
           {simulation.status || "N/A"}
         </span>
       </div>
 
-      <p
-        className={`text-sm mb-4 ${isDark ? "text-gray-400" : "text-gray-600"}`}
-      >
+      <p className={`text-sm mb-4 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
         {simulation.description || "No description provided"}
       </p>
 
@@ -407,10 +364,8 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
         {simulation.status === "canceled" && (
           <button
             onClick={handleResume}
-            className={`px-4 py-2 rounded-lg font-bold transition-all duration-300 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-              isDark
-                ? "bg-blue-500 text-white hover:bg-blue-600"
-                : "bg-blue-500 text-white hover:bg-blue-600"
+            className={`px-4 py-2 rounded-lg font-bold transition-all duration-300 hover:scale-105 ${
+              isDark ? "bg-blue-500 text-white hover:bg-blue-600" : "bg-blue-500 text-white hover:bg-blue-600"
             }`}
           >
             Resume
@@ -434,6 +389,106 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
   );
 };
 
+// Pagination Component
+interface PaginationProps {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+  isDark: boolean;
+}
+
+const Pagination: React.FC<PaginationProps> = ({
+  currentPage,
+  totalPages,
+  onPageChange,
+  isDark,
+}) => {
+  const getPageNumbers = () => {
+    const pages = [];
+    const maxVisible = 5;
+    
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (currentPage <= 3) {
+        for (let i = 1; i <= 4; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      } else if (currentPage >= totalPages - 2) {
+        pages.push(1);
+        pages.push('...');
+        for (let i = totalPages - 3; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        pages.push('...');
+        for (let i = currentPage - 1; i <= currentPage + 1; i++) pages.push(i);
+        pages.push('...');
+        pages.push(totalPages);
+      }
+    }
+    return pages;
+  };
+
+  if (totalPages <= 1) return null;
+
+  return (
+    <div className="flex items-center justify-center gap-2 mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+      <button
+        onClick={() => onPageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className={`p-2 rounded-lg transition-all duration-300 ${
+          currentPage === 1
+            ? 'opacity-50 cursor-not-allowed'
+            : isDark
+              ? 'hover:bg-[#27304a] text-gray-400 hover:text-white'
+              : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+        }`}
+      >
+        <ChevronLeft className="w-5 h-5" />
+      </button>
+      
+      {getPageNumbers().map((page, idx) => (
+        <button
+          key={idx}
+          onClick={() => typeof page === 'number' && onPageChange(page)}
+          className={`min-w-[40px] h-10 px-3 rounded-lg font-medium transition-all duration-300 ${
+            currentPage === page
+              ? isDark
+                ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
+                : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
+              : typeof page === 'number'
+                ? isDark
+                  ? 'bg-[#1a1f3a] text-gray-300 hover:bg-[#27304a]'
+                  : 'bg-white text-gray-700 hover:bg-gray-100'
+                : isDark
+                  ? 'text-gray-400 cursor-default'
+                  : 'text-gray-500 cursor-default'
+          }`}
+          disabled={typeof page !== 'number'}
+        >
+          {page}
+        </button>
+      ))}
+      
+      <button
+        onClick={() => onPageChange(currentPage + 1)}
+        disabled={currentPage === totalPages}
+        className={`p-2 rounded-lg transition-all duration-300 ${
+          currentPage === totalPages
+            ? 'opacity-50 cursor-not-allowed'
+            : isDark
+              ? 'hover:bg-[#27304a] text-gray-400 hover:text-white'
+              : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+        }`}
+      >
+        <ChevronRight className="w-5 h-5" />
+      </button>
+    </div>
+  );
+};
+
 export const Simulations: React.FC = () => {
   const user = useAuthStore((state) => state.user);
   const isDark = useThemeStore((state) => state.isDark);
@@ -445,18 +500,13 @@ export const Simulations: React.FC = () => {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [simulations, setSimulations] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
 
-  // Calculate stats from simulations
   const totalSimulations = simulations.length;
-  const completedSimulations = simulations.filter(
-    (s) => s.status === "completed",
-  ).length;
-  const runningSimulations = simulations.filter(
-    (s) => s.status === "running",
-  ).length;
-  const completedWithData = simulations.filter(
-    (s) => s.status === "completed" && s.result?.result_data,
-  );
+  const completedSimulations = simulations.filter((s) => s.status === "completed").length;
+  const runningSimulations = simulations.filter((s) => s.status === "running").length;
+  const completedWithData = simulations.filter((s) => s.status === "completed" && s.result?.result_data);
   const avgPUE =
     completedWithData.length > 0
       ? completedWithData.reduce((acc, s) => {
@@ -465,12 +515,10 @@ export const Simulations: React.FC = () => {
         }, 0) / completedWithData.length
       : 0;
 
-  // Filter simulations based on search and filters
   const filteredSimulations = simulations.filter((sim) => {
     const matchesSearch =
       sim.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sim.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      sim.location?.toLowerCase().includes(searchTerm.toLowerCase());
+      sim.description?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesStatus = statusFilter === "all" || sim.status === statusFilter;
     const matchesTechnique =
@@ -480,41 +528,32 @@ export const Simulations: React.FC = () => {
     return matchesSearch && matchesStatus && matchesTechnique;
   });
 
-  // Fetch simulations from database
+  const totalPages = Math.ceil(filteredSimulations.length / ITEMS_PER_PAGE);
+  const paginatedSimulations = filteredSimulations.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, techniqueFilter]);
+
   useEffect(() => {
     const fetchSimulations = async () => {
-      console.log("[Simulations] user object:", user);
-      console.log("[Simulations] user.authUserId:", user?.authUserId);
-
-      // Check if user is logged in
-      if (!user?.authUserId) {
-        console.log("[Simulations] No authUserId found, skipping fetch");
-        return;
-      }
+      if (!user?.authUserId) return;
 
       setIsLoading(true);
       try {
-        // Get the actual UUID from the users table using auth_user_id
         const userUUID = await getUserUUID(user.authUserId);
-        console.log("[DEBUG] Resolved user UUID:", userUUID);
-
         if (!userUUID) {
-          console.log("[DEBUG] No user UUID found, cannot fetch simulations");
           setSimulations([]);
           return;
         }
 
-        // Fetch simulations using the actual user UUID
         const response = await getUserSimulations(userUUID);
-        console.log("[DEBUG] getUserSimulations response:", response);
-
         if (response.success && response.data) {
           setSimulations(response.data.simulations || []);
         } else {
-          console.warn(
-            "[DEBUG] No simulations found or error:",
-            response.error,
-          );
           setSimulations([]);
         }
       } catch (err) {
@@ -527,12 +566,9 @@ export const Simulations: React.FC = () => {
 
     fetchSimulations();
 
-    // Listen for simulation-deleted event to update local state
     const handleSimDeleted = (e: any) => {
       if (e?.detail?.id) {
-        setSimulations((prev) =>
-          prev.filter((sim) => Number(sim.id) !== Number(e.detail.id)),
-        );
+        setSimulations((prev) => prev.filter((sim) => Number(sim.id) !== Number(e.detail.id)));
       }
     };
 
@@ -540,41 +576,30 @@ export const Simulations: React.FC = () => {
     return () => {
       window.removeEventListener("simulation-deleted", handleSimDeleted);
     };
-  }, [user?.authUserId]); // Re-fetch when authUserId changes
+  }, [user?.authUserId]);
 
   return (
-    <div className="min-h-screen">
+    <div className={`min-h-screen ${isDark ? "bg-[#0a0e27]" : "bg-gray-50"}`}>
       <Sidebar />
 
-      <main className="relative lg:ml-64 p-4 lg:p-8">
-        {/* Header Section */}
+      <main className="relative lg:ml-56 p-4 lg:p-8">
         <div className="relative mb-8 lg:mb-12">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
             <div>
-              <h1
-                className={`text-3xl lg:text-4xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}
-              >
-                <span className={isDark ? "text-[#5ce1e5]" : "text-[#0ea5e9]"}>
+              <h1 className={`text-3xl lg:text-4xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>
+                <span className="bg-gradient-to-r from-sky-500 to-blue-600 bg-clip-text text-transparent">
                   Simulations
                 </span>{" "}
                 Management
               </h1>
-              <p
-                className={`text-lg ${isDark ? "text-gray-400" : "text-gray-600"}`}
-              >
-                View, manage, and analyze all your cooling optimization
-                simulations
+              <p className={`text-lg ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                View, manage, and analyze all your cooling optimization simulations
               </p>
             </div>
 
-            {/* New Simulation Button */}
             <button
               onClick={() => navigate("/input-management")}
-              className={`group relative px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden ${
-                isDark
-                  ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
-                  : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
-              }`}
+              className="group relative px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 overflow-hidden bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/25 hover:from-sky-600 hover:to-blue-700"
             >
               <div className="absolute top-0 -left-full w-1/2 h-full bg-gradient-to-r from-transparent via-white/20 to-transparent transform skew-x-12 transition-all duration-700 group-hover:left-full" />
               <span className="relative flex items-center justify-center gap-3">
@@ -584,160 +609,70 @@ export const Simulations: React.FC = () => {
             </button>
           </div>
 
-          {/* Stats Overview */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            {/* Stats cards remain the same */}
-            <div
-              className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${
-                isDark
-                  ? "bg-[#1a1f3a]/50 border border-[#3f4a68] hover:border-[#5ce1e5]/30"
-                  : "bg-white/50 border border-gray-200 hover:border-[#0ea5e9]/30"
-              }`}
-            >
+            <div className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${isDark ? "bg-[#1a1f3a]/50 border border-[#3f4a68]" : "bg-white/50 border border-gray-200"}`}>
               <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-lg ${isDark ? "bg-black/30" : "bg-gray-100"}`}
-                >
-                  <BarChart3
-                    className={`w-5 h-5 ${isDark ? "text-[#5ce1e5]" : "text-[#0ea5e9]"}`}
-                  />
+                <div className={`p-2 rounded-lg ${isDark ? "bg-black/30" : "bg-gray-100"}`}>
+                  <BarChart3 className={`w-5 h-5 ${isDark ? "text-[#5ce1e5]" : "text-[#0ea5e9]"}`} />
                 </div>
                 <div>
-                  <div
-                    className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
-                  >
-                    {totalSimulations}
-                  </div>
-                  <div
-                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
-                  >
-                    Total Simulations
-                  </div>
+                  <div className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{totalSimulations}</div>
+                  <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>Total Simulations</div>
                 </div>
               </div>
             </div>
 
-            <div
-              className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${
-                isDark
-                  ? "bg-[#1a1f3a]/50 border border-[#3f4a68] hover:border-[#10b981]/30"
-                  : "bg-white/50 border border-gray-200 hover:border-[#10b981]/30"
-              }`}
-            >
+            <div className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${isDark ? "bg-[#1a1f3a]/50 border border-[#3f4a68]" : "bg-white/50 border border-gray-200"}`}>
               <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-lg ${isDark ? "bg-black/30" : "bg-gray-100"}`}
-                >
-                  <CheckCircle
-                    className={`w-5 h-5 ${isDark ? "text-green-400" : "text-green-600"}`}
-                  />
+                <div className={`p-2 rounded-lg ${isDark ? "bg-black/30" : "bg-gray-100"}`}>
+                  <CheckCircle className={`w-5 h-5 ${isDark ? "text-green-400" : "text-green-600"}`} />
                 </div>
                 <div>
-                  <div
-                    className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
-                  >
-                    {completedSimulations}
-                  </div>
-                  <div
-                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
-                  >
-                    Completed
-                  </div>
+                  <div className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{completedSimulations}</div>
+                  <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>Completed</div>
                 </div>
               </div>
             </div>
 
-            <div
-              className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${
-                isDark
-                  ? "bg-[#1a1f3a]/50 border border-[#3f4a68] hover:border-[#3b82f6]/30"
-                  : "bg-white/50 border border-gray-200 hover:border-[#3b82f6]/30"
-              }`}
-            >
+            <div className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${isDark ? "bg-[#1a1f3a]/50 border border-[#3f4a68]" : "bg-white/50 border border-gray-200"}`}>
               <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-lg ${isDark ? "bg-black/30" : "bg-gray-100"}`}
-                >
-                  <Activity
-                    className={`w-5 h-5 ${isDark ? "text-blue-400" : "text-blue-600"}`}
-                  />
+                <div className={`p-2 rounded-lg ${isDark ? "bg-black/30" : "bg-gray-100"}`}>
+                  <Activity className={`w-5 h-5 ${isDark ? "text-blue-400" : "text-blue-600"}`} />
                 </div>
                 <div>
-                  <div
-                    className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
-                  >
-                    {runningSimulations}
-                  </div>
-                  <div
-                    className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
-                  >
-                    Running
-                  </div>
+                  <div className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{runningSimulations}</div>
+                  <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>Running</div>
                 </div>
               </div>
             </div>
 
-            <div
-              className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${
-                isDark
-                  ? "bg-[#1a1f3a]/50 border border-[#3f4a68] hover:border-[#fbbf24]/30"
-                  : "bg-white/50 border border-gray-200 hover:border-[#f59e0b]/30"
-              }`}
-            >
+            <div className={`p-4 rounded-xl transition-all duration-300 hover:scale-105 ${isDark ? "bg-[#1a1f3a]/50 border border-[#3f4a68]" : "bg-white/50 border border-gray-200"}`}>
               <div className="flex items-center gap-3">
-                <div
-                  className={`p-2 rounded-lg ${isDark ? "bg-black/30" : "bg-gray-100"}`}
-                >
-                  <Zap
-                    className={`w-5 h-5 ${isDark ? "text-yellow-400" : "text-yellow-600"}`}
-                  />
+                <div className={`p-2 rounded-lg ${isDark ? "bg-black/30" : "bg-gray-100"}`}>
+                  <Zap className={`w-5 h-5 ${isDark ? "text-yellow-400" : "text-yellow-600"}`} />
                 </div>
                 <div>
-                  <div className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>
-                    {avgPUE > 0 ? avgPUE.toFixed(3) : "—"}
-                  </div>
-                  <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                    Avg. PUE (completed)
-                  </div>
+                  <div className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>{avgPUE > 0 ? avgPUE.toFixed(3) : "—"}</div>
+                  <div className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>Avg. PUE</div>
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Filters & View Toggle Section */}
-        <div
-          className={`rounded-2xl p-6 mb-8 ${
-            isDark
-              ? "bg-gradient-to-b from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]"
-              : "bg-gradient-to-b from-white to-gray-50 border border-gray-200"
-          }`}
-        >
+        <div className={`rounded-2xl p-6 mb-8 ${isDark ? "bg-gradient-to-b from-[#1a1f3a] to-[#27304a] border border-[#3f4a68]" : "bg-gradient-to-b from-white to-gray-50 border border-gray-200"}`}>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-2">
-              <Filter
-                className={`w-5 h-5 ${isDark ? "text-gray-400" : "text-gray-600"}`}
-              />
-              <span
-                className={`font-medium ${isDark ? "text-white" : "text-gray-900"}`}
-              >
-                Filter & Search
-              </span>
+              <Filter className={`w-5 h-5 ${isDark ? "text-gray-400" : "text-gray-600"}`} />
+              <span className={`font-medium ${isDark ? "text-white" : "text-gray-900"}`}>Filter & Search</span>
             </div>
-            {/* View Mode Toggle */}
-            <div
-              className={`flex items-center gap-2 p-1 rounded-xl ${isDark ? "bg-[#27304a]" : "bg-gray-100"}`}
-            >
+            <div className={`flex items-center gap-2 p-1 rounded-xl ${isDark ? "bg-[#27304a]" : "bg-gray-100"}`}>
               <button
                 onClick={() => setViewMode("grid")}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   viewMode === "grid"
-                    ? isDark
-                      ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
-                      : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
-                    : isDark
-                      ? "text-gray-400 hover:text-white"
-                      : "text-gray-600 hover:text-gray-900"
+                    ? isDark ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white" : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
+                    : isDark ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 Grid View
@@ -746,12 +681,8 @@ export const Simulations: React.FC = () => {
                 onClick={() => setViewMode("list")}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
                   viewMode === "list"
-                    ? isDark
-                      ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
-                      : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
-                    : isDark
-                      ? "text-gray-400 hover:text-white"
-                      : "text-gray-600 hover:text-gray-900"
+                    ? isDark ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white" : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
+                    : isDark ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-900"
                 }`}
               >
                 List View
@@ -760,11 +691,8 @@ export const Simulations: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            {/* Search */}
             <div className="relative">
-              <Search
-                className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDark ? "text-gray-400" : "text-gray-500"}`}
-              />
+              <Search className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 ${isDark ? "text-gray-400" : "text-gray-500"}`} />
               <input
                 type="text"
                 placeholder="Search simulations..."
@@ -778,7 +706,6 @@ export const Simulations: React.FC = () => {
               />
             </div>
 
-            {/* Status Filter */}
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -795,7 +722,6 @@ export const Simulations: React.FC = () => {
               <option value="failed">Failed</option>
             </select>
 
-            {/* Technique Filter */}
             <select
               value={techniqueFilter}
               onChange={(e) => setTechniqueFilter(e.target.value)}
@@ -806,28 +732,19 @@ export const Simulations: React.FC = () => {
               }`}
             >
               <option value="all">All Techniques</option>
-              <option value="air economizer">Air-Side Economizer</option>
-              <option value="chilled water">Chilled Water</option>
+              <option value="air">Air Side Economization</option>
+              <option value="chilled">Chilled Water Cooling</option>
               <option value="evaporative">Evaporative Cooling</option>
             </select>
           </div>
 
-          {/* Section Heading */}
           <div className="flex flex-col gap-2 mb-4">
-            <h3
-              className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
-            >
-              All Simulations
-            </h3>
-            <p
-              className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}
-            >
-              Showing {filteredSimulations.length} of {simulations.length}{" "}
-              simulations
+            <h3 className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}>All Simulations</h3>
+            <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              Showing {paginatedSimulations.length} of {filteredSimulations.length} simulations {totalPages > 1 && `(Page ${currentPage} of ${totalPages})`}
             </p>
           </div>
 
-          {/* Simulations Grid/List */}
           {isLoading ? (
             <div className="flex justify-center items-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#5ce1e5]"></div>
@@ -835,200 +752,137 @@ export const Simulations: React.FC = () => {
           ) : (
             <>
               {filteredSimulations.length > 0 ? (
-                viewMode === "grid" ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredSimulations.map((sim, index) => (
-                      <SimulationCard
-                        key={sim.id}
-                        simulation={sim}
-                        index={index}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredSimulations.map((sim) => (
-                      <div
-                        key={sim.id}
-                        className={`group rounded-xl p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 transition-all duration-300 hover:scale-[1.01] hover:shadow-xl ${
-                          isDark
-                            ? "bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68] hover:border-[#5ce1e5]/30"
-                            : "bg-gradient-to-br from-white to-gray-50 border border-gray-200 hover:border-[#0ea5e9]/30"
-                        }`}
-                      >
-                        <div className="flex flex-col md:flex-row md:items-center gap-6 flex-1">
-                          <div className="flex flex-col gap-1 min-w-[180px]">
-                            <span className={`font-bold text-lg ${isDark ? "text-white" : "text-gray-900"}`}>
-                              {sim.name}
-                            </span>
-                            <span className="text-xs font-medium" style={{ color: techniqueColor(sim.coolingTechnique) }}>
-                              {techniqueDisplayName(sim.coolingTechnique || sim.simulation_type)}
-                            </span>
-                          </div>
-                          {(() => {
-                            const m = extractCardMetrics(sim);
-                            const fmt = (v: number | null, unit: string) =>
-                              v == null ? "—" : v > 1_000_000
-                                ? `${(v / 1_000_000).toFixed(2)}M ${unit}`
-                                : v > 1_000
-                                  ? `${(v / 1_000).toFixed(1)}k ${unit}`
-                                  : `${v.toFixed(v > 100 ? 0 : 3)} ${unit}`;
-                            return (
-                              <>
-                                <div className="flex flex-col gap-1 min-w-[90px]">
-                                  <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>PUE</span>
-                                  <span className={`font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                                    {m.pue != null ? m.pue.toFixed(4) : "—"}
+                <>
+                  {viewMode === "grid" ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {paginatedSimulations.map((sim, index) => (
+                        <SimulationCard key={sim.id} simulation={sim} index={index} />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {paginatedSimulations.map((sim) => (
+                        <div
+                          key={sim.id}
+                          className={`group rounded-xl p-5 transition-all duration-300 hover:shadow-xl ${
+                            isDark
+                              ? "bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68] hover:border-[#5ce1e5]/30"
+                              : "bg-gradient-to-br from-white to-gray-50 border border-gray-200 hover:border-[#0ea5e9]/30"
+                          }`}
+                        >
+                          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                            {/* Left section - Basic Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                <h3 className={`font-bold text-lg ${isDark ? "text-white" : "text-gray-900"} truncate`}>
+                                  {sim.name}
+                                </h3>
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                    sim.status === "completed"
+                                      ? isDark ? "bg-green-500/20 text-green-400" : "bg-green-100 text-green-700"
+                                      : sim.status === "running"
+                                        ? isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-100 text-blue-700"
+                                        : isDark ? "bg-gray-500/20 text-gray-400" : "bg-gray-100 text-gray-700"
+                                  }`}
+                                >
+                                  {sim.status}
+                                </span>
+                              </div>
+                              <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"} line-clamp-2 mb-3`}>
+                                {sim.description || "No description provided"}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-4 text-sm">
+                                <div className="flex items-center gap-1.5">
+                                  <Tag className="w-4 h-4" style={{ color: techniqueColor(sim.coolingTechnique) }} />
+                                  <span className={`text-xs ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                                    {techniqueDisplayName(sim.coolingTechnique || sim.simulation_type)}
                                   </span>
                                 </div>
-                                <div className="flex flex-col gap-1 min-w-[120px]">
-                                  <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>Total Energy</span>
-                                  <span className={`font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                                    {fmt(m.totalEnergy, "kWh")}
+                                <div className="flex items-center gap-1.5">
+                                  <Calendar className="w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}" />
+                                  <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                                    {formatDate(sim.createdAt)}
                                   </span>
                                 </div>
-                                <div className="flex flex-col gap-1 min-w-[110px]">
-                                  <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>Annual Cost</span>
-                                  <span className={`font-medium ${isDark ? "text-green-400" : "text-green-600"}`}>
-                                    {m.annualCost != null ? `$${m.annualCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "—"}
+                                <div className="flex items-center gap-1.5">
+                                  <Server className="w-4 h-4 ${isDark ? 'text-gray-400' : 'text-gray-500'}" />
+                                  <span className={`text-xs font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                                    ID: {sim.id}
                                   </span>
                                 </div>
-                                <div className="flex flex-col gap-1 min-w-[110px]">
-                                  <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>Carbon (kg)</span>
-                                  <span className={`font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                                    {fmt(m.carbon, "kg")}
-                                  </span>
-                                </div>
-                                <div className="flex flex-col gap-1 min-w-[90px]">
-                                  {m.isEvap ? (
-                                    <>
-                                      <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>Max Inlet Temp</span>
-                                      <span className={`font-medium ${isDark ? "text-orange-400" : "text-orange-600"}`}>
-                                        {(m as any).maxInletTemp != null ? `${(m as any).maxInletTemp.toFixed(1)} °C` : "—"}
-                                      </span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>Payback</span>
-                                      <span className={`font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                                        {(m as any).payback != null ? `${(m as any).payback.toFixed(1)} yrs` : "—"}
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              </>
-                            );
-                          })()}
-                          <div className="flex flex-col gap-1 min-w-[120px]">
-                            <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>Created</span>
-                            <span className={`font-medium text-xs ${isDark ? "text-white" : "text-gray-900"}`}>
-                              {formatDate(sim.createdAt)}
-                            </span>
-                          </div>
-                          <div className="flex flex-col gap-1 min-w-[90px]">
-                            <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>Status</span>
-                            <span className={`font-medium capitalize ${
-                              sim.status === "completed" ? isDark ? "text-green-400" : "text-green-600"
-                              : sim.status === "running" ? isDark ? "text-blue-400" : "text-blue-600"
-                              : sim.status === "pending" ? isDark ? "text-yellow-400" : "text-yellow-600"
-                              : isDark ? "text-gray-400" : "text-gray-600"
-                            }`}>
-                              {sim.status}
-                            </span>
+                              </div>
+                            </div>
+
+                            {/* Right section - Action Buttons */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                onClick={() => navigate(`/simulation/${sim.id}`)}
+                                className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
+                                  isDark
+                                    ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
+                                    : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
+                                }`}
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  import("../utils/pdfExport").then(({ generateSimulationPDF }) => {
+                                    const pdfData = {
+                                      simulation: {
+                                        id: sim.id,
+                                        name: sim.name,
+                                        description: sim.description || "",
+                                        simulation_type: sim.coolingTechnique || "N/A",
+                                        created_at: sim.createdAt || sim.timestamp || new Date().toISOString(),
+                                        status: sim.status || "N/A",
+                                      },
+                                      result: {
+                                        energy_consumed_kwh: sim.totalEnergyConsumption || sim.result?.energy_consumed_kwh || 0,
+                                        cooling_efficiency: sim.cooling_efficiency || sim.result?.cooling_efficiency || 0,
+                                        cost_saving_percent: sim.cost_saving_percent || sim.result?.cost_saving_percent || 0,
+                                        runtime_minutes: sim.runtimeMinutes || sim.result?.runtime_minutes || 0,
+                                        completed_at: sim.completedAt || sim.result?.completed_at || "",
+                                        result_data: sim.result_data || sim.rawEvaporativeData || sim.rawChilledWaterData || sim,
+                                      },
+                                    };
+                                    generateSimulationPDF(pdfData);
+                                  });
+                                }}
+                                className={`p-2 rounded-lg transition-all duration-300 hover:scale-105 ${
+                                  isDark
+                                    ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white"
+                                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                }`}
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                              <DeleteButtonWithModal sim={sim} isDark={isDark} />
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-4 md:mt-0">
-                          <button
-                            onClick={() => navigate(`/simulation/${sim.id}`)}
-                            className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
-                              isDark
-                                ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
-                                : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
-                            }`}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              import("../utils/pdfExport").then(
-                                ({ generateSimulationPDF }) => {
-                                  const pdfData = {
-                                    simulation: {
-                                      id: sim.id,
-                                      name: sim.name,
-                                      description: sim.description || "",
-                                      simulation_type:
-                                        sim.coolingTechnique || "N/A",
-                                      created_at:
-                                        sim.createdAt ||
-                                        sim.timestamp ||
-                                        new Date().toISOString(),
-                                      status: sim.status || "N/A",
-                                    },
-                                    result: {
-                                      energy_consumed_kwh:
-                                        sim.totalEnergyConsumption ||
-                                        sim.result?.energy_consumed_kwh ||
-                                        0,
-                                      cooling_efficiency:
-                                        sim.cooling_efficiency ||
-                                        sim.result?.cooling_efficiency ||
-                                        0,
-                                      cost_saving_percent:
-                                        sim.cost_saving_percent ||
-                                        sim.result?.cost_saving_percent ||
-                                        0,
-                                      runtime_minutes:
-                                        sim.runtimeMinutes ||
-                                        sim.result?.runtime_minutes ||
-                                        0,
-                                      completed_at:
-                                        sim.completedAt ||
-                                        sim.result?.completed_at ||
-                                        "",
-                                      result_data:
-                                        sim.result_data ||
-                                        sim.rawEvaporativeData ||
-                                        sim.rawChilledWaterData ||
-                                        sim,
-                                    },
-                                  };
-                                  generateSimulationPDF(pdfData);
-                                },
-                              );
-                            }}
-                            className={`p-2 rounded-lg transition-all hover:scale-105 ${
-                              isDark
-                                ? "hover:bg-[#27304a] text-gray-400 hover:text-white"
-                                : "hover:bg-gray-100 text-gray-500 hover:text-gray-900"
-                            }`}
-                          >
-                            <Download className="w-4 h-4" />
-                          </button>
-                          <DeleteButtonWithModal sim={sim} isDark={isDark} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )
+                      ))}
+                    </div>
+                  )}
+                  
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                    isDark={isDark}
+                  />
+                </>
               ) : (
                 <div className="text-center py-12">
                   <div className="inline-block p-4 rounded-full bg-gradient-to-r from-[#5ce1e5]/10 to-[#0ea5e9]/10 mb-4">
-                    <BarChart3
-                      className={`w-12 h-12 ${isDark ? "text-[#5ce1e5]" : "text-[#0ea5e9]"}`}
-                    />
+                    <BarChart3 className={`w-12 h-12 ${isDark ? "text-[#5ce1e5]" : "text-[#0ea5e9]"}`} />
                   </div>
-                  <h4
-                    className={`text-xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}
-                  >
+                  <h4 className={`text-xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>
                     No simulations found
                   </h4>
-                  <p
-                    className={`mb-6 max-w-md mx-auto ${isDark ? "text-gray-400" : "text-gray-600"}`}
-                  >
-                    {searchTerm ||
-                    statusFilter !== "all" ||
-                    techniqueFilter !== "all"
+                  <p className={`mb-6 max-w-md mx-auto ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                    {searchTerm || statusFilter !== "all" || techniqueFilter !== "all"
                       ? "No simulations match your current filters. Try adjusting your search criteria."
                       : "You haven't run any simulations yet. Start your first cooling optimization simulation to see results here."}
                   </p>
@@ -1048,19 +902,6 @@ export const Simulations: React.FC = () => {
           )}
         </div>
       </main>
-
-      <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-20px); }
-        }
-        
-        .animate-in {
-          animation-duration: 0.6s;
-          animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-          animation-fill-mode: both;
-        }
-      `}</style>
     </div>
   );
 };

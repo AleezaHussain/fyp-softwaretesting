@@ -30,7 +30,6 @@ export const SimulationDetailedView: React.FC<Props> = ({ resultData, result, is
   const annual  = rd?.results?.annual  ?? {};
   const econ    = rd?.results?.economics ?? {};
   const s       = rd?.summary ?? {};
-  const mlRec   = rd?.mlRecommendation;
 
   // Detect technique
   const isChilled = !!(metrics.averageCOP !== undefined || rd?.coolingTechnique === "chilled_water" || rd?.results?.phase4Gates);
@@ -237,73 +236,9 @@ export const SimulationDetailedView: React.FC<Props> = ({ resultData, result, is
         </div>
       )}
 
-      {/* ML Recommendation */}
-      {mlRec && (
-        <div className={`p-5 rounded-xl border-2 ${isDark ? "bg-gradient-to-br from-purple-500/10 to-blue-500/10 border-purple-500/30" : "bg-gradient-to-br from-purple-50 to-blue-50 border-purple-200"}`}>
-          <h3 className={`font-bold text-lg mb-4 ${isDark ? "text-purple-400" : "text-purple-700"}`}>🤖 ML Recommendation</h3>
-          <div className="flex flex-wrap items-center gap-3 mb-4">
-            <span className={`text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>Recommended:</span>
-            <span className={`px-3 py-1 rounded-full font-bold text-sm ${isDark ? "bg-green-500/20 text-green-400" : "bg-green-100 text-green-700"}`}>{mlRec.model_recommendation}</span>
-            {mlRec.current_technique && <>
-              <span className={`text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>Current:</span>
-              <span className={`px-3 py-1 rounded-full font-bold text-sm ${isDark ? "bg-cyan-500/20 text-cyan-400" : "bg-cyan-100 text-cyan-700"}`}>{mlRec.current_technique}</span>
-            </>}
-            {mlRec.generated_at_utc && <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>Generated: {new Date(mlRec.generated_at_utc).toLocaleString()}</span>}
-          </div>
-          {Array.isArray(mlRec.why_this_is_recommended) && mlRec.why_this_is_recommended.length > 0 && (
-            <div className={`p-4 rounded-xl mb-4 ${isDark ? "bg-blue-500/10 border border-blue-500/30" : "bg-blue-50 border border-blue-200"}`}>
-              <h4 className={`font-semibold mb-2 ${isDark ? "text-blue-400" : "text-blue-700"}`}>💡 Why This Is Recommended</h4>
-              <p className={`text-sm leading-relaxed ${isDark ? "text-gray-300" : "text-gray-700"}`}>{mlRec.why_this_is_recommended.join(" ")}</p>
-            </div>
-          )}
-          {mlRec.future_impact_paragraph && !mlRec.future_impact_paragraph.includes("available when") && (
-            <div className={`p-4 rounded-xl mb-4 ${isDark ? "bg-yellow-500/10 border border-yellow-500/30" : "bg-yellow-50 border border-yellow-200"}`}>
-              <h4 className={`font-semibold mb-2 ${isDark ? "text-yellow-400" : "text-yellow-700"}`}>📈 Future Impact (1–5 Years)</h4>
-              <p className={`text-sm leading-relaxed ${isDark ? "text-yellow-200" : "text-yellow-800"}`}>{mlRec.future_impact_paragraph}</p>
-            </div>
-          )}
-          {Array.isArray(mlRec.comparison_table) && mlRec.comparison_table.length > 0 && (
-            <div className={`p-4 rounded-xl ${isDark ? "bg-cyan-500/10 border border-cyan-500/30" : "bg-cyan-50 border border-cyan-200"}`}>
-              <h4 className={`font-semibold mb-3 ${isDark ? "text-cyan-400" : "text-cyan-700"}`}>📊 Technique Comparison</h4>
-              <div className="overflow-x-auto">
-                <table className={`w-full text-sm ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-                  <thead>
-                    <tr className={isDark ? "bg-[#0a0e27]" : "bg-white"}>
-                      {["Technique","Feasible","Score","Annual Cost","CO₂ (kg)","Water (L)","Violations"].map(h => (
-                        <th key={h} className={`px-3 py-2 text-left font-bold whitespace-nowrap ${isDark ? "text-gray-300" : "text-gray-700"}`}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mlRec.comparison_table.map((row: any, idx: number) => {
-                      const isBest = row.tech === mlRec.model_recommendation;
-                      return (
-                        <tr key={idx} className={`border-t ${isDark ? "border-[#3f4a68]" : "border-gray-200"} ${isBest ? isDark ? "bg-green-500/20" : "bg-green-100" : idx % 2 === 0 ? isDark ? "bg-[#0a0e27]/30" : "bg-gray-50" : ""}`}>
-                          <td className={`px-3 py-2 font-medium ${isDark ? "text-white" : "text-gray-900"}`}>
-                            {row.tech}{isBest && <span className={`ml-2 px-2 py-0.5 text-xs rounded-full font-bold ${isDark ? "bg-green-500/30 text-green-400" : "bg-green-200 text-green-700"}`}>★ BEST</span>}
-                          </td>
-                          <td className="px-3 py-2 text-center">{row.feasible ? <span className="text-green-500 font-bold">✓</span> : <span className="text-red-500 font-bold">✗</span>}</td>
-                          <td className={`px-3 py-2 text-right font-mono ${isDark ? "text-cyan-400" : "text-cyan-700"}`}>{typeof row.score === "number" ? row.score.toFixed(4) : row.score}</td>
-                          <td className={`px-3 py-2 text-right font-mono ${isDark ? "text-green-400" : "text-green-700"}`}>${(row.annual_cost ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                          <td className={`px-3 py-2 text-right font-mono ${isDark ? "text-yellow-400" : "text-yellow-700"}`}>{(row.annual_emissions_kg ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                          <td className={`px-3 py-2 text-right font-mono ${isDark ? "text-blue-400" : "text-blue-700"}`}>{(row.annual_water_liters ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                          <td className={`px-3 py-2 text-center ${row.violations > 0 ? "text-red-500 font-bold" : isDark ? "text-gray-400" : "text-gray-600"}`}>{row.violations}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <p className={`mt-3 text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>Score: lower is better — cost (50%) + emissions (30%) + water (20%).</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {!mlRec && result?.recommendation && (
-        <div className={`p-4 rounded-xl border ${isDark ? "bg-blue-500/10 border-blue-500/30" : "bg-blue-50 border-blue-200"}`}>
-          <h4 className={`font-bold mb-2 ${isDark ? "text-blue-400" : "text-blue-700"}`}>Recommendation</h4>
-          <p className={`text-sm ${isDark ? "text-blue-300" : "text-blue-600"}`}>{result.recommendation}</p>
+      {!result?.recommendation && (
+        <div className={`p-4 rounded-xl border ${isDark ? "bg-slate-900 border-slate-700 text-slate-300" : "bg-white border-gray-200 text-gray-600"}`}>
+          <p className="text-sm">No recommendation summary was saved with this simulation.</p>
         </div>
       )}
     </div>

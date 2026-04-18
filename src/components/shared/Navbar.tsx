@@ -23,25 +23,21 @@ export const Navbar: React.FC = () => {
         : 'bg-white/80 backdrop-blur-xl border-gray-200/50'
     }`}>
       <div className="max-w-7xl mx-auto px-6">
-        <div className="flex items-center justify-between h-20">
-          {/* Logo */}
-          <div className={`flex items-center gap-3 cursor-pointer hover:scale-105 transition-transform`} onClick={() => navigate('/')}>
-            <img src="/logo.svg" alt="COOLIENCE" className="w-10 h-10" />
-            <span className={`text-2xl font-bold ${
-              isDark ? 'text-[#fd5757]' : 'text-[#5ce1e5]'
-            }`}>
-              COOLIENCE
-            </span>
+        <div className="flex items-center justify-between h-20 relative">
+          {/* Logo — fits navbar height, same visual position in both modes */}
+          <div className="flex items-center gap-3 cursor-pointer  transition-transform" onClick={() => navigate('/')}>
+            <img
+              src={isDark ? "/logo1.png" : "/logo.png"}
+              alt="COOLIENCE"
+              className="h-24 w-auto object-contain"
+            />
           </div>
 
-          {/* Desktop Navigation */}
-          <div className={`hidden md:flex items-center gap-8 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+          {/* Desktop Navigation — absolutely centered */}
+          <div className={`hidden md:flex items-center gap-8 absolute left-1/2 -translate-x-1/2 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
             {navItems.map((item) => (
-              <a
-                key={item.label}
-                href={item.href}
-                className={`font-medium hover:text-${isDark ? '[#5ce1e5]' : '[#5ce1e5]'} transition-all`}
-              >
+              <a key={item.label} href={item.href}
+                className={`font-medium hover:text-[#5ce1e5] transition-all`}>
                 {item.label}
               </a>
             ))}
