@@ -100,7 +100,7 @@ const HourlyPowerBreakdown: React.FC<{ data: any[]; isDark: boolean }> = ({
   );
 
   return (
-    <div className={cc(isDark)}>
+    <div className={cc(isDark)} data-chart="performance-radar">
       <p className={tc(isDark)}>Hourly Power Breakdown (kW)</p>
       <p className={sc(isDark)}>
         IT Load · Fan Power · Mechanical Cooling · Total — from
@@ -1619,38 +1619,38 @@ export const SimulationCharts: React.FC<SimulationChartsProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* ── CHILLED WATER specific ── */}
-        {isChilled && <ChilledAnnualPie resultData={resultData} isDark={isDark} />}
-        {isChilled && copArray.length > 0 && <ChilledCopChart copArray={copArray} isDark={isDark} />}
-        {isChilled && hourly.length > 0 && <ChilledCoolingLoadChart data={hourly} peakCoolingLoad={resultData?.results?.metrics?.peakCoolingLoad_kW ?? resultData?.peakCoolingLoad_kW ?? 0} isDark={isDark} />}
-        {isChilled && hourly.length > 0 && <ChilledHourlyPower data={hourly} isDark={isDark} />}
-        {isChilled && hourly.length > 0 && <ChilledWaterUsage data={hourly} isDark={isDark} />}
-        {isChilled && <ChilledCostChart resultData={resultData} isDark={isDark} />}
-        {isChilled && Object.keys(gates).length > 0 && <ChilledGatesChart gates={gates} isDark={isDark} />}
+        {isChilled && <div data-chart="consumption-overview"><ChilledAnnualPie resultData={resultData} isDark={isDark} /></div>}
+        {isChilled && copArray.length > 0 && <div data-chart="cop-timeline"><ChilledCopChart copArray={copArray} isDark={isDark} /></div>}
+        {isChilled && hourly.length > 0 && <div data-chart="cooling-vs-chiller"><ChilledCoolingLoadChart data={hourly} peakCoolingLoad={resultData?.results?.metrics?.peakCoolingLoad_kW ?? resultData?.peakCoolingLoad_kW ?? 0} isDark={isDark} /></div>}
+        {isChilled && hourly.length > 0 && <div data-chart="power-breakdown"><ChilledHourlyPower data={hourly} isDark={isDark} /></div>}
+        {isChilled && hourly.length > 0 && <div data-chart="water-carbon"><ChilledWaterUsage data={hourly} isDark={isDark} /></div>}
+        {isChilled && <div data-chart="cost-structure"><ChilledCostChart resultData={resultData} isDark={isDark} /></div>}
+        {isChilled && Object.keys(gates).length > 0 && <div data-chart="phase4-gates"><ChilledGatesChart gates={gates} isDark={isDark} /></div>}
 
         {/* ── AIR ECONOMIZER specific ── */}
-        {isAir && hasPowerBreakdown && <HourlyPowerBreakdown data={hourly} isDark={isDark} />}
-        {isAir && hasAirflowData && <AirflowChart data={hourly} isDark={isDark} />}
-        {isAir && hasModeData && <ModePieChart modeBreakdown={modeBreakdown} isDark={isDark} />}
-        {isAir && <CostBreakdownChart resultData={resultData} isDark={isDark} />}
-        {isAir && rackAnalysis && <RackChart rackAnalysis={rackAnalysis} isDark={isDark} />}
-        {isAir && hourly.length > 0 && hourly[0]?.pue != null && <PueCueChart data={hourly} isDark={isDark} />}
-        {isAir && hourly.length > 0 && (hourly[0]?.outdoorTempC != null || hourly[0]?.tempC != null) && <TempChart data={hourly} isDark={isDark} />}
+        {isAir && hasPowerBreakdown && <div data-chart="air-power-breakdown"><HourlyPowerBreakdown data={hourly} isDark={isDark} /></div>}
+        {isAir && hasAirflowData && <div data-chart="airflow-cooling"><AirflowChart data={hourly} isDark={isDark} /></div>}
+        {isAir && hasModeData && <div data-chart="mode-distribution"><ModePieChart modeBreakdown={modeBreakdown} isDark={isDark} /></div>}
+        {isAir && <div data-chart="cost-structure-air"><CostBreakdownChart resultData={resultData} isDark={isDark} /></div>}
+        {isAir && rackAnalysis && <div data-chart="rack-analysis"><RackChart rackAnalysis={rackAnalysis} isDark={isDark} /></div>}
+        {isAir && hourly.length > 0 && hourly[0]?.pue != null && <div data-chart="pue-cue"><PueCueChart data={hourly} isDark={isDark} /></div>}
+        {isAir && hourly.length > 0 && (hourly[0]?.outdoorTempC != null || hourly[0]?.tempC != null) && <div data-chart="ambient-conditions"><TempChart data={hourly} isDark={isDark} /></div>}
 
         {/* ── EVAPORATIVE specific ── */}
-        {isEvap && <EvapAnnualSummary resultData={resultData} isDark={isDark} />}
-        {isEvap && hasEvapHourly && <EvapHourlyPower data={evapHourly} isDark={isDark} />}
-        {isEvap && hasEvapHourly && <EvapCoolingCapChart data={evapHourly} isDark={isDark} />}
-        {isEvap && hasEvapHourly && <EvapPueCompareChart data={evapHourly} resultData={resultData} isDark={isDark} />}
-        {isEvap && hasEvapHourly && <EvapTempChart data={evapHourly} isDark={isDark} />}
-        {isEvap && hasEvapHourly && <EvapSupplyHumidChart data={evapHourly} isDark={isDark} />}
-        {isEvap && hasEvapHourly && <EvapModeChart data={evapHourly} isDark={isDark} />}
-        {isEvap && hasEvapHourly && <EvapPueChart data={evapHourly} isDark={isDark} />}
-        {isEvap && <EvapAssessmentChart resultData={resultData} isDark={isDark} />}
+        {isEvap && <div data-chart="evap-summary"><EvapAnnualSummary resultData={resultData} isDark={isDark} /></div>}
+        {isEvap && hasEvapHourly && <div data-chart="evap-power"><EvapHourlyPower data={evapHourly} isDark={isDark} /></div>}
+        {isEvap && hasEvapHourly && <div data-chart="cooling-capacity"><EvapCoolingCapChart data={evapHourly} isDark={isDark} /></div>}
+        {isEvap && hasEvapHourly && <div data-chart="pue-compare"><EvapPueCompareChart data={evapHourly} resultData={resultData} isDark={isDark} /></div>}
+        {isEvap && hasEvapHourly && <div data-chart="temp-humidity"><EvapTempChart data={evapHourly} isDark={isDark} /></div>}
+        {isEvap && hasEvapHourly && <div data-chart="supply-air"><EvapSupplyHumidChart data={evapHourly} isDark={isDark} /></div>}
+        {isEvap && hasEvapHourly && <div data-chart="cooling-mode"><EvapModeChart data={evapHourly} isDark={isDark} /></div>}
+        {isEvap && hasEvapHourly && <div data-chart="pue-hourly"><EvapPueChart data={evapHourly} isDark={isDark} /></div>}
+        {isEvap && <div data-chart="cooling-assessment"><EvapAssessmentChart resultData={resultData} isDark={isDark} /></div>}
 
         {/* ── SHARED ── */}
         <KpiRadar resultData={resultData} isDark={isDark} />
-        {compTable.length > 0 && <ComparisonChart rows={compTable} isDark={isDark} />}
-        {yearlyData.length > 0 && <ProjectionDetailChart data={yearlyData} proj={proj} isDark={isDark} />}
+        {compTable.length > 0 && <div data-chart="technique-comparison"><ComparisonChart rows={compTable} isDark={isDark} /></div>}
+        {yearlyData.length > 0 && <div data-chart="5year-projection"><ProjectionDetailChart data={yearlyData} proj={proj} isDark={isDark} /></div>}
       </div>
     </div>
   );

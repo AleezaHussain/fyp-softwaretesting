@@ -650,13 +650,98 @@ function renderTechniqueTable(
   return legendY;
 }
 
+function humanizeChartId(chartId: string): string {
+  return chartId
+    .replace(/^chart-/, "")
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function appendChartsTabSection(doc: jsPDF, capturedCharts?: Record<string, CapturedChartImage>) {
+  doc.addPage();
+  let y = 20;
+  y = sectionHeader(doc, "2. Tab - Charts", y);
+
+  const chartEntries = Object.entries(capturedCharts ?? {});
+  if (chartEntries.length === 0) {
+    addWrappedTextBlock(
+      doc,
+      "No chart snapshots were captured for this simulation export. Open the Charts tab before exporting if charts are still missing.",
+      14,
+      y,
+      doc.internal.pageSize.getWidth() - 28,
+      9,
+      4.4,
+      DARK,
+    );
+    return;
+  }
+
+  y = addWrappedTextBlock(
+    doc,
+    `This section contains all captured chart visualizations from the simulation (${chartEntries.length} chart snapshots).`,
+    14,
+    y,
+    doc.internal.pageSize.getWidth() - 28,
+    8.5,
+    4,
+    MID,
+  ) + 3;
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const chartX = 14;
+  const chartW = pageWidth - 28;
+  const framePad = 2;
+  const maxImageH = 78;
+
+  chartEntries.forEach(([chartId, chart], idx) => {
+    const title = `${idx + 1}. ${humanizeChartId(chartId)}`;
+    y = ensureSpace(doc, y, 102);
+
+    doc.setFontSize(9.5);
+    tc(doc, DARK);
+    doc.setFont("helvetica", "bold");
+    doc.text(title, chartX, y);
+    doc.setFont("helvetica", "normal");
+
+    const frameY = y + 3;
+    fc(doc, WHITE);
+    doc.roundedRect(chartX, frameY, chartW, maxImageH + framePad * 2, 2, 2, "F");
+    dc(doc, MID);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(chartX, frameY, chartW, maxImageH + framePad * 2, 2, 2, "S");
+
+    let imgW = chartW - framePad * 2;
+    let imgH = (imgW * chart.height) / Math.max(chart.width, 1);
+    if (imgH > maxImageH) {
+      imgH = maxImageH;
+      imgW = (imgH * chart.width) / Math.max(chart.height, 1);
+    }
+
+    const imgX = chartX + (chartW - imgW) / 2;
+    const imgY = frameY + framePad + (maxImageH - imgH) / 2;
+
+    try {
+      doc.addImage(chart.imageData, "PNG", imgX, imgY, imgW, imgH);
+    } catch (error) {
+      console.warn("Failed to add captured chart image", chartId, error);
+      doc.setFontSize(8);
+      tc(doc, RED);
+      doc.text("Failed to render this chart snapshot in PDF.", chartX + 4, frameY + 8);
+    }
+
+    y = frameY + maxImageH + framePad * 2 + 8;
+  });
+}
+
 function appendRawDataAppendix(doc: jsPDF, rd: any) {
   const hourly: any[] = rd?.results?.hourlyResults ?? rd?.hourlyResults ?? [];
   if (hourly.length === 0) return;
 
   doc.addPage();
   let y = 20;
-  y = sectionHeader(doc, "5. Complete Hourly Raw Data", y);
+  y = sectionHeader(doc, "5. Tab - Raw Data", y);
   y = addWrappedTextBlock(
     doc,
     `This section contains ALL ${hourly.length} hourly records with every available field. Data includes detailed measurements for all simulation hours.`,
@@ -691,109 +776,190 @@ function appendRawDataAppendix(doc: jsPDF, rd: any) {
 }
 
 function appendMetricsAppendix(doc: jsPDF, rd: any) {
-  const metrics = rd?.results?.metrics ?? rd?.metrics ?? {};
-  const annual = rd?.results?.annual ?? rd?.summary ?? {};
-  const econ = rd?.results?.economics ?? rd?.economics ?? {};
-  const performance = rd?.results?.performance ?? {};
-  const energy = rd?.results?.energy ?? {};
-  const emissions = rd?.results?.emissions ?? {};
-  const costs = rd?.results?.costs ?? {};
+  const metrics = rd?.results?.metrics ?? {};
+  const annual = rd?.results?.annual ?? {};
+  const econ = rd?.results?.economics ?? {};
+  const s = rd?.summary ?? {};
+  const evapRaw = rd?.rawEvaporativeData ?? {};
+  const evapRes = evapRaw?.results ?? {};
+  const evapPerf = evapRes?.performance ?? {};
+  const evapAssess = rd?.coolingAdequacy ?? evapRaw?.cooling_assessment ?? {};
+
+  const isChilled = !!(metrics.averageCOP !== undefined || rd?.coolingTechnique === "chilled_water" || rd?.results?.phase4Gates);
+  const isAir = !!(rd?.airflowViolations || rd?.coolingTechnique === "air_economizer" || s.totalItEnergy_kWh);
+  const isEvap = rd?.coolingTechnique === "evaporative" || (!isChilled && !isAir);
+
+  const metricRows: Array<[string, string, string, string]> = [];
+  const pushMetric = (label: string, value: any, unit: string, source: string) => {
+    if (value === null || value === undefined || value === "") return;
+    const rendered = unit === "USD"
+      ? `$${Number(value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+      : fmt(value, 4);
+    metricRows.push([label, rendered, unit || "—", source]);
+  };
+
+  // Common metrics
+  pushMetric(
+    "PUE",
+    isEvap ? (evapPerf.pue_average ?? rd?.pue) : (metrics.pue ?? s.averagePUE),
+    "",
+    isEvap ? "results.performance.pue_average" : "results.metrics.pue / summary.averagePUE",
+  );
+  pushMetric(
+    "Total Energy",
+    isEvap ? (evapRes.energy?.electricity_kwh_total ?? rd?.totalEnergyConsumption) : (annual.energyConsumption_kWh ?? s.totalEnergy_kWh),
+    "kWh",
+    isEvap ? "results.energy.electricity_kwh_total" : "results.annual.energyConsumption_kWh / summary.totalEnergy_kWh",
+  );
+  pushMetric(
+    "Carbon",
+    isEvap ? (evapRes.emissions?.co2_kg_total ?? rd?.carbonFootprint) : (annual.carbonEmissions_kg ?? s.totalCarbonEmissions_kg),
+    "kg",
+    isEvap ? "results.emissions.co2_kg_total" : "results.annual.carbonEmissions_kg / summary.totalCarbonEmissions_kg",
+  );
+
+  // Chilled-specific
+  if (isChilled) {
+    pushMetric("Average COP", metrics.averageCOP, "", "results.metrics.averageCOP");
+    pushMetric("WUE", metrics.wue, "L/kWh", "results.metrics.wue");
+    pushMetric("Peak Cooling Load", metrics.peakCoolingLoad_kW, "kW", "results.metrics.peakCoolingLoad_kW");
+    pushMetric("Cooling Load", annual.coolingLoad_kWh, "kWh", "results.annual.coolingLoad_kWh");
+    pushMetric("Water Usage", annual.waterUsage_L, "L", "results.annual.waterUsage_L");
+    pushMetric("Annual Cost", annual.cost_USD ?? econ.opex_annual_USD, "USD", "results.annual.cost_USD / results.economics.opex_annual_USD");
+    pushMetric("Annual Savings", rd?.annualSavingsUSD ?? econ.annualSavingsUSD, "USD", "annualSavingsUSD / results.economics.annualSavingsUSD");
+    pushMetric("CAPEX", econ.capex_USD, "USD", "results.economics.capex_USD");
+    pushMetric("LCCP", econ.lccp_USD, "USD", "results.economics.lccp_USD");
+    pushMetric("NPV", econ.npv_USD, "USD", "results.economics.npv_USD");
+    pushMetric("Payback", econ.paybackPeriod_years, "yrs", "results.economics.paybackPeriod_years");
+  }
+
+  // Air-specific
+  if (isAir) {
+    pushMetric("CUE", s.averageCUE, "kgCO2/kWh", "summary.averageCUE");
+    pushMetric("IT Energy", s.totalItEnergy_kWh, "kWh", "summary.totalItEnergy_kWh");
+    pushMetric("Cooling Energy", s.totalCoolingEnergy_kWh, "kWh", "summary.totalCoolingEnergy_kWh");
+    pushMetric("Electricity Cost", s.electricityCostUSD, "USD", "summary.electricityCostUSD");
+    pushMetric("Carbon Tax", s.carbonTaxCostUSD, "USD", "summary.carbonTaxCostUSD");
+    pushMetric("Annual OpEx", s.annualOpExUSD, "USD", "summary.annualOpExUSD");
+    pushMetric("CAPEX", s.totalCapexUSD, "USD", "summary.totalCapexUSD");
+    pushMetric("Annual Savings", s.annualSavingsUSD, "USD", "summary.annualSavingsUSD");
+    pushMetric("Energy Savings", s.energySavingsPercent, "%", "summary.energySavingsPercent");
+    pushMetric("Carbon Savings", s.carbonSavings_kg, "kg", "summary.carbonSavings_kg");
+    pushMetric("Payback", s.paybackPeriodYears, "yrs", "summary.paybackPeriodYears");
+  }
+
+  // Evap-specific
+  if (isEvap) {
+    pushMetric("PUE Max", rd?.pue_max ?? evapPerf?.pue_max, "", "results.performance.pue_max");
+    pushMetric("CUE", rd?.cue ?? evapPerf?.cue_average, "kgCO2/kWh", "results.performance.cue_average");
+    pushMetric("WUE", rd?.wue ?? evapPerf?.wue_average, "L/kWh", "results.performance.wue_average");
+    pushMetric("IT Energy", rd?.it_kwh ?? evapRes.energy?.it_kwh, "kWh", "results.energy.it_kwh");
+    pushMetric("Fan Energy", rd?.fan_kwh ?? evapRes.energy?.fan_kwh, "kWh", "results.energy.fan_kwh");
+    pushMetric("DX Backup", rd?.dx_kwh ?? evapRes.energy?.dx_kwh, "kWh", "results.energy.dx_kwh");
+    pushMetric("Annual Cost", rd?.estimatedCost ?? evapRes.cost?.total_energy_cost_usd, "USD", "results.cost.total_energy_cost_usd");
+    pushMetric("OpEx per kWh IT", rd?.opex_per_kwh_it ?? evapRes.opex?.opex_per_kwh_it, "USD", "results.opex.opex_per_kwh_it");
+    pushMetric("CO2 per kWh IT", rd?.co2_kg_per_kwh_it ?? evapRes.emissions?.co2_kg_per_kwh_it, "kg", "results.emissions.co2_kg_per_kwh_it");
+    pushMetric("Water Total", rd?.waterConsumption ?? evapRes.water?.water_liters_total, "L", "results.water.water_liters_total");
+    pushMetric("Max Inlet Temp", evapAssess?.keyMetrics?.max_inlet_temp_c ?? evapRaw?.cooling_assessment?.key_metrics?.max_inlet_temp_c, "C", "cooling_assessment.key_metrics.max_inlet_temp_c");
+    pushMetric("Cooling Capacity Avg", evapAssess?.keyMetrics?.cooling_capacity_avg_kw ?? evapRaw?.cooling_assessment?.key_metrics?.cooling_capacity_avg_kw, "kW", "cooling_assessment.key_metrics.cooling_capacity_avg_kw");
+    pushMetric("Cooling Failure Hours", rd?.cooling_failure_hours ?? evapPerf?.cooling_failure_hours, "hrs", "results.performance.cooling_failure_hours");
+  }
 
   doc.addPage();
   let y = 20;
-  y = sectionHeader(doc, "6. Complete Detailed Metrics", y);
-
-  // Section 1: Performance Metrics
-  y = sectionHeader(doc, "6.1 Performance Metrics", y - 6);
-  const performanceRows = [
-    ["PUE", fmt(metrics.pue ?? performance.pue_average ?? annual.averagePUE ?? rd?.summary?.averagePUE)],
-    ["PUE Max", fmt(metrics.pue_max ?? performance.pue_max)],
-    ["CUE", fmt(metrics.cue ?? performance.cue_average ?? rd?.summary?.averageCUE)],
-    ["Average COP", fmt(metrics.averageCOP ?? performance.cop_average)],
-    ["WUE (L/kWh)", fmt(metrics.wue ?? performance.wue_average)],
-  ].filter(([, v]) => v !== "—");
+  y = sectionHeader(doc, "3. Tab - Detailed Metrics", y);
+  y = sectionHeader(doc, "3.1 KPI Metrics (Aligned with Detailed Metrics Tab)", y - 6);
 
   autoTable(doc, {
     startY: y,
-    head: [["Metric", "Value"]],
-    body: performanceRows,
+    head: [["Metric", "Value", "Unit", "Source Field"]],
+    body: metricRows,
     theme: "grid",
     margin: { left: 14, right: 14 },
-    styles: { fontSize: 8, cellPadding: 1.8 },
-    headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: "bold" },
+    styles: { fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak" },
+    headStyles: { fillColor: PRIMARY, textColor: WHITE, fontStyle: "bold", fontSize: 8 },
     alternateRowStyles: { fillColor: LIGHT },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
+    columnStyles: {
+      0: { fontStyle: "bold", cellWidth: 44 },
+      1: { halign: "right", cellWidth: 34 },
+      2: { halign: "center", cellWidth: 18 },
+      3: { cellWidth: "auto" },
+    },
   });
+
   y = (doc as any).lastAutoTable.finalY + 6;
 
-  // Section 2: Energy & Load Metrics
-  y = sectionHeader(doc, "6.2 Energy & Load Metrics", y);
-  const energyRows = [
-    ["Annual Energy (kWh)", fmt(annual.energyConsumption_kWh ?? energy.electricity_kwh_total ?? rd?.summary?.totalEnergy_kWh)],
-    ["Annual Cooling Load (kWh)", fmt(annual.coolingLoad_kWh ?? energy.cooling_kwh)],
-    ["Peak Cooling Load (kW)", fmt(metrics.peakCoolingLoad_kW)],
-    ["IT Equipment (kWh)", fmt(energy.it_kwh)],
-    ["Fan Power (kWh)", fmt(energy.fan_kwh)],
-    ["Chiller Power (kWh)", fmt(energy.chiller_kwh)],
-  ].filter(([, v]) => v !== "—");
+  const gates = rd?.results?.phase4Gates ?? rd?.phase4Gates ?? {};
+  if (Object.keys(gates).length > 0) {
+    y = ensureSpace(doc, y, 30);
+    y = sectionHeader(doc, "3.2 Phase 4 Compliance Gates", y);
+    autoTable(doc, {
+      startY: y,
+      head: [["Gate", "Status"]],
+      body: Object.entries(gates).map(([k, v]) => [k, String(v)]),
+      theme: "grid",
+      margin: { left: 14, right: 14 },
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: LIGHT },
+      didParseCell: (d) => {
+        if (d.section === "body" && d.column.index === 1) {
+          const value = String(d.cell.raw).toUpperCase();
+          if (value === "PASS") d.cell.styles.textColor = [16, 185, 129] as any;
+          if (value === "FAIL") d.cell.styles.textColor = [239, 68, 68] as any;
+          d.cell.styles.fontStyle = "bold";
+        }
+      },
+    });
+    y = (doc as any).lastAutoTable.finalY + 6;
+  }
 
-  autoTable(doc, {
-    startY: y,
-    head: [["Metric", "Value"]],
-    body: energyRows,
-    theme: "grid",
-    margin: { left: 14, right: 14 },
-    styles: { fontSize: 8, cellPadding: 1.8 },
-    headStyles: { fillColor: ACCENT, textColor: WHITE, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: LIGHT },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
-  });
-  y = (doc as any).lastAutoTable.finalY + 6;
+  const airflow = rd?.airflowViolations;
+  if (airflow) {
+    y = ensureSpace(doc, y, 36);
+    y = sectionHeader(doc, "3.3 Airflow Analysis", y);
+    autoTable(doc, {
+      startY: y,
+      head: [["Field", "Value"]],
+      body: [
+        ["Violation Hours", String(airflow.totalViolationHours ?? "—")],
+        ["Violation Percentage", `${airflow.percentageHours ?? "—"}%`],
+        ["Mode Breakdown", Object.entries(airflow.modeBreakdown ?? {}).map(([mode, count]) => `${mode}: ${count}`).join(" | ") || "—"],
+        ["Messages", Array.isArray(airflow.uniqueMessages) ? airflow.uniqueMessages.join(" | ") : "—"],
+      ],
+      theme: "grid",
+      margin: { left: 14, right: 14 },
+      styles: { fontSize: 8, cellPadding: 2, overflow: "linebreak" },
+      headStyles: { fillColor: ACCENT, textColor: WHITE, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: LIGHT },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 42 }, 1: { cellWidth: "auto" } },
+    });
+    y = (doc as any).lastAutoTable.finalY + 6;
+  }
 
-  // Section 3: Water & Environmental
-  y = sectionHeader(doc, "6.3 Water & Environmental", y);
-  const waterRows = [
-    ["Annual Water (L)", fmt(annual.waterUsage_L ?? rd?.summary?.waterUsage_L)],
-    ["Carbon Emissions (kg)", fmt(annual.carbonEmissions_kg ?? emissions.co2_kg_total ?? rd?.summary?.totalCarbonEmissions_kg)],
-    ["CO₂ per kWh IT", fmt(emissions.co2_kg_per_kwh_it)],
-  ].filter(([, v]) => v !== "—");
-
-  autoTable(doc, {
-    startY: y,
-    head: [["Metric", "Value"]],
-    body: waterRows,
-    theme: "grid",
-    margin: { left: 14, right: 14 },
-    styles: { fontSize: 8, cellPadding: 1.8 },
-    headStyles: { fillColor: GREEN, textColor: WHITE, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: LIGHT },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
-  });
-  y = (doc as any).lastAutoTable.finalY + 6;
-
-  // Section 4: Economics
-  y = sectionHeader(doc, "6.4 Economics & Financial", y);
-  const ecoRows = [
-    ["OPEX Annual (USD)", fmt(annual.cost_USD ?? econ.opex_annual_USD ?? rd?.summary?.annualOpExUSD)],
-    ["CAPEX (USD)", fmt(econ.capex_USD ?? costs.capex_usd)],
-    ["LCCP (USD)", fmt(econ.lccp_USD)],
-    ["NPV (USD)", fmt(econ.npv_USD)],
-    ["IRR (%)", fmt(econ.irr)],
-    ["Payback Period (years)", fmt(econ.paybackPeriod_years)],
-    ["Annual Savings (USD)", fmt(rd?.annualSavingsUSD ?? econ.annualSavingsUSD ?? rd?.summary?.annualSavingsUSD)],
-  ].filter(([, v]) => v !== "—");
-
-  autoTable(doc, {
-    startY: y,
-    head: [["Metric", "Value"]],
-    body: ecoRows,
-    theme: "grid",
-    margin: { left: 14, right: 14 },
-    styles: { fontSize: 8, cellPadding: 1.8 },
-    headStyles: { fillColor: YELLOW, textColor: DARK, fontStyle: "bold" },
-    alternateRowStyles: { fillColor: LIGHT },
-    columnStyles: { 1: { halign: "right", fontStyle: "bold" } },
-  });
+  if (rd?.cloudSimEnabled) {
+    y = ensureSpace(doc, y, 30);
+    y = sectionHeader(doc, "3.4 CloudSim Workload Metadata", y);
+    autoTable(doc, {
+      startY: y,
+      head: [["Field", "Value"]],
+      body: [
+        ["CloudSim Enabled", "Yes"],
+        ["Workload Mode", rd?.workloadMode ?? "—"],
+        ["Average Utilization", rd?.averageUtilization != null ? `${(Number(rd.averageUtilization) * 100).toFixed(2)}%` : "—"],
+        ["Total Racks", rd?.rackAnalysis?.totalRacks ?? "—"],
+        ["Hotspot Racks", rd?.rackAnalysis?.hotspotRacks ?? "—"],
+        ["Average Rack Load", rd?.rackAnalysis?.averageRackLoadKW != null ? `${Number(rd.rackAnalysis.averageRackLoadKW).toFixed(2)} kW` : "—"],
+        ["Max Rack Load", rd?.rackAnalysis?.maxRackLoadKW != null ? `${Number(rd.rackAnalysis.maxRackLoadKW).toFixed(2)} kW` : "—"],
+      ],
+      theme: "grid",
+      margin: { left: 14, right: 14 },
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: GREEN, textColor: WHITE, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: LIGHT },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 46 }, 1: { cellWidth: "auto" } },
+    });
+  }
 }
 
 function appendRecommendationsAppendix(doc: jsPDF, rd: any, result: SimulationPDFData["result"]) {
@@ -803,7 +969,7 @@ function appendRecommendationsAppendix(doc: jsPDF, rd: any, result: SimulationPD
 
   doc.addPage();
   let y = 20;
-  y = sectionHeader(doc, "7. Complete ML Recommendation & Analysis", y);
+  y = sectionHeader(doc, "4. Tab - Recommendations", y);
 
   // Summary section
   const summary = [
@@ -836,7 +1002,7 @@ function appendRecommendationsAppendix(doc: jsPDF, rd: any, result: SimulationPD
 
   // Why this recommendation
   if (Array.isArray(mlRec?.why_this_is_recommended) && mlRec.why_this_is_recommended.length > 0) {
-    y = sectionHeader(doc, "7.1 Why This Recommendation", y);
+    y = sectionHeader(doc, "4.1 Why This Recommendation", y);
     const reasons = mlRec.why_this_is_recommended.filter((r: any) => r && !r.includes("available when"));
     if (reasons.length > 0) {
       const reasonsText = reasons.join("\n\n");
@@ -855,7 +1021,7 @@ function appendRecommendationsAppendix(doc: jsPDF, rd: any, result: SimulationPD
 
   // Future impact
   if (mlRec?.future_impact_paragraph && !mlRec.future_impact_paragraph.includes("available when")) {
-    y = sectionHeader(doc, "7.2 Future Impact & Analysis", y);
+    y = sectionHeader(doc, "4.2 Future Impact & Analysis", y);
     y = addWrappedTextBlock(
       doc,
       mlRec.future_impact_paragraph,
@@ -870,7 +1036,7 @@ function appendRecommendationsAppendix(doc: jsPDF, rd: any, result: SimulationPD
 
   // Technique comparison table
   if (Array.isArray(mlRec?.comparison_table) && mlRec.comparison_table.length > 0) {
-    y = renderTechniqueTable(doc, "7.3 Technique Comparison Table", mlRec.comparison_table, y);
+    y = renderTechniqueTable(doc, "4.3 Technique Comparison Table", mlRec.comparison_table, y);
   }
 
 
@@ -1625,10 +1791,10 @@ export const generateSimulationPDF = (data: SimulationPDFData) => {
     // ── Page 1: Cover Page ────────────────────────────────────────────────────
     coverPage(doc, data);
 
-    // ── Page 2: Executive Summary ─────────────────────────────────────────────
+    // ── Page 2: Overview Tab ──────────────────────────────────────────────────
     doc.addPage();
     let y = 20;
-    y = sectionHeader(doc, "1. Executive Summary", y);
+    y = sectionHeader(doc, "1. Tab - Overview", y);
 
     // KPI Cards
     y = kpiRow(doc, y, [
@@ -1686,10 +1852,33 @@ export const generateSimulationPDF = (data: SimulationPDFData) => {
       columnStyles: { 0: { fontStyle: "bold" }, 1: { halign: "right", fontStyle: "bold" } },
     });
 
+    y = (doc as any).lastAutoTable.finalY + 6;
+    y = sectionHeader(doc, "1.1 Simulation Information", y);
+    autoTable(doc, {
+      startY: y,
+      head: [["Field", "Value"]],
+      body: [
+        ["Simulation ID", String(data.simulation.id)],
+        ["Simulation Name", data.simulation.name],
+        ["Simulation Type", data.simulation.simulation_type],
+        ["Status", data.simulation.status],
+        ["Created At", new Date(data.simulation.created_at).toLocaleString()],
+        ["Completed At", data.result.completed_at ? new Date(data.result.completed_at).toLocaleString() : "—"],
+        ["Runtime (minutes)", fmt(data.result.runtime_minutes)],
+      ],
+      theme: "grid",
+      margin: { left: 14, right: 14 },
+      styles: { fontSize: 8.5, cellPadding: 2.4 },
+      headStyles: { fillColor: DARK, textColor: WHITE, fontStyle: "bold", fontSize: 9 },
+      alternateRowStyles: { fillColor: LIGHT },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 52 }, 1: { cellWidth: "auto" } },
+    });
+
     // ── Pages 3+: Detailed Sections ───────────────────────────────────────────
-    appendRawDataAppendix(doc, rd);
+    appendChartsTabSection(doc, data.capturedCharts);
     appendMetricsAppendix(doc, rd);
     appendRecommendationsAppendix(doc, rd, data.result);
+    appendRawDataAppendix(doc, rd);
 
     // ── Final: Page Numbers ───────────────────────────────────────────────────
     addPageNumbers(doc);

@@ -158,12 +158,26 @@ const SimulationDetail: React.FC = () => {
     if (!simulation?.result) return;
 
     console.log("[PDF Export] Starting chart capture...");
+    const previousTab = activeTab;
+
+    const waitForRender = async (delay = 250) => {
+      await new Promise((resolve) => window.requestAnimationFrame(() => resolve(null)));
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    };
 
     try {
       // Dynamically import chart capture utilities
       const { captureAllCharts, estimateChartDataSize } = await import(
         "../utils/chartCapture"
       );
+
+      // Ensure chart DOM is mounted so all chart snapshots can be captured.
+      if (activeTab !== "charts") {
+        setActiveTab("charts");
+        await waitForRender(500);
+      } else {
+        await waitForRender(250);
+      }
 
       // Capture all visible charts
       console.log("[PDF Export] Capturing charts...");
@@ -220,6 +234,10 @@ const SimulationDetail: React.FC = () => {
           result_data: simulation.result.result_data,
         },
       });
+    } finally {
+      if (previousTab !== "charts") {
+        setActiveTab(previousTab);
+      }
     }
   };
 
