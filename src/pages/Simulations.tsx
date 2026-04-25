@@ -56,11 +56,10 @@ const DeleteButtonWithModal: React.FC<DeleteButtonProps> = ({
     <>
       <button
         onClick={() => setShowConfirm(true)}
-        className={`p-2.5 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
-          isDark
-            ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
-            : "bg-red-100 text-red-600 hover:bg-red-200"
-        }`}
+        className={`p-2.5 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${isDark
+          ? "bg-red-500/20 text-red-400 hover:bg-red-500/30"
+          : "bg-red-100 text-red-600 hover:bg-red-200"
+          }`}
       >
         <Trash2 className="w-4 h-4" />
       </button>
@@ -68,11 +67,10 @@ const DeleteButtonWithModal: React.FC<DeleteButtonProps> = ({
       {showConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div
-            className={`rounded-2xl p-6 max-w-md w-full mx-4 ${
-              isDark
-                ? "bg-[#1a1f3a] border border-[#3f4a68]"
-                : "bg-white border border-gray-200"
-            }`}
+            className={`rounded-2xl p-6 max-w-md w-full mx-4 ${isDark
+              ? "bg-[#1a1f3a] border border-[#3f4a68]"
+              : "bg-white border border-gray-200"
+              }`}
           >
             <h3
               className={`text-xl font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
@@ -86,22 +84,20 @@ const DeleteButtonWithModal: React.FC<DeleteButtonProps> = ({
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowConfirm(false)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                  isDark
-                    ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68]"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${isDark
+                  ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68]"
+                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                  isDeleting
-                    ? "opacity-50 cursor-not-allowed"
-                    : "bg-red-500 text-white hover:bg-red-600"
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${isDeleting
+                  ? "opacity-50 cursor-not-allowed"
+                  : "bg-red-500 text-white hover:bg-red-600"
+                  }`}
               >
                 {isDeleting ? "Deleting..." : "Delete"}
               </button>
@@ -241,11 +237,10 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
 
   return (
     <div
-      className={`group rounded-2xl p-6 transition-all duration-300 transform hover:scale-105 hover:shadow-xl ${
-        isDark
-          ? "bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68] hover:border-[#5ce1e5]/30"
-          : "bg-gradient-to-br from-white to-gray-50 border border-gray-200 hover:border-[#0ea5e9]/30"
-      }`}
+      className={`group rounded-2xl p-6 transition-all duration-300 transform hover:scale-105 hover:shadow-xl ${isDark
+        ? "bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68] hover:border-[#5ce1e5]/30"
+        : "bg-gradient-to-br from-white to-gray-50 border border-gray-200 hover:border-[#0ea5e9]/30"
+        }`}
       style={{ animationDelay: `${index * 50}ms` }}
     >
       <div className="flex items-center justify-between mb-4">
@@ -253,15 +248,14 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
           {simulation.name}
         </h3>
         <span
-          className={`px-3 py-1 rounded-full text-xs font-medium ${
-            simulation.status === "completed"
-              ? isDark ? "bg-green-500/20 text-green-400" : "bg-green-100 text-green-700"
-              : simulation.status === "running"
-                ? isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-100 text-blue-700"
-                : simulation.status === "pending"
-                  ? isDark ? "bg-yellow-500/20 text-yellow-400" : "bg-yellow-100 text-yellow-700"
-                  : isDark ? "bg-gray-500/20 text-gray-400" : "bg-gray-100 text-gray-700"
-          }`}
+          className={`px-3 py-1 rounded-full text-xs font-medium ${simulation.status === "completed"
+            ? isDark ? "bg-green-500/20 text-green-400" : "bg-green-100 text-green-700"
+            : simulation.status === "running"
+              ? isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-100 text-blue-700"
+              : simulation.status === "pending"
+                ? isDark ? "bg-yellow-500/20 text-yellow-400" : "bg-yellow-100 text-yellow-700"
+                : isDark ? "bg-gray-500/20 text-gray-400" : "bg-gray-100 text-gray-700"
+            }`}
         >
           {simulation.status || "N/A"}
         </span>
@@ -349,11 +343,10 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
       <div className="flex items-center gap-3">
         <button
           onClick={() => navigate(`/simulation/${simulation.id}`)}
-          className={`flex-1 py-2.5 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
-            isDark
-              ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
-              : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
-          }`}
+          className={`flex-1 py-2.5 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${isDark
+            ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
+            : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
+            }`}
         >
           <div className="flex items-center justify-center gap-2">
             <Eye className="w-4 h-4" />
@@ -364,9 +357,8 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
         {simulation.status === "canceled" && (
           <button
             onClick={handleResume}
-            className={`px-4 py-2 rounded-lg font-bold transition-all duration-300 hover:scale-105 ${
-              isDark ? "bg-blue-500 text-white hover:bg-blue-600" : "bg-blue-500 text-white hover:bg-blue-600"
-            }`}
+            className={`px-4 py-2 rounded-lg font-bold transition-all duration-300 hover:scale-105 ${isDark ? "bg-blue-500 text-white hover:bg-blue-600" : "bg-blue-500 text-white hover:bg-blue-600"
+              }`}
           >
             Resume
           </button>
@@ -374,11 +366,10 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
 
         <button
           onClick={handleDownload}
-          className={`p-2.5 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
-            isDark
-              ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900"
-          }`}
+          className={`p-2.5 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${isDark
+            ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white"
+            : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900"
+            }`}
         >
           <Download className="w-4 h-4" />
         </button>
@@ -406,7 +397,7 @@ const Pagination: React.FC<PaginationProps> = ({
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
-    
+
     if (totalPages <= maxVisible) {
       for (let i = 1; i <= totalPages; i++) {
         pages.push(i);
@@ -438,50 +429,47 @@ const Pagination: React.FC<PaginationProps> = ({
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className={`p-2 rounded-lg transition-all duration-300 ${
-          currentPage === 1
-            ? 'opacity-50 cursor-not-allowed'
-            : isDark
-              ? 'hover:bg-[#27304a] text-gray-400 hover:text-white'
-              : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-        }`}
+        className={`p-2 rounded-lg transition-all duration-300 ${currentPage === 1
+          ? 'opacity-50 cursor-not-allowed'
+          : isDark
+            ? 'hover:bg-[#27304a] text-gray-400 hover:text-white'
+            : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+          }`}
       >
         <ChevronLeft className="w-5 h-5" />
       </button>
-      
+
       {getPageNumbers().map((page, idx) => (
         <button
           key={idx}
           onClick={() => typeof page === 'number' && onPageChange(page)}
-          className={`min-w-[40px] h-10 px-3 rounded-lg font-medium transition-all duration-300 ${
-            currentPage === page
+          className={`min-w-[40px] h-10 px-3 rounded-lg font-medium transition-all duration-300 ${currentPage === page
+            ? isDark
+              ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
+              : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
+            : typeof page === 'number'
               ? isDark
-                ? 'bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white'
-                : 'bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white'
-              : typeof page === 'number'
-                ? isDark
-                  ? 'bg-[#1a1f3a] text-gray-300 hover:bg-[#27304a]'
-                  : 'bg-white text-gray-700 hover:bg-gray-100'
-                : isDark
-                  ? 'text-gray-400 cursor-default'
-                  : 'text-gray-500 cursor-default'
-          }`}
+                ? 'bg-[#1a1f3a] text-gray-300 hover:bg-[#27304a]'
+                : 'bg-white text-gray-700 hover:bg-gray-100'
+              : isDark
+                ? 'text-gray-400 cursor-default'
+                : 'text-gray-500 cursor-default'
+            }`}
           disabled={typeof page !== 'number'}
         >
           {page}
         </button>
       ))}
-      
+
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className={`p-2 rounded-lg transition-all duration-300 ${
-          currentPage === totalPages
-            ? 'opacity-50 cursor-not-allowed'
-            : isDark
-              ? 'hover:bg-[#27304a] text-gray-400 hover:text-white'
-              : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
-        }`}
+        className={`p-2 rounded-lg transition-all duration-300 ${currentPage === totalPages
+          ? 'opacity-50 cursor-not-allowed'
+          : isDark
+            ? 'hover:bg-[#27304a] text-gray-400 hover:text-white'
+            : 'hover:bg-gray-100 text-gray-600 hover:text-gray-900'
+          }`}
       >
         <ChevronRight className="w-5 h-5" />
       </button>
@@ -510,9 +498,9 @@ export const Simulations: React.FC = () => {
   const avgPUE =
     completedWithData.length > 0
       ? completedWithData.reduce((acc, s) => {
-          const m = extractCardMetrics(s);
-          return acc + (m.pue ?? 0);
-        }, 0) / completedWithData.length
+        const m = extractCardMetrics(s);
+        return acc + (m.pue ?? 0);
+      }, 0) / completedWithData.length
       : 0;
 
   const filteredSimulations = simulations.filter((sim) => {
@@ -552,7 +540,8 @@ export const Simulations: React.FC = () => {
 
         const response = await getUserSimulations(userUUID);
         if (response.success && response.data) {
-          setSimulations(response.data.simulations || []);
+          const sims = response.data.simulations || [];
+          setSimulations(sims);
         } else {
           setSimulations([]);
         }
@@ -669,21 +658,19 @@ export const Simulations: React.FC = () => {
             <div className={`flex items-center gap-2 p-1 rounded-xl ${isDark ? "bg-[#27304a]" : "bg-gray-100"}`}>
               <button
                 onClick={() => setViewMode("grid")}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  viewMode === "grid"
-                    ? isDark ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white" : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
-                    : isDark ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-900"
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${viewMode === "grid"
+                  ? isDark ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white" : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
+                  : isDark ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-900"
+                  }`}
               >
                 Grid View
               </button>
               <button
                 onClick={() => setViewMode("list")}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                  viewMode === "list"
-                    ? isDark ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white" : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
-                    : isDark ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-900"
-                }`}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${viewMode === "list"
+                  ? isDark ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white" : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
+                  : isDark ? "text-gray-400 hover:text-white" : "text-gray-600 hover:text-gray-900"
+                  }`}
               >
                 List View
               </button>
@@ -698,22 +685,20 @@ export const Simulations: React.FC = () => {
                 placeholder="Search simulations..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className={`w-full pl-10 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all ${
-                  isDark
-                    ? "bg-[#1a1f3a] border-[#3f4a68] text-white focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20"
-                    : "bg-white border-gray-300 text-gray-900 focus:border-[#0ea5e9] focus:ring-[#0ea5e9]/20"
-                }`}
+                className={`w-full pl-10 pr-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all ${isDark
+                  ? "bg-[#1a1f3a] border-[#3f4a68] text-white focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20"
+                  : "bg-white border-gray-300 text-gray-900 focus:border-[#0ea5e9] focus:ring-[#0ea5e9]/20"
+                  }`}
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className={`px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all ${
-                isDark
-                  ? "bg-[#1a1f3a] border-[#3f4a68] text-white focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20"
-                  : "bg-white border-gray-300 text-gray-900 focus:border-[#0ea5e9] focus:ring-[#0ea5e9]/20"
-              }`}
+              className={`px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all ${isDark
+                ? "bg-[#1a1f3a] border-[#3f4a68] text-white focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20"
+                : "bg-white border-gray-300 text-gray-900 focus:border-[#0ea5e9] focus:ring-[#0ea5e9]/20"
+                }`}
             >
               <option value="all">All Status</option>
               <option value="completed">Completed</option>
@@ -725,11 +710,10 @@ export const Simulations: React.FC = () => {
             <select
               value={techniqueFilter}
               onChange={(e) => setTechniqueFilter(e.target.value)}
-              className={`px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all ${
-                isDark
-                  ? "bg-[#1a1f3a] border-[#3f4a68] text-white focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20"
-                  : "bg-white border-gray-300 text-gray-900 focus:border-[#0ea5e9] focus:ring-[#0ea5e9]/20"
-              }`}
+              className={`px-4 py-3 rounded-xl border-2 focus:outline-none focus:ring-2 transition-all ${isDark
+                ? "bg-[#1a1f3a] border-[#3f4a68] text-white focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20"
+                : "bg-white border-gray-300 text-gray-900 focus:border-[#0ea5e9] focus:ring-[#0ea5e9]/20"
+                }`}
             >
               <option value="all">All Techniques</option>
               <option value="air">Air Side Economization</option>
@@ -764,11 +748,10 @@ export const Simulations: React.FC = () => {
                       {paginatedSimulations.map((sim) => (
                         <div
                           key={sim.id}
-                          className={`group rounded-xl p-5 transition-all duration-300 hover:shadow-xl ${
-                            isDark
-                              ? "bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68] hover:border-[#5ce1e5]/30"
-                              : "bg-gradient-to-br from-white to-gray-50 border border-gray-200 hover:border-[#0ea5e9]/30"
-                          }`}
+                          className={`group rounded-xl p-5 transition-all duration-300 hover:shadow-xl ${isDark
+                            ? "bg-gradient-to-br from-[#1a1f3a] to-[#27304a] border border-[#3f4a68] hover:border-[#5ce1e5]/30"
+                            : "bg-gradient-to-br from-white to-gray-50 border border-gray-200 hover:border-[#0ea5e9]/30"
+                            }`}
                         >
                           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                             {/* Left section - Basic Info */}
@@ -778,13 +761,12 @@ export const Simulations: React.FC = () => {
                                   {sim.name}
                                 </h3>
                                 <span
-                                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                    sim.status === "completed"
-                                      ? isDark ? "bg-green-500/20 text-green-400" : "bg-green-100 text-green-700"
-                                      : sim.status === "running"
-                                        ? isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-100 text-blue-700"
-                                        : isDark ? "bg-gray-500/20 text-gray-400" : "bg-gray-100 text-gray-700"
-                                  }`}
+                                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${sim.status === "completed"
+                                    ? isDark ? "bg-green-500/20 text-green-400" : "bg-green-100 text-green-700"
+                                    : sim.status === "running"
+                                      ? isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-100 text-blue-700"
+                                      : isDark ? "bg-gray-500/20 text-gray-400" : "bg-gray-100 text-gray-700"
+                                    }`}
                                 >
                                   {sim.status}
                                 </span>
@@ -818,11 +800,10 @@ export const Simulations: React.FC = () => {
                             <div className="flex items-center gap-2 flex-shrink-0">
                               <button
                                 onClick={() => navigate(`/simulation/${sim.id}`)}
-                                className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
-                                  isDark
-                                    ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
-                                    : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
-                                }`}
+                                className={`px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${isDark
+                                  ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
+                                  : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
+                                  }`}
                               >
                                 <Eye className="w-4 h-4" />
                               </button>
@@ -850,11 +831,10 @@ export const Simulations: React.FC = () => {
                                     generateSimulationPDF(pdfData);
                                   });
                                 }}
-                                className={`p-2 rounded-lg transition-all duration-300 hover:scale-105 ${
-                                  isDark
-                                    ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white"
-                                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                }`}
+                                className={`p-2 rounded-lg transition-all duration-300 hover:scale-105 ${isDark
+                                  ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white"
+                                  : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                  }`}
                               >
                                 <Download className="w-4 h-4" />
                               </button>
@@ -865,7 +845,7 @@ export const Simulations: React.FC = () => {
                       ))}
                     </div>
                   )}
-                  
+
                   <Pagination
                     currentPage={currentPage}
                     totalPages={totalPages}
@@ -888,11 +868,10 @@ export const Simulations: React.FC = () => {
                   </p>
                   <button
                     onClick={() => navigate("/input-management")}
-                    className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
-                      isDark
-                        ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
-                        : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
-                    }`}
+                    className={`px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${isDark
+                      ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
+                      : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
+                      }`}
                   >
                     Start First Simulation
                   </button>

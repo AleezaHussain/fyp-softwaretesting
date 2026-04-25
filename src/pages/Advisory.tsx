@@ -397,19 +397,19 @@ const Advisory = () => {
           const usersId = usersRow.data?.id;
           if (usersId) {
             const { error } = await supabase.from("chat_history").insert({
-              user_id:        usersId,
+              user_id: usersId,
               input_question: userMessage.content,
               input_scenario: {
-                simulationId:   selectedSimulation?.id,
+                simulationId: selectedSimulation?.id,
                 simulationName: selectedSimulation?.name,
                 simulationType: selectedSimulation?.simulation_type,
               },
-              model_used:  data?.metadata?.model ?? data?.metadata?.source ?? null,
+              model_used: data?.metadata?.model ?? data?.metadata?.source ?? null,
               output_text: content,
-              output_llm:  data?.metadata?.source ?? null,
+              output_llm: data?.metadata?.source ?? null,
             });
             if (error) console.warn("[Advisory] chat_history insert failed:", error.message);
-            else        console.log("[Advisory] chat saved to chat_history ✓");
+            else console.log("[Advisory] chat saved to chat_history ✓");
           }
         }
       } catch (saveErr) {
@@ -446,13 +446,13 @@ const Advisory = () => {
   const { isDark } = useThemeStore();
 
   // ── theme helpers ──────────────────────────────────────────────────────────
-  const bg      = isDark ? "bg-[#0a0e27]" : "bg-gradient-to-br from-slate-50 via-white to-slate-50";
-  const card    = isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-white border-slate-200";
+  const bg = isDark ? "bg-[#0a0e27]" : "bg-gradient-to-br from-slate-50 via-white to-slate-50";
+  const card = isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-white border-slate-200";
   const cardSub = isDark ? "bg-[#27304a] border-[#3f4a68]" : "bg-slate-50 border-slate-200";
-  const text    = isDark ? "text-white" : "text-slate-950";
-  const muted   = isDark ? "text-gray-400" : "text-slate-500";
-  const label   = isDark ? "text-gray-300" : "text-slate-600";
-  const inp     = isDark
+  const text = isDark ? "text-white" : "text-slate-950";
+  const muted = isDark ? "text-gray-400" : "text-slate-500";
+  const label = isDark ? "text-gray-300" : "text-slate-600";
+  const inp = isDark
     ? "bg-[#27304a] border-[#3f4a68] text-white placeholder-gray-500 focus:border-[#5ce1e5] focus:ring-[#5ce1e5]/20"
     : "bg-white border-slate-200 text-slate-900 placeholder-slate-400 focus:border-sky-400 focus:ring-sky-100";
 
@@ -466,9 +466,8 @@ const Advisory = () => {
         <header className={`rounded-2xl border p-6 lg:p-8 bg-gradient-to-r ${isDark ? "from-[#0a1628] to-[#1a1f3a] border-[#3f4a68]" : "from-sky-50 to-blue-50 border-sky-200"}`}>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl">
-              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold mb-3 ${
-                isDark ? "border-[#5ce1e5]/30 bg-[#5ce1e5]/10 text-[#5ce1e5]" : "border-sky-300 bg-sky-100 text-sky-700"
-              }`}>
+              <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold mb-3 ${isDark ? "border-[#5ce1e5]/30 bg-[#5ce1e5]/10 text-[#5ce1e5]" : "border-sky-300 bg-sky-100 text-sky-700"
+                }`}>
                 <Sparkles className="h-3.5 w-3.5" />
                 AI Advisory Workspace
               </div>
@@ -583,11 +582,10 @@ const Advisory = () => {
                     key={thread.chatId}
                     type="button"
                     onClick={() => { setSelectedSimulationId(thread.simulationId); setSelectedChatId(thread.chatId); }}
-                    className={`w-full rounded-xl border px-4 py-3 text-left transition ${
-                      thread.chatId === selectedChatId
-                        ? isDark ? "border-[#5ce1e5]/40 bg-[#5ce1e5]/10" : "border-sky-300 bg-sky-50"
-                        : isDark ? "border-[#3f4a68] bg-[#27304a] hover:border-[#5ce1e5]/30" : "border-slate-200 bg-white hover:border-slate-300"
-                    }`}
+                    className={`w-full rounded-xl border px-4 py-3 text-left transition ${thread.chatId === selectedChatId
+                      ? isDark ? "border-[#5ce1e5]/40 bg-[#5ce1e5]/10" : "border-sky-300 bg-sky-50"
+                      : isDark ? "border-[#3f4a68] bg-[#27304a] hover:border-[#5ce1e5]/30" : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <p className={`text-sm font-semibold truncate ${text}`}>{thread.chatTitle || "New Chat"}</p>
@@ -677,18 +675,16 @@ const Advisory = () => {
                 ) : chatMessages.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`rounded-xl border px-4 py-4 text-sm ${
-                      msg.role === "user"
-                        ? isDark ? "border-[#5ce1e5]/30 bg-[#5ce1e5]/10" : "border-sky-200 bg-sky-50"
-                        : isDark ? "border-[#3f4a68] bg-[#27304a]" : "border-slate-200 bg-white"
-                    }`}
+                    className={`rounded-xl border px-4 py-4 text-sm ${msg.role === "user"
+                      ? isDark ? "border-[#5ce1e5]/30 bg-[#5ce1e5]/10" : "border-sky-200 bg-sky-50"
+                      : isDark ? "border-[#3f4a68] bg-[#27304a]" : "border-slate-200 bg-white"
+                      }`}
                   >
                     <div className="flex items-center gap-2 mb-2">
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                        msg.role === "user"
-                          ? isDark ? "bg-[#5ce1e5]/20 text-[#5ce1e5]" : "bg-sky-100 text-sky-700"
-                          : isDark ? "bg-[#3f4a68] text-gray-300" : "bg-slate-100 text-slate-600"
-                      }`}>
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center ${msg.role === "user"
+                        ? isDark ? "bg-[#5ce1e5]/20 text-[#5ce1e5]" : "bg-sky-100 text-sky-700"
+                        : isDark ? "bg-[#3f4a68] text-gray-300" : "bg-slate-100 text-slate-600"
+                        }`}>
                         {msg.role === "user" ? <UserIcon className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
                       </div>
                       <p className={`font-semibold text-xs ${text}`}>{msg.role === "user" ? "You" : "Advisory AI"}</p>

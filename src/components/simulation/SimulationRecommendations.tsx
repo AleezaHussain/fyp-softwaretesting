@@ -22,8 +22,8 @@ const Tip: React.FC<{ text: string; isDark: boolean }> = ({ text, isDark }) => {
       {show && (
         <span
           className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 w-64 text-xs rounded-lg px-2.5 py-1.5 shadow-xl pointer-events-none ${isDark
-              ? "bg-[#27304a] text-gray-200 border border-[#3f4a68]"
-              : "bg-gray-900 text-white"
+            ? "bg-[#27304a] text-gray-200 border border-[#3f4a68]"
+            : "bg-gray-900 text-white"
             }`}
         >
           {text}
@@ -58,8 +58,8 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
     return (
       <div
         className={`p-4 rounded-xl border ${isDark
-            ? "bg-slate-900 border-slate-700 text-slate-300"
-            : "bg-white border-gray-200 text-gray-600"
+          ? "bg-slate-900 border-slate-700 text-slate-300"
+          : "bg-white border-gray-200 text-gray-600"
           }`}
       >
         <p className="text-sm">No recommendation data is available for this simulation.</p>
@@ -68,11 +68,13 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
   }
 
   const comparisonRows = Array.isArray(mlRec?.comparison_table) ? [...mlRec.comparison_table] : [];
-  const rankedRows = [...comparisonRows].sort((a, b) => {
-    const aScore = typeof a?.score === "number" ? a.score : Number.POSITIVE_INFINITY;
-    const bScore = typeof b?.score === "number" ? b.score : Number.POSITIVE_INFINITY;
-    return aScore - bScore;
-  });
+  // Show recommended technique first, then others sorted by cost
+  const rankedRows = [
+    ...comparisonRows.filter((r: any) => r?.tech === (mlRec?.model_recommendation ?? fallbackRecommendation)),
+    ...comparisonRows
+      .filter((r: any) => r?.tech !== (mlRec?.model_recommendation ?? fallbackRecommendation))
+      .sort((a: any, b: any) => (a?.annual_cost ?? 0) - (b?.annual_cost ?? 0)),
+  ];
 
   const recommendation = mlRec?.model_recommendation ?? fallbackRecommendation ?? "—";
   const currentTechnique = mlRec?.current_technique ?? rd?.simulation_type ?? "—";
@@ -163,8 +165,8 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
           </h3>
           <div
             className={`p-3 rounded-xl border text-sm leading-7 ${isDark
-                ? "bg-[#0a0e27] border-[#3f4a68] text-gray-200"
-                : "bg-white border-gray-200 text-gray-700"
+              ? "bg-[#0a0e27] border-[#3f4a68] text-gray-200"
+              : "bg-white border-gray-200 text-gray-700"
               }`}
           >
             {summaryParagraph}
@@ -180,8 +182,8 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
           </h3>
           <div
             className={`p-3 rounded-xl border text-sm leading-7 ${isDark
-                ? "bg-[#0a0e27] border-[#3f4a68] text-gray-200"
-                : "bg-white border-gray-200 text-gray-700"
+              ? "bg-[#0a0e27] border-[#3f4a68] text-gray-200"
+              : "bg-white border-gray-200 text-gray-700"
               }`}
           >
             {mlRec.future_impact_paragraph}
@@ -203,11 +205,10 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
               <table className="w-full text-sm">
                 <thead className={isDark ? "bg-[#101733]" : "bg-gray-50"}>
                   <tr>
-                    {["Rank", "Technique", "Feasible", "Score", "Annual Cost", "CO2 (kg)", "Water (L)", "Violations"].map((h) => (
+                    {["Technique", "Feasible", "Annual Cost", "CO2 (kg/yr)", "Water (L/yr)", "Violations"].map((h) => (
                       <th
                         key={h}
-                        className={`px-3 py-2 text-left text-xs font-semibold ${isDark ? "text-gray-400" : "text-gray-500"
-                          }`}
+                        className={`px-3 py-2 text-left text-xs font-semibold ${isDark ? "text-gray-400" : "text-gray-500"}`}
                       >
                         {h}
                       </th>
@@ -220,24 +221,35 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
                     return (
                       <tr
                         key={i}
-                        className={`border-t ${isDark ? "border-[#2f3a5f]" : "border-gray-100"}`}
+                        className={`border-t ${isDark ? "border-[#2f3a5f]" : "border-gray-100"} ${isBest ? (isDark ? "bg-[#0d2a1a]" : "bg-green-50") : ""}`}
                       >
-                        <td className={`px-3 py-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>{i + 1}</td>
                         <td className={`px-3 py-2 font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
-                          {row?.tech ?? "—"} {isBest ? "(Best)" : ""}
+                          <span>{row?.tech ?? "—"}</span>
+                          {isBest && (
+                            <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold"
+                              style={{ background: "#10b98120", color: "#10b981" }}>
+                              ✓ Recommended
+                            </span>
+                          )}
                         </td>
-                        <td className={`px-3 py-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                        <td className={`px-3 py-2 ${row?.feasible ? "text-green-500" : "text-red-500"}`}>
                           {row?.feasible ? "Yes" : "No"}
                         </td>
                         <td className={`px-3 py-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-                          {typeof row?.score === "number" ? row.score.toFixed(4) : fmtV(row?.score)}
+                          ${(row?.annual_cost ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </td>
                         <td className={`px-3 py-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
-                          {fmtV(row?.annual_cost, "USD")}
+                          {(row?.annual_emissions_kg ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </td>
-                        <td className={`px-3 py-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>{fmtV(row?.annual_emissions_kg)}</td>
-                        <td className={`px-3 py-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>{fmtV(row?.annual_water_liters)}</td>
-                        <td className={`px-3 py-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>{fmtV(row?.violations)}</td>
+                        <td className={`px-3 py-2 ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+                          {row?.annual_water_liters === 0
+                            ? <span className="text-green-500">0 (no water used)</span>
+                            : (row?.annual_water_liters ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        </td>
+                        <td className={`px-3 py-2 ${(row?.violations ?? 0) > 0 ? "text-red-500 font-bold" : (isDark ? "text-gray-300" : "text-gray-700")}`}>
+                          {row?.violations ?? 0}
+                          {(row?.violations ?? 0) > 0 && " ⚠️"}
+                        </td>
                       </tr>
                     );
                   })}
@@ -251,8 +263,8 @@ export const SimulationRecommendations: React.FC<SimulationRecommendationsProps>
       {!mlRec && fallbackRecommendation && (
         <div
           className={`p-3 rounded-xl border ${isDark
-              ? "bg-[#0a0e27] border-[#3f4a68] text-gray-200"
-              : "bg-white border-gray-200 text-gray-700"
+            ? "bg-[#0a0e27] border-[#3f4a68] text-gray-200"
+            : "bg-white border-gray-200 text-gray-700"
             }`}
         >
           <div className={`text-xs mb-1 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
