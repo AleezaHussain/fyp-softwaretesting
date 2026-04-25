@@ -219,34 +219,292 @@ def _truncate_text(value: str, max_chars: int, label: str) -> str:
 
 
 def _extract_key_metrics(simulation: Dict[str, Any]) -> str:
-    """Extract user-friendly summary metrics from simulation data."""
-    metrics = []
-    
-    # Extract key summary metrics if available
-    summary = simulation.get("summary", {})
-    results = simulation.get("results", {})
-    
-    if isinstance(summary, dict):
-        if "avgCOP" in summary:
-            metrics.append(f"Average COP (efficiency): {summary['avgCOP']:.2f}")
-        if "totalEnergyKWh" in summary:
-            metrics.append(f"Total energy used: {summary['totalEnergyKWh']:.0f} kWh")
-        if "totalCostUSD" in summary:
-            metrics.append(f"Total cost: ${summary['totalCostUSD']:.2f}")
-        if "avgPUE" in summary:
-            metrics.append(f"Average PUE: {summary['avgPUE']:.2f}")
-        if "costSavingPercent" in summary:
-            metrics.append(f"Cost savings: {summary['costSavingPercent']:.1f}%")
-        if "emissionsKgCO2" in summary:
-            metrics.append(f"CO2 emissions: {summary['emissionsKgCO2']:.0f} kg")
-    
-    if isinstance(results, dict):
-        if "recommendedTechnique" in results:
-            metrics.append(f"Recommended technique: {results['recommendedTechnique']}")
-        if "thermalStatus" in results:
-            metrics.append(f"Thermal status: {results['thermalStatus']}")
-    
+    """
+    Extract real metrics from simulation data.
+    Handles all 3 technique structures:
+      - Air Economizer:  result_data.summary  +  result_data.rawAirEconomizerData.summary
+      - Chilled Water:   result_data (flat fields) + result_data.results.annual/metrics/economics
+      - Evaporative:     result_data (flat fields) + result_data.evaporativeResults
+    """
+    metrics: list[str] = []
+    seen: set[str] = set()
+
+    def _add(label: str, value, fmt: str = "") -> None:
+        key = label.lower()
+        if value is None or key in seen:
+            return
+        seen.add(key)
+        try:
+            fval = float(value)
+            if fmt == "$":
+                metrics.append(f"{label}: ${fval:,.2f}")
+            elif fmt == "%":
+                metrics.append(f"{label}: {fval:.1f}%")
+            elif fmt == "kwh":
+                metrics.append(f"{label}: {fval:,.0f} kWh")
+            elif fmt == "kg":
+                metrics.append(f"{label}: {fval:,.0f} kg")
+            elif fmt == "L":
+                metrics.append(f"{label}: {fval:,.0f} liters")
+            elif fmt == "yrs":
+                metrics.append(f"{label}: {fval:.1f} years")
+            else:
+                metrics.append(f"{label}: {fval:.2f}")
+        except (ValueError, TypeError):
+            metrics.append(f"{label}: {value}")
+
+    # ── AIR ECONOMIZER ────────────────────────────────────────────────────────
+    # Primary source: result_data.summary  (always present for air)
+    air_summary = simulation.get("summary", {})
+    if isinstance(air_summary, dict) and air_summary:
+        _add("Average PUE",           air_summary.get("averagePUE"),              "")
+        _add("Average CUE",           air_summary.get("averageCUE"),              "")
+        _add("Total energy used",     air_summary.get("totalEnergy_kWh"),         "kwh")
+        _add("IT energy",             air_summary.get("totalItEnergy_kWh"),       "kwh")
+        _add("Cooling energy",        air_summary.get("totalCoolingEnergy_kWh"),  "kwh")
+        _add("Electricity cost",      air_summary.get("electricityCostUSD"),      "$")
+        _add("Estimated OpEx",        air_summary.get("estimatedOpExUSD"),        "$")
+        _add("Annual OpEx",           air_summary.get("annualOpExUSD"),           "$")
+        _add("Annual savings",        air_summary.get("annualSavingsUSD"),        "$")
+        _add("Carbon emissions",      air_summary.get("totalCarbonEmissions_kg"), "kg")
+        _add("Carbon savings",        air_summary.get("carbonSavings_kg"),        "kg")
+        _add("Water usage",           air_summary.get("waterUsage_liters"),       "L")
+        _add("Payback period",        air_summary.get("paybackPeriodYears"),      "yrs")
+        _add("Energy savings",        air_summary.get("energySavingsPercent"),    "%")
+        _add("Capital cost (CAPEX)",  air_summary.get("totalCapexUSD"),           "$")
+
+    # Also pull from results.annual / results.metrics / results.economics (air new format)
+    results_block = simulation.get("results", {})
+    if isinstance(results_block, dict):
+        annual = results_block.get("annual", {})
+        if isinstance(annual, dict):
+            _add("Total energy used",  annual.get("energyConsumption_kWh"), "kwh")
+            _add("Annual cost",        annual.get("cost_USD"),              "$")
+            _add("Water usage",        annual.get("waterUsage_L"),          "L")
+            _add("Carbon emissions",   annual.get("carbonEmissions_kg"),    "kg")
+
+        rm = results_block.get("metrics", {})
+        if isinstance(rm, dict):
+            _add("Average PUE",  rm.get("pue"),        "")
+            _add("Average COP",  rm.get("averageCOP"), "")
+            _add("Average WUE",  rm.get("wue"),        "")
+            _add("Average CUE",  rm.get("cue"),        "")
+
+        econ = results_block.get("economics", {})
+        if isinstance(econ, dict):
+            _add("Capital cost (CAPEX)",  econ.get("capex_USD"),           "$")
+            _add("Annual OpEx",           econ.get("opex_annual_USD"),     "$")
+            _add("Payback period",        econ.get("paybackPeriod_years"), "yrs")
+            _add("NPV",                   econ.get("npv_USD"),             "$")
+            _add("Annual savings",        econ.get("annualSavings_USD"),   "$")
+
+    # ── CHILLED WATER ─────────────────────────────────────────────────────────
+    # Flat fields directly on result_data after merge
+    _add("Average PUE",       simulation.get("pue") or simulation.get("averagePUE"),  "")
+    _add("Average COP",       simulation.get("averageCOP"),                           "")
+    _add("Average WUE",       simulation.get("wue"),                                  "")
+    _add("Total energy used", simulation.get("totalEnergy_kWh") or simulation.get("totalEnergyConsumption"), "kwh")
+    _add("Annual cost",       simulation.get("estimatedCost") or simulation.get("opex_annual_USD"),          "$")
+    _add("Annual savings",    simulation.get("annualSavingsUSD"),                     "$")
+    _add("Carbon emissions",  simulation.get("totalCarbonEmissions_kg") or simulation.get("carbonFootprint") or simulation.get("annual_emissions_kg"), "kg")
+    _add("Water usage",       simulation.get("waterUsage_L") or simulation.get("annual_water_liters"),       "L")
+    _add("Payback period",    simulation.get("paybackPeriod_years"),                  "yrs")
+    _add("Capital cost",      simulation.get("capex_USD"),                            "$")
+    _add("NPV",               simulation.get("npv_USD"),                              "$")
+
+    # Chilled water nested economics block
+    cw_econ = simulation.get("economics", {})
+    if isinstance(cw_econ, dict):
+        _add("Capital cost (CAPEX)", cw_econ.get("capex_USD"),           "$")
+        _add("Annual OpEx",          cw_econ.get("opex_annual_USD"),     "$")
+        _add("Annual savings",       cw_econ.get("annualSavingsUSD"),    "$")
+        _add("Payback period",       cw_econ.get("paybackPeriod_years"), "yrs")
+        _add("NPV",                  cw_econ.get("npv_USD"),             "$")
+
+    # ── EVAPORATIVE ───────────────────────────────────────────────────────────
+    _add("IT energy",      simulation.get("it_kwh"),          "kwh")
+    _add("Fan energy",     simulation.get("fan_kwh"),          "kwh")
+    _add("Pump energy",    simulation.get("pump_kwh"),         "kwh")
+    _add("Water evaporated", simulation.get("evaporation_liters") or simulation.get("waterConsumption"), "L")
+
+    evap_res = simulation.get("evaporativeResults", {})
+    if isinstance(evap_res, dict):
+        _add("IT energy",          evap_res.get("itEnergy"),           "kwh")
+        _add("Fan energy",         evap_res.get("fanEnergy"),          "kwh")
+        _add("Water evaporation",  evap_res.get("waterEvaporation"),   "L")
+        _add("Cooling failure hrs",evap_res.get("coolingFailureHours"),"")
+
+    # Cooling adequacy status
+    ca = simulation.get("coolingAdequacy", {})
+    if isinstance(ca, dict) and ca.get("status"):
+        metrics.append(f"Cooling adequacy status: {ca['status']}")
+
+    # ── ML RECOMMENDATION (all techniques) ───────────────────────────────────
+    ml = simulation.get("mlRecommendation", {})
+    if not isinstance(ml, dict):
+        ml = {}
+    rec = ml.get("model_recommendation") or ml.get("current_technique")
+    if rec:
+        metrics.append(f"ML recommended technique: {rec}")
+
+    # ── AIRFLOW VIOLATIONS (air economizer) ───────────────────────────────────
+    av = simulation.get("airflowViolations", {})
+    if isinstance(av, dict) and av.get("percentageHours"):
+        metrics.append(f"Airflow violation rate: {av['percentageHours']}% of hours ({av.get('totalViolationHours')} hours)")
+
     return "\n".join(metrics) if metrics else "Simulation data available for analysis"
+
+
+def _extract_specific_hour(simulation: Dict[str, Any], question: str) -> str:
+    """If user asks about a specific hour, extract that hour's data from hourlyData."""
+    import re
+    # Detect hour number in question
+    match = re.search(r'\b(?:hour|hr)\s*#?\s*(\d+)\b', question, re.IGNORECASE)
+    if not match:
+        match = re.search(r'\b(\d+)(?:st|nd|rd|th)?\s*hour\b', question, re.IGNORECASE)
+    if not match:
+        return ""
+
+    hour_num = int(match.group(1))
+
+    # Resolve hourlyData list
+    hourly = (
+        simulation.get("hourlyData")
+        or simulation.get("hourlyResults")
+        or (simulation.get("results", {}) or {}).get("hourlyResults")
+        or (simulation.get("rawEvaporativeData", {}) or {}).get("hourly_data")
+        or (simulation.get("rawAirEconomizerData", {}) or {}).get("hourlyResults")
+        or []
+    )
+
+    if not isinstance(hourly, list) or len(hourly) == 0:
+        return ""
+
+    # Find the matching hour entry
+    hour_data = None
+    for h in hourly:
+        if isinstance(h, dict):
+            h_val = h.get("hour") or h.get("timestampHour") or h.get("timestamp")
+            if h_val is not None and int(h_val) == hour_num:
+                hour_data = h
+                break
+
+    # Fallback to index if not found by hour field
+    if hour_data is None and hour_num < len(hourly):
+        hour_data = hourly[hour_num]
+
+    if not hour_data:
+        return f"Hour {hour_num} not found in simulation data (total hours: {len(hourly)})."
+
+    lines = [f"DATA FOR HOUR {hour_num}:"]
+    field_map = [
+        ("pue",                "PUE"),
+        ("itLoadKW",           "IT Load (kW)"),
+        ("itLoad_kW",          "IT Load (kW)"),
+        ("fanPowerKW",         "Fan Power (kW)"),
+        ("fanPower_kW",        "Fan Power (kW)"),
+        ("mechPower_kW",       "Mechanical Power (kW)"),
+        ("totalElectricalKW",  "Total Electrical (kW)"),
+        ("totalPower_kW",      "Total Power (kW)"),
+        ("inletTempC",         "Inlet Temp (°C)"),
+        ("outdoorTempC",       "Outdoor Temp (°C)"),
+        ("ambientTempC",       "Ambient Temp (°C)"),
+        ("supplyTempC",        "Supply Temp (°C)"),
+        ("coolingMode",        "Cooling Mode"),
+        ("mode",               "Cooling Mode"),
+        ("coolingCapacityKW",  "Cooling Capacity (kW)"),
+        ("coolingLoad_kW",     "Cooling Load (kW)"),
+        ("waterEvaporationLph","Water Evaporation (L/hr)"),
+        ("dxPowerKW",          "DX Backup Power (kW)"),
+        ("q_free_kW",          "Free Cooling (kW)"),
+        ("airflowViolation",   "Airflow Violation"),
+        ("violationMsg",       "Violation Message"),
+    ]
+    seen_labels = set()
+    for field, label in field_map:
+        if label in seen_labels:
+            continue
+        val = hour_data.get(field)
+        if val is not None:
+            seen_labels.add(label)
+            if isinstance(val, float):
+                lines.append(f"  {label}: {val:.4f}")
+            else:
+                lines.append(f"  {label}: {val}")
+
+    return "\n".join(lines)
+
+
+    """
+    Compute stats from hourly data for all 3 techniques.
+    - Evaporative: result_data.hourlyData  (keys: pue, fanPowerKW, inletTempC, coolingMode, itLoadKW...)
+    - Air Economizer: result_data.hourlyResults (keys: pue, fanPower_kW, itLoad_kW, mode, outdoorTempC...)
+    - Chilled Water: result_data.results.hourlyResults
+    """
+    # Resolve hourly list from multiple possible locations
+    hourly = (
+        simulation.get("hourlyData")
+        or simulation.get("hourlyResults")
+        or (simulation.get("results", {}) or {}).get("hourlyResults")
+        or (simulation.get("rawEvaporativeData", {}) or {}).get("hourly_data")
+        or (simulation.get("rawAirEconomizerData", {}) or {}).get("hourlyResults")
+        or (simulation.get("rawChilledWaterData", {}) or {}).get("results", {}).get("hourlyResults")
+        or []
+    )
+
+    if not isinstance(hourly, list) or len(hourly) == 0:
+        return ""
+
+    stats: list[str] = []
+    total = len(hourly)
+
+    def _vals(keys):
+        for h in hourly:
+            for k in keys:
+                v = h.get(k)
+                if v is not None:
+                    try:
+                        yield float(v)
+                    except (ValueError, TypeError):
+                        pass
+                    break
+
+    # PUE stats
+    pues = list(_vals(["pue", "PUE"]))
+    if pues:
+        stats.append(f"Hourly PUE — min: {min(pues):.2f}, max: {max(pues):.2f}, avg: {sum(pues)/len(pues):.2f} (over {total} hours)")
+
+    # Inlet / supply temp
+    temps = list(_vals(["inletTempC", "inlet_temp_c", "supplyTempC"]))
+    if temps:
+        stats.append(f"Inlet temperature — min: {min(temps):.1f}°C, max: {max(temps):.1f}°C, avg: {sum(temps)/len(temps):.1f}°C")
+
+    # Fan power
+    fan = list(_vals(["fanPowerKW", "fanPower_kW", "fan_power_kw"]))
+    if fan:
+        stats.append(f"Fan power — avg: {sum(fan)/len(fan):.2f} kW, peak: {max(fan):.2f} kW")
+
+    # IT load
+    it = list(_vals(["itLoadKW", "itLoad_kW", "it_load_kw"]))
+    if it:
+        stats.append(f"IT load — avg: {sum(it)/len(it):.1f} kW, peak: {max(it):.1f} kW")
+
+    # Cooling modes (evaporative / air)
+    modes: dict[str, int] = {}
+    for h in hourly:
+        m = h.get("coolingMode") or h.get("mode")
+        if m:
+            modes[m] = modes.get(m, 0) + 1
+    if modes:
+        mode_str = ", ".join(f"{m}: {c} hrs" for m, c in sorted(modes.items(), key=lambda x: -x[1]))
+        stats.append(f"Cooling modes: {mode_str}")
+
+    # Outdoor temp (air economizer)
+    outdoor = list(_vals(["outdoorTempC", "outdoor_temp_c", "ambientTempC"]))
+    if outdoor:
+        stats.append(f"Outdoor temperature — min: {min(outdoor):.1f}°C, max: {max(outdoor):.1f}°C")
+
+    return "\n".join(stats) if stats else ""
 
 
 def _detect_question_keywords(question: str) -> Tuple[str, list]:
@@ -352,11 +610,14 @@ def _build_prompt(req: AdvisoryAskRequest) -> str:
     db_sim = _fetch_simulation_from_supabase(req.simulationId)
     
     if db_sim:
-        # Use database data
-        sim_data = db_sim.get("results", {})
-        if isinstance(sim_data, dict) and sim_data.get("result_data"):
-            sim_data.update(sim_data.get("result_data"))
-        technique = db_sim.get("simulation_type", "unknown").strip()
+        # result_data is the real payload for all techniques
+        raw_row = db_sim.get("results", {})
+        if isinstance(raw_row, dict):
+            rd = raw_row.get("result_data")
+            sim_data = dict(rd) if isinstance(rd, dict) else dict(raw_row)
+        else:
+            sim_data = {}
+        technique = _normalize_technique(str(db_sim.get("simulation_type", "")))
     elif req.simulation:
         # Fall back to request body if provided
         sim_data = req.simulation
@@ -379,18 +640,33 @@ def _build_prompt(req: AdvisoryAskRequest) -> str:
     
     # Extract metrics relevant to the question
     key_metrics = _extract_key_metrics(sim_data)
-    
+    hourly_stats = _extract_hourly_stats(sim_data)
+    specific_hour = _extract_specific_hour(sim_data, req.question)
+    print(f"[DEBUG] specific_hour extracted: {specific_hour[:200] if specific_hour else 'NONE'}")
+
     # Load relevant methodology section
     methodology_snippet = _load_methodology_section(technique, primary_category)
-    
+
     # Build context based on question type
     context_lines = [
         f"COOLING TECHNIQUE: {technique}",
         f"QUESTION ABOUT: {', '.join(all_categories) if all_categories else 'simulation performance'}",
         "",
-        f"KEY RESULTS:",
+        "KEY RESULTS:",
         key_metrics,
     ]
+
+    if specific_hour:
+        context_lines.extend([
+            "",
+            specific_hour,
+        ])
+    elif hourly_stats:
+        context_lines.extend([
+            "",
+            "HOURLY ANALYSIS:",
+            hourly_stats,
+        ])
     
     if methodology_snippet:
         context_lines.extend([
@@ -425,8 +701,68 @@ def _build_prompt(req: AdvisoryAskRequest) -> str:
         "8. DO NOT mention simulation IDs, methodology files, or technical process details\n"
         "9. DO NOT include disclaimers like 'keep in mind these are estimates'\n"
         "10. DO NOT mention 'based on simulation results' - just give practical insights\n"
+        "11. If the user asks about a specific hour but no 'DATA FOR HOUR X' section is provided in context, respond ONLY with: 'I could not find that hour in the simulation data. Could you please provide a valid hour number? The simulation covers hours 0 to 8759.'\n"
+        "12. If the user's question contains a typo or unclear hour reference (like 'q0', 'hour x', 'hour abc'), respond ONLY with: 'It looks like the hour number might have a typo. Could you please re-enter a valid hour number between 0 and 8759?'\n"
         + response_style
     )
+
+
+def _extract_hourly_stats(simulation: Dict[str, Any]) -> str:
+    """Compute aggregate stats from hourly data for all 3 techniques."""
+    hourly = (
+        simulation.get("hourlyData")
+        or simulation.get("hourlyResults")
+        or (simulation.get("results", {}) or {}).get("hourlyResults")
+        or (simulation.get("rawEvaporativeData", {}) or {}).get("hourly_data")
+        or (simulation.get("rawAirEconomizerData", {}) or {}).get("hourlyResults")
+        or []
+    )
+    if not isinstance(hourly, list) or len(hourly) == 0:
+        return ""
+
+    stats: list[str] = []
+    total = len(hourly)
+
+    def _vals(keys):
+        for h in hourly:
+            for k in keys:
+                v = h.get(k)
+                if v is not None:
+                    try:
+                        yield float(v)
+                    except (ValueError, TypeError):
+                        pass
+                    break
+
+    pues = list(_vals(["pue", "PUE"]))
+    if pues:
+        stats.append(f"Hourly PUE — min: {min(pues):.2f}, max: {max(pues):.2f}, avg: {sum(pues)/len(pues):.2f} (over {total} hours)")
+
+    temps = list(_vals(["inletTempC", "inlet_temp_c", "supplyTempC"]))
+    if temps:
+        stats.append(f"Inlet temperature — min: {min(temps):.1f}°C, max: {max(temps):.1f}°C, avg: {sum(temps)/len(temps):.1f}°C")
+
+    fan = list(_vals(["fanPowerKW", "fanPower_kW"]))
+    if fan:
+        stats.append(f"Fan power — avg: {sum(fan)/len(fan):.2f} kW, peak: {max(fan):.2f} kW")
+
+    it = list(_vals(["itLoadKW", "itLoad_kW"]))
+    if it:
+        stats.append(f"IT load — avg: {sum(it)/len(it):.1f} kW, peak: {max(it):.1f} kW")
+
+    modes: dict[str, int] = {}
+    for h in hourly:
+        m = h.get("coolingMode") or h.get("mode")
+        if m:
+            modes[m] = modes.get(m, 0) + 1
+    if modes:
+        stats.append("Cooling modes: " + ", ".join(f"{m}: {c} hrs" for m, c in sorted(modes.items(), key=lambda x: -x[1])))
+
+    outdoor = list(_vals(["outdoorTempC", "ambientTempC"]))
+    if outdoor:
+        stats.append(f"Outdoor temperature — min: {min(outdoor):.1f}°C, max: {max(outdoor):.1f}°C")
+
+    return "\n".join(stats) if stats else ""
 
 
 def _extract_retry_seconds(detail: str) -> int:

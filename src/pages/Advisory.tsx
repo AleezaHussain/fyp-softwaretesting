@@ -263,7 +263,11 @@ const Advisory = () => {
           throw new Error(error || "Failed to load simulations.");
         }
 
-        setSimulations(data.simulations);
+        // Only show simulations that have completed — others have no results to advise on
+        const completed = data.simulations.filter(
+          (sim) => sim.status === "completed",
+        );
+        setSimulations(completed);
       } catch (err) {
         setSimError(err instanceof Error ? err.message : "Unknown error.");
       } finally {

@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chapter 3 Methodology - ML Recommendation System</title>
+    <style>
+        :root {
+            --ink: #1e293b;
+            --muted: #475569;
+            --accent: #0f766e;
+            --line: #cbd5e1;
+            --paper: #ffffff;
+            --soft: #f8fafc;
+        }
+
+        body {
+            margin: 0;
+            background: var(--paper);
+            color: var(--ink);
+            font-family: "Georgia", "Times New Roman", serif;
+            line-height: 1.65;
+        }
+
+        .page {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 44px;
+        }
+
+        h1,
+        h2,
+        h3,
+        h4 {
+            color: #0f172a;
+            margin-top: 1.2em;
+            margin-bottom: 0.45em;
+            line-height: 1.3;
+        }
+
+        h1 {
+            font-size: 2rem;
+            border-bottom: 3px solid var(--accent);
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            margin-top: 1.6em;
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 6px;
+        }
+
+        h3 {
+            font-size: 1.2rem;
+        }
+
+        p {
+            margin: 0.7em 0;
+            text-align: justify;
+        }
+
+        ul,
+        ol {
+            margin: 0.5em 0 1em 1.3em;
+        }
+
+        li {
+            margin: 0.25em 0;
+        }
+
+        .eq {
+            text-align: center;
+            font-style: italic;
+            background: var(--soft);
+            border: 1px solid var(--line);
+            padding: 10px;
+            margin: 12px 0;
+        }
+
+        .note {
+            background: #f0fdfa;
+            border-left: 4px solid var(--accent);
+            padding: 10px 12px;
+            margin: 14px 0;
+            color: var(--muted);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 14px 0;
+            font-size: 0.97rem;
+        }
+
+        th,
+        td {
+            border: 1px solid var(--line);
+            padding: 8px 10px;
+            vertical-align: top;
+        }
+
+        th {
+            background: var(--soft);
+            text-align: left;
+        }
+
+        .references p {
+            margin: 0.5em 0;
+            padding-left: 32px;
+            text-indent: -32px;
+            text-align: left;
+        }
+
+        @media print {
+            .page {
+                padding: 18mm;
+            }
+
+            h2 {
+                page-break-after: avoid;
+            }
+
+            table,
+            .note,
+            .eq {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <h1>Chapter 3: Methodology</h1>
+
+        <h2>3.1 Chapter Purpose and End-to-End Scope</h2>
+        <p>
+            This chapter documents the complete machine learning recommendation methodology from first principles to
+            deployment behavior. The scope includes: scenario design, simulation-backed label generation, dataset
+            curation, model training, validation, runtime recommendation, explanation generation, and long-horizon
+            impact projection. The objective is not only predictive accuracy, but also operational interpretability and
+            feasibility-aware decision support [28], [29].
+        </p>
+        <p>
+            The design follows a hybrid paradigm. A supervised classifier predicts a candidate cooling technique from
+            environmental and economic context, while a runtime rule layer validates feasibility and explains trade-offs
+            using actual simulation metrics. This combination improves practical reliability when compared to pure
+            black-box classification [28], [33].
+        </p>
+
+        <h2>3.2 Formal Problem Definition</h2>
+        <p>
+            The task is modeled as multi-class classification with six predictors and three classes.
+        </p>
+        <div class="eq">f: X -&gt; Y, where X = R^6 and Y = {AirEconomizer, Evaporative, ChilledWater}</div>
+        <p>
+            Input vector x = [tempC, rh, itLoadKW, electricityPrice, waterPrice, carbonFactor]. Target y =
+            bestTechnique. The model learns decision boundaries that map each operating context to the cooling class
+            with strongest expected performance under constraints [25], [29].
+        </p>
+
+        <h2>3.3 Assumptions and System Boundaries</h2>
+        <ol>
+            <li>The six selected predictors sufficiently represent operating context for technique-level recommendation.
+            </li>
+            <li>Simulator outputs are treated as ground truth for supervised labels.</li>
+            <li>Feasibility and violations are hard operational constraints and therefore override purely predictive
+                preference when needed.</li>
+            <li>Annualized metrics (cost, emissions, water) provide stable planning indicators for recommendation
+                comparison.</li>
+            <li>The recommendation system is a decision-support tool, not an autonomous control loop.</li>
+        </ol>
+
+        <h2>3.4 Data Sources and Role Separation</h2>
+        <p>
+            The methodology uses two different data streams with distinct roles:
+        </p>
+        <ul>
+            <li><strong>Training dataset (CSV):</strong> used only to train and validate the machine learning model.
+            </li>
+            <li><strong>Runtime simulation data (database or request):</strong> used to construct justification text,
+                comparison table, and future-impact paragraph.</li>
+        </ul>
+        <p>
+            This role separation is central to methodological clarity. Training data teaches the classifier. Runtime
+            simulation metrics explain why a recommendation is currently appropriate.
+        </p>
+
+        <h2>3.5 Scenario Generation and Label Derivation</h2>
+        <h3>3.5.1 Scenario Space</h3>
+        <p>
+            Each row corresponds to one data-center operating scenario containing weather, load, and utility context.
+            For each scenario, all candidate cooling techniques are evaluated.
+        </p>
+
+        <h3>3.5.2 Simulator Output Variables</h3>
+        <ul>
+            <li>Annual energy consumption (kWh)</li>
+            <li>Annual operating cost</li>
+            <li>Annual carbon emissions (kg CO2)</li>
+            <li>Annual water usage (liters)</li>
+            <li>Feasibility flag</li>
+            <li>Constraint violation count</li>
+        </ul>
+
+        <h3>3.5.3 Labeling Rule</h3>
+        <ol>
+            <li>Evaluate all techniques under identical scenario inputs.</li>
+            <li>Remove infeasible options or apply violation-aware penalties.</li>
+            <li>Rank feasible options by weighted multi-metric objective.</li>
+            <li>Assign top-ranked option as bestTechnique label.</li>
+        </ol>
+        <p>
+            This is simulator-grounded weak-supervision/discriminative labeling rather than manual annotation, which is
+            an accepted approach when stronger oracle outputs are available [25].
+        </p>
+
+        <h2>3.6 Dataset Construction and Cleaning Workflow</h2>
+        <p>
+            Dataset curation follows strict preprocessing controls to improve quality and avoid leakage [25], [29].
+        </p>
+        <ol>
+            <li>Exact duplicate removal.</li>
+            <li>Numeric type coercion for all feature columns.</li>
+            <li>Target normalization and trimming.</li>
+            <li>Missing-value handling for required fields.</li>
+            <li>Explicit exclusion of outcome-derived columns from training inputs.</li>
+            <li>Class distribution check before split and training.</li>
+        </ol>
+
+        <h3>3.6.1 Dataset Used in This Study</h3>
+        <table>
+            <tr>
+                <th>Item</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td>Cleaned rows</td>
+                <td>500</td>
+            </tr>
+            <tr>
+                <td>Class counts</td>
+                <td>Evaporative 215, ChilledWater 214, AirEconomizer 71</td>
+            </tr>
+            <tr>
+                <td>Split protocol</td>
+                <td>80/20 stratified, random_state = 42</td>
+            </tr>
+            <tr>
+                <td>Imbalance handling</td>
+                <td>Stratification and class_weight = balanced</td>
+            </tr>
+        </table>
+
+        <h2>3.7 Train/Test Strategy and Reproducibility Controls</h2>
+        <p>
+            The split strategy uses stratified sampling so all classes remain represented proportionally in both
+            training and testing partitions [26], [33]. Random seed fixation enables repeatable experiments and
+            auditable
+            model comparisons [31].
+        </p>
+        <div class="eq">D_train, D_test = StratifiedSplit(D, test_size = 0.20, random_state = 42)</div>
+
+        <h2>3.8 Preprocessing Pipeline and Leakage Prevention</h2>
+        <p>
+            Preprocessing is implemented in a single scikit-learn style pipeline to guarantee that transformations
+            learned on training folds are exactly reused on validation and inference data [26].
+        </p>
+        <ul>
+            <li>Median imputation for numeric missing values (robust to outliers) [27].</li>
+            <li>Standard scaling for consistent numeric ranges.</li>
+            <li>Pipeline encapsulation to prevent fold contamination during CV.</li>
+        </ul>
+        <div class="note">
+            Leakage prevention is not only feature-column filtering. It also includes procedural control: fit transforms
+            only on training partitions.
+        </div>
+
+        <h2>3.9 Model Selection Rationale</h2>
+        <p>
+            Random Forest is selected because the relationship between weather/load/economics and best cooling class is
+            nonlinear and interaction-heavy. Tree ensembles naturally capture interaction terms without manual
+            polynomial engineering and remain robust in mixed real-world tabular data [28], [29].
+        </p>
+        <p>
+            XGBoost is relevant as a strong benchmark family [30], but this implementation prioritizes Random Forest for
+            simplicity, stability, and interpretability-performance balance at FYP scale.
+        </p>
+
+        <h2>3.10 Hyperparameter Tuning Procedure</h2>
+        <p>
+            Hyperparameter search uses RandomizedSearchCV with stratified 5-fold CV and macro-F1 as optimization
+            objective [26], [32], [33]. Random search is computationally efficient and effective in high-dimensional
+            tuning
+            spaces [32].
+        </p>
+        <h3>3.10.1 Search Space</h3>
+        <table>
+            <tr>
+                <th>Parameter</th>
+                <th>Search Values</th>
+            </tr>
+            <tr>
+                <td>n_estimators</td>
+                <td>300, 500, 700, 900</td>
+            </tr>
+            <tr>
+                <td>max_depth</td>
+                <td>None, 10, 16, 24, 32</td>
+            </tr>
+            <tr>
+                <td>min_samples_split</td>
+                <td>2, 4, 6, 10</td>
+            </tr>
+            <tr>
+                <td>min_samples_leaf</td>
+                <td>1, 2, 4</td>
+            </tr>
+            <tr>
+                <td>max_features</td>
+                <td>sqrt, log2, None</td>
+            </tr>
+        </table>
+        <h3>3.10.2 Best Measured Configuration</h3>
+        <table>
+            <tr>
+                <th>Parameter</th>
+                <th>Measured Best Value</th>
+            </tr>
+            <tr>
+                <td>n_estimators</td>
+                <td>500</td>
+            </tr>
+            <tr>
+                <td>max_depth</td>
+                <td>10</td>
+            </tr>
+            <tr>
+                <td>min_samples_split</td>
+                <td>2</td>
+            </tr>
+            <tr>
+                <td>min_samples_leaf</td>
+                <td>1</td>
+            </tr>
+            <tr>
+                <td>max_features</td>
+                <td>sqrt</td>
+            </tr>
+            <tr>
+                <td>Best CV macro-F1</td>
+                <td>0.9763</td>
+            </tr>
+        </table>
+
+        <h2>3.11 Evaluation Protocol and Quantitative Performance</h2>
+        <p>
+            Evaluation uses both hold-out and repeated-split analysis. Macro-F1 is emphasized to avoid majority-class
+            dominance in interpretation [33].
+        </p>
+        <table>
+            <tr>
+                <th>Metric</th>
+                <th>Result</th>
+            </tr>
+            <tr>
+                <td>Held-out Test Accuracy</td>
+                <td>0.9300</td>
+            </tr>
+            <tr>
+                <td>Held-out Test Macro-F1</td>
+                <td>0.9207</td>
+            </tr>
+            <tr>
+                <td>Mean Accuracy (30 repeated stratified splits)</td>
+                <td>0.9720</td>
+            </tr>
+            <tr>
+                <td>Mean Macro-F1 (30 repeated stratified splits)</td>
+                <td>0.9661</td>
+            </tr>
+        </table>
+        <p>
+            Repeated-split testing reduces dependence on a single partition and provides stronger evidence of stability.
+        </p>
+
+        <h2>3.12 Runtime Inference Pipeline</h2>
+        <ol>
+            <li>Receive scenario inputs and hourly arrays.</li>
+            <li>Aggregate hourly series to scenario-level means for temperature, humidity, and IT load.</li>
+            <li>Construct feature vector and predict candidate class using trained model artifact.</li>
+            <li>If per-technique runtime metrics exist, execute feasibility-aware re-ranking logic.</li>
+            <li>Return final recommendation and explanation payload.</li>
+        </ol>
+        <div class="eq">x_runtime = [mean(tempC_hourly), mean(rh_hourly), mean(itLoadKW_hourly), electricityPrice,
+            waterPrice, carbonFactor]</div>
+
+        <h2>3.13 Feasibility and Composite Scoring Logic</h2>
+        <p>
+            Runtime recommendation uses a constrained ranking strategy. Model output is candidate-level, while final
+            output is feasibility-aware.
+        </p>
+        <div class="eq">S_i = w_c * z(cost_i) + w_e * z(emissions_i) + w_w * z(water_i), with (w_c, w_e, w_w) = (0.50,
+            0.30, 0.20)</div>
+        <ol>
+            <li>If predicted technique is feasible, keep it.</li>
+            <li>If predicted technique is infeasible, choose minimum-score feasible alternative.</li>
+            <li>If all options are infeasible, return prediction with explicit fallback messaging.</li>
+        </ol>
+
+        <h2>3.14 Origin of Justification Paragraphs and Comparison Table</h2>
+        <p>
+            Justification and table outputs are generated from runtime simulation metrics, not from the training CSV.
+        </p>
+        <ul>
+            <li>Primary source: simulation records retrieved by simulation ID from Supabase.</li>
+            <li>Fallback source: simulation object provided directly in request payload.</li>
+        </ul>
+        <p>
+            The text generator uses feasibility flags, violation counts, and metric deltas between selected and
+            alternative techniques to produce user reasons. The comparison table is sorted by runtime score and includes
+            annualized cost/emissions/water fields.
+        </p>
+        <div class="note">
+            Methodological implication: the explanatory narrative is runtime data-grounded and therefore
+            context-sensitive. It is not static templated text disconnected from simulation values.
+        </div>
+
+        <h2>3.15 Future-Impact Paragraph Logic</h2>
+        <p>
+            Future impact is computed using annual metrics of the selected technique and linear horizon projection for
+            planning simplicity.
+        </p>
+        <div class="eq">Year1 = Annual, Year3 = 3 * Annual, Year5 = 5 * Annual</div>
+        <p>
+            The projected fields include cost, emissions, and water consumption. This supports budget forecasting and
+            sustainability planning in a transparent and reproducible way.
+        </p>
+
+        <h2>3.16 Implementation Traceability</h2>
+        <p>
+            The deployed service stack is implemented through validated request schemas, model artifact loading, runtime
+            aggregation, and structured JSON response construction. This traceable implementation path strengthens
+            research reproducibility because each chapter claim maps to executable logic in the system [26], [31].
+        </p>
+
+        <h2>3.17 LLM Methodology for the Advisory Assistant</h2>
+        <p>
+            The advisory module is implemented as a grounded large language model (LLM) assistant that explains a
+            selected simulation in plain language. Its purpose is not to generate generic text, but to transform the
+            user’s question into a context-aware response based on the active simulation, the extracted metrics, and
+            the project’s internal reference material. The advisory workflow begins when the user selects one
+            simulation, enters a question, and submits it through the chat interface [36], [37].
+        </p>
+        <p>
+            At runtime, the frontend sends the question, the selected simulation identifier, and the simulation object
+            to the advisory API. The backend then attempts to resolve the simulation context from Supabase first, and
+            falls back to the request payload if the database lookup is unavailable. Once the context is available,
+            the system extracts the key simulation details and constructs a prompt that includes the cooling
+            technique, the relevant performance summary, and any method-specific reference text. This makes the LLM
+            answer anchored to the simulation instead of relying on a general-purpose conversation history.
+        </p>
+        <p>
+            The prompt-building process also detects the user’s intent. Questions are grouped into categories such as
+            energy, cost, thermal behavior, carbon, water, and comparison, so the response can be framed around the
+            most relevant metrics. If the user asks for risks, weaknesses, or the worst-case outcome, the prompt
+            explicitly instructs the LLM to lead with limitations and negative impacts first. Otherwise, it asks for a
+            balanced explanation that is still practical and decision-oriented. In both cases, the model is told to
+            use specific numbers, avoid jargon, and not mention internal technical details such as simulation IDs or
+            source files.
+        </p>
+        <p>
+            The backend does not depend on a single LLM provider. Instead, it uses a provider chain that can route the
+            request to Ollama, xAI/Grok, Groq, OpenRouter, or Gemini depending on the environment configuration. If
+            one provider is unavailable, the backend tries the next provider automatically. If no provider can answer,
+            the system returns a safe fallback response that informs the user that live LLM access is unavailable while
+            still acknowledging the selected simulation context. This design improves resilience and prevents the
+            advisory page from failing completely when one model service is offline.
+        </p>
+        <p>
+            After the model responds, the backend returns both the generated answer and metadata describing the source
+            provider and model used. The frontend displays the message in the conversation thread and stores the chat
+            locally so the user can resume it later. It also attempts to save the exchange into the database for
+            persistence. Methodologically, this creates a complete explainability loop: the simulation is selected,
+            the prompt is grounded in that simulation, the LLM produces a contextual answer, and the result is saved
+            for future review.
+        </p>
+
+        <h2>3.18 Methodology Conclusion</h2>
+        <p>
+            The final methodology combines simulation-grounded supervision, robust ensemble learning, fairness-aware
+            evaluation metrics, and runtime explainability. It is technically coherent for FYP-level research because it
+            demonstrates full lifecycle rigor: data design, model rigor, deployment logic, and interpretable
+            recommendation output [28], [32], [33], [34].
+        </p>
+
+        <h2>References</h2>
+        <section class="references">
+            <p>[25] A. Ng and D. Koller, "Allocating Training Data for Discriminative Learning," in Proceedings of the
+                16th International Conference on Machine Learning (ICML), 2006, pp. 450-458.</p>
+            <p>[26] Scikit-learn Developers, "Cross-validation: evaluating estimator performance," Scikit-learn User
+                Guide, 2023. Available: https://scikit-learn.org/stable/modules/cross_validation.html</p>
+            <p>[27] J. W. Tukey, <em>Exploratory Data Analysis</em>. Addison-Wesley, 1977.</p>
+            <p>[28] L. Breiman, "Random Forests," <em>Machine Learning</em>, vol. 45, no. 1, pp. 5-32, 2001.</p>
+            <p>[29] T. Hastie, R. Tibshirani, and J. Friedman, <em>The Elements of Statistical Learning</em>, 2nd ed.
+                Springer, 2009.</p>
+            <p>[30] T. Chen and C. Guestrin, "XGBoost: A Scalable Tree Boosting System," in Proceedings of the 22nd ACM
+                SIGKDD International Conference on Knowledge Discovery and Data Mining, 2016, pp. 785-794.</p>
+            <p>[31] F. Salutari and S. Dave, "On the Importance of Random Seed in Machine Learning Models for
+                Reproducible Results," <em>Journal of Software Engineering Research and Development</em>, vol. 8, no. 2,
+                p. 15, 2020.</p>
+            <p>[32] J. Bergstra and Y. Bengio, "Random Search for Hyper-Parameter Optimization," <em>Journal of Machine
+                    Learning Research</em>, vol. 13, pp. 281-305, 2012.</p>
+            <p>[33] M. Sokolova and G. Lapalme, "A Systematic Analysis of Performance Measures for Classification
+                Tasks,"
+                <em>Information Processing and Management</em>, vol. 45, no. 4, pp. 427-437, 2009.
+            </p>
+            <p>[34] S. M. Lundberg and S.-I. Lee, "A Unified Approach to Interpreting Model Predictions," in Advances in
+                Neural Information Processing Systems (NeurIPS), 2017, pp. 4765-4774.</p>
+            <p>[35] F. Pedregosa et al., "Scikit-learn: Machine Learning in Python," <em>Journal of Machine Learning
+                    Research</em>, vol. 12, pp. 2825-2830, 2011.</p>
+            <p>[36] T. B. Brown et al., "Language Models are Few-Shot Learners," in <em>Advances in Neural Information
+                    Processing Systems</em>, 2020.</p>
+            <p>[37] L. Ouyang et al., "Training language models to follow instructions with human feedback," in
+                <em>Advances in Neural Information Processing Systems</em>, 2022.</p>
+        </section>
+
+    </main>
+</body>
+
+</html>
