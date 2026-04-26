@@ -34,7 +34,7 @@ const AuthInput: React.FC<{
         <input
           type={showPasswordToggle && showPassword ? "text" : type}
           name={name} value={value} onChange={onChange} placeholder={placeholder}
-          className={`flex-1 bg-transparent outline-none text-base ${isDark ? "text-white placeholder-gray-500" : "text-gray-900 placeholder-gray-400"}`}
+          className={`flex-1 min-w-0 bg-transparent outline-none text-sm ${isDark ? "text-white placeholder-gray-500" : "text-gray-900 placeholder-gray-400"}`}
         />
         {showPasswordToggle && (
           <button type="button" onClick={onTogglePassword}
@@ -60,6 +60,7 @@ export const SignUp: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const validateForm = () => {
     const e: Record<string, string> = {};
@@ -87,7 +88,9 @@ export const SignUp: React.FC = () => {
         setIsSubmitting(false);
         return;
       }
-      navigate("/dashboard");
+      // Email confirmation required — show confirmation screen
+      setEmailSent(true);
+      setIsSubmitting(false);
     } catch {
       setErrors({ submit: "An unexpected error occurred. Please try again." });
       setIsSubmitting(false);
@@ -112,6 +115,45 @@ export const SignUp: React.FC = () => {
       isDark ? "bg-gradient-to-br from-[#0a0e27] via-[#1a1f3a] to-[#0a0e27]"
              : "bg-gradient-to-br from-slate-50 via-white to-slate-50"
     }`}>
+
+      {/* Email confirmation screen */}
+      {emailSent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: isDark ? "rgba(10,14,39,0.95)" : "rgba(255,255,255,0.95)" }}>
+          <div className={`max-w-md w-full rounded-3xl p-8 text-center shadow-2xl border ${
+            isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-white border-gray-200"
+          }`}>
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+              isDark ? "bg-green-500/20" : "bg-green-100"
+            }`}>
+              <Mail className="w-8 h-8 text-green-500" />
+            </div>
+            <h2 className={`text-2xl font-bold mb-2 ${isDark ? "text-white" : "text-gray-900"}`}>
+              Check your email
+            </h2>
+            <p className={`text-sm mb-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+              We sent a confirmation link to
+            </p>
+            <p className={`font-semibold mb-4 ${isDark ? "text-[#5ce1e5]" : "text-[#0ea5e9]"}`}>
+              {formData.email}
+            </p>
+            <p className={`text-sm mb-6 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+              Click the link in the email to verify your account, then come back and sign in.
+            </p>
+            <button
+              onClick={() => navigate("/login")}
+              className={`w-full py-3 rounded-xl font-bold transition-all hover:scale-105 ${
+                isDark ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
+                       : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
+              }`}>
+              Go to Login
+            </button>
+            <p className={`text-xs mt-3 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+              Didn't receive it? Check your spam folder.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Link to="/" className="fixed left-2 z-50 ">
         <Logo className="w-28 h-28" />

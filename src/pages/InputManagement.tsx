@@ -459,6 +459,91 @@ const CSVUpload: React.FC<{
         </button>
       </div>
 
+      {/* ── Static CSV field description panel ── */}
+      <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1428] border-[#2d3a5a]" : "bg-blue-50 border-blue-200"}`}>
+        {/* Panel header */}
+        <div className={`px-5 py-3 flex items-center gap-2 border-b ${isDark ? "border-[#2d3a5a] bg-[#1a1f3a]" : "border-blue-200 bg-blue-100"}`}>
+          <Info className={`w-4 h-4 shrink-0 ${isDark ? "text-[#5ce1e5]" : "text-blue-600"}`} />
+          <span className={`text-sm font-bold ${isDark ? "text-[#5ce1e5]" : "text-blue-700"}`}>
+            Why these CSV fields?
+          </span>
+          <span className={`text-xs ml-1 ${isDark ? "text-gray-500" : "text-blue-500"}`}>
+            — how each column is used by the simulation engine
+          </span>
+        </div>
+
+        <div className="p-5 space-y-5">
+          {/* Field rows */}
+          {[
+            {
+              field: "timestamp",
+              example: "2024-01-01 14:00",
+              color: isDark ? "#5ce1e5" : "#0ea5e9",
+              why: "Maps each weather reading to a specific simulation hour. The engine runs 8,760 hourly steps (one full year). Each row in your CSV corresponds to one hour, so the timestamp tells the simulation which hour of the year this weather condition applies to.",
+              usedBy: [
+                { tech: "Air-Side Economizer", detail: "Determines which hour the outdoor conditions are checked against the economizer mode thresholds (T < 24°C, RH < 60%)." },
+                { tech: "Evaporative Cooling", detail: "Aligns ambient temperature and humidity with the hourly IT load from CloudSim to compute wet-bulb depression and supply temperature." },
+                { tech: "Chilled Water", detail: "Feeds the condenser inlet temperature for each hour, which affects chiller COP via the EIR temperature correction factor." },
+              ],
+            },
+            {
+              field: "temperature",
+              example: "22.5  (°C)",
+              color: isDark ? "#f59e0b" : "#d97706",
+              why: "Outdoor dry-bulb temperature is the primary driver of cooling mode selection and efficiency. It determines how much free cooling is available and how hard the mechanical system must work.",
+              usedBy: [
+                { tech: "Air-Side Economizer", detail: "If T ≤ 24°C → FULL_ECON or PARTIAL_TRIM (free cooling active). If T > 24°C → MECHANICAL_ONLY. Higher temperature = more compressor energy." },
+                { tech: "Evaporative Cooling", detail: "Used to compute wet-bulb temperature via psychrometric equations. Supply temperature = T_db − η × (T_db − T_wb). Lower T_db = better cooling." },
+                { tech: "Chilled Water", detail: "Sets the condenser water temperature. Higher ambient → higher condenser temp → lower COP → more chiller power consumed." },
+              ],
+            },
+            {
+              field: "humidity",
+              example: "58  (%RH)",
+              color: isDark ? "#10b981" : "#059669",
+              why: "Relative humidity controls how much latent cooling is available (evaporative techniques) and whether the economizer can operate in full free-cooling mode (air-side). High humidity limits both.",
+              usedBy: [
+                { tech: "Air-Side Economizer", detail: "If RH > 60% → mode switches from FULL_ECON to PARTIAL_TRIM even if temperature is acceptable. High humidity forces partial mechanical assist." },
+                { tech: "Evaporative Cooling", detail: "High humidity reduces wet-bulb depression (T_db − T_wb), limiting how much the supply air can be cooled. At 100% RH, evaporative cooling provides zero benefit." },
+                { tech: "Chilled Water", detail: "Used for cooling tower approach temperature calculations. High ambient humidity reduces tower rejection efficiency and slightly increases water consumption." },
+              ],
+            },
+          ].map(({ field, example, color, why, usedBy }) => (
+            <div key={field} className={`rounded-xl border overflow-hidden ${isDark ? "border-[#2d3a5a]" : "border-blue-200"}`}>
+              {/* Field name row */}
+              <div className={`flex items-center gap-3 px-4 py-2.5 ${isDark ? "bg-[#1a1f3a]" : "bg-white"}`}>
+                <code className="text-sm font-mono font-bold px-2 py-0.5 rounded" style={{ background: `${color}20`, color }}>
+                  {field}
+                </code>
+                <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>e.g. {example}</span>
+              </div>
+              {/* Why explanation */}
+              <div className={`px-4 py-2 text-xs leading-relaxed border-t ${isDark ? "border-[#2d3a5a] text-gray-300 bg-[#0f1428]" : "border-blue-100 text-gray-600 bg-blue-50/50"}`}>
+                {why}
+              </div>
+              {/* Per-technique usage */}
+              <div className={`divide-y ${isDark ? "divide-[#2d3a5a]" : "divide-blue-100"}`}>
+                {usedBy.map(({ tech, detail }) => (
+                  <div key={tech} className={`flex gap-3 px-4 py-2 text-xs ${isDark ? "bg-[#0a0e27]" : "bg-white"}`}>
+                    <span className="font-semibold shrink-0 w-36" style={{ color }}>{tech}</span>
+                    <span className={isDark ? "text-gray-400" : "text-gray-500"}>{detail}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {/* Format note */}
+          <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs ${isDark ? "bg-[#1a1f3a] text-gray-400 border border-[#2d3a5a]" : "bg-white text-gray-500 border border-blue-200"}`}>
+            <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 opacity-60" />
+            <span>
+              Column names are flexible — the parser accepts any header containing "time"/"date", "temp"/"temperature", or "hum"/"humidity"/"rh".
+              Minimum 2 rows required. Rows with missing temperature or humidity values are automatically skipped.
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Upload Area */}
       <div className="relative">
         <div
@@ -1086,21 +1171,9 @@ export const InputManagement: React.FC = () => {
       configRef.current = completeConfig;
     }
 
-    // Start simulation loader
+    // Start simulation — the store drives all progress state
+    // The SimulationProgressModal reads directly from the Zustand store
     setIsSimulationRunning(true);
-    setSimulationProgress(0);
-
-    // Simulate progress
-    const progressInterval = setInterval(() => {
-      setSimulationProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        const increment = Math.random() * 10 + 5; // 5-15% increments
-        return Math.min(prev + increment, 100);
-      });
-    }, 500);
 
     // Run actual simulation
     if (configRef.current) {
@@ -1132,22 +1205,12 @@ export const InputManagement: React.FC = () => {
 
         await runSimulation(simulationInput);
 
-        // Wait for simulation to complete
-        setTimeout(() => {
-          clearInterval(progressInterval);
-          setSimulationProgress(100);
-
-          // Show completion for 1 second then navigate
-          setTimeout(() => {
-            setIsSimulationRunning(false);
-            navigate("/dashboard");
-          }, 1000);
-        }, 3000);
+        // runSimulation handles its own completion state and dispatches
+        // "simulation-completed" event. Don't navigate here — let the modal
+        // show completion and the user close it.
       } catch (error: any) {
-        clearInterval(progressInterval);
         setIsSimulationRunning(false);
         setSimulationStatus(`Failed: ${error.message || "Unknown error"}`);
-        // The SimulationProgressModal will now show the error as a modal
         console.error("❌ Simulation failed:", error);
       }
     }
@@ -1779,16 +1842,16 @@ export const InputManagement: React.FC = () => {
                 {selectedTechnique === "air" &&
                   [
                     {
-                      label: "Server ID",
-                      value: serverId || "Not set",
+                      label: "Server",
+                      value: currentConfig?.serverName || serverId || "Not set",
                       icon: Server,
-                      description: "Database server identifier",
+                      description: currentConfig?.manufacturer ? `${currentConfig.manufacturer} · ${currentConfig.model || ""}` : "Server hardware",
                     },
                     {
-                      label: "Country ID",
-                      value: countryId || "Not set",
+                      label: "Country",
+                      value: currentConfig?.country || countryId || "Not set",
                       icon: MapPin,
-                      description: "Database country identifier",
+                      description: currentConfig?.electricity_tariff ? `$${Number(currentConfig.electricity_tariff).toFixed(3)}/kWh tariff` : "Electricity tariff region",
                     },
                     {
                       label: "Total Racks",
@@ -2366,8 +2429,8 @@ export const InputManagement: React.FC = () => {
               }`}
             >
               <div className="max-w-6xl mx-auto px-6 py-6">
-                {/* Validation errors — shown at step 3 */}
-                {currentStep === 3 && step3Errors.length > 0 && (
+                {/* Validation errors — shown at step 2 and step 3 */}
+                {(currentStep === 2 || currentStep === 3) && step3Errors.length > 0 && (
                   <div
                     className={`mb-4 p-4 rounded-xl border ${isDark ? "bg-red-900/20 border-red-700/40" : "bg-red-50 border-red-200"}`}
                   >
@@ -2392,7 +2455,7 @@ export const InputManagement: React.FC = () => {
 
                 <div className="flex justify-between">
                   <button
-                    onClick={() => handleStepChange(currentStep - 1)}
+                    onClick={() => { setStep3Errors([]); handleStepChange(currentStep - 1); }}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
                       isDark
                         ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white"
@@ -2406,6 +2469,11 @@ export const InputManagement: React.FC = () => {
                   {currentStep < steps.length - 1 && (
                     <button
                       onClick={() => {
+                        if (currentStep === 2) {
+                          const errors = validateStep3();
+                          setStep3Errors(errors);
+                          if (errors.length > 0) return;
+                        }
                         if (currentStep === 3) {
                           const errors = validateStep3();
                           setStep3Errors(errors);

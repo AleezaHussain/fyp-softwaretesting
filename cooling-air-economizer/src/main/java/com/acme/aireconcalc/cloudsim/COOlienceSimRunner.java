@@ -285,6 +285,11 @@ public class COOlienceSimRunner {
     
     /**
      * Create VMs (1 VM per Host for 1:1 mapping)
+     *
+     * RAM and BW are sized to handle the maximum concurrent cloudlet load.
+     * AI Training creates up to 5 cloudlets per VM each requesting 80% of VM RAM/BW,
+     * so we provision enough headroom: host has 16 GB / 10 Gbps, VM gets 14 GB / 8 Gbps
+     * to stay under host limits while supporting concurrent cloudlets without starvation.
      */
     private List<Vm> createVMs(COOlienceConfig config) {
         List<Vm> vmList = new ArrayList<>();
@@ -292,9 +297,12 @@ public class COOlienceSimRunner {
         for (int i = 0; i < config.numberOfServers; i++) {
             Vm vm = new org.cloudsimplus.vms.VmSimple(config.mipsPerCore, config.coresPerServer);
             
-            // Set VM resources (less than host to ensure allocation)
-            vm.setRam(8192)  // 8 GB
-              .setBw(5000)   // 5 Gbps
+            // Provision VM with ample RAM and BW to avoid cloudlet starvation.
+            // Multiple concurrent cloudlets (up to 5 in AI_TRAINING mode) each request
+            // up to 80% of VM resources via UtilizationModelDynamic — TimeShared scheduler
+            // divides available resources, so the VM must have enough total capacity.
+            vm.setRam(14336) // 14 GB (leaves 2 GB headroom under host's 16 GB)
+              .setBw(8000)   // 8 Gbps (leaves 2 Gbps headroom under host's 10 Gbps)
               .setSize(100000); // 100 GB
             
             // Use TimeShared scheduler for concurrent cloudlet execution

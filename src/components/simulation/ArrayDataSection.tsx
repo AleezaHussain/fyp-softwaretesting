@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, Database, Download, Info } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { ChevronDown, ChevronUp, Database, Download, Info, Loader2 } from "lucide-react";
+
+const RAWDATA_API = import.meta.env.VITE_RAWDATA_EXPLANATION_API_URL ?? "http://localhost:8006/api";
 
 interface ArrayDataSectionProps {
   resultData: any;
@@ -203,6 +205,51 @@ function buildAirArrays(rd: any): ArrayEntry[] {
         data: modeArr,
         isSampled: false,
         group: "Summary",
+      });
+    }
+  }
+
+  // ── Per-rack hotspot violations ───────────────────────────────────────────
+  const rackWarnings: string[] = rd?.rackAnalysis?.warnings ?? [];
+  const rackAirflow: string[] = rd?.rackAnalysis?.airflowViolations ?? [];
+  if (rackWarnings.length > 0 || rackAirflow.length > 0) {
+    // Parse hotspot warnings: "Rack 0: HOTSPOT DETECTED - Peak 37.9 kW exceeds threshold 26.8 kW (41% over)"
+    const hotspotMap = new Map<number, { peakLoadKW: number; thresholdKW: number; overPercent: number }>();
+    for (const w of rackWarnings) {
+      const m = w.match(/Rack\s+(\d+).*Peak\s+([\d.]+)\s*kW\s+exceeds\s+threshold\s+([\d.]+)\s*kW\s+\((\d+)%/i);
+      if (m) hotspotMap.set(Number(m[1]), { peakLoadKW: parseFloat(m[2]), thresholdKW: parseFloat(m[3]), overPercent: parseInt(m[4], 10) });
+    }
+    // Parse airflow violations: "Rack 0 AIRFLOW VIOLATION: Requires 5541 CFM, exceeds limit 91 CFM. Peak load: 37.9 kW. RECOMMENDATION: ..."
+    const airflowMap = new Map<number, { requiredCFM: number; limitCFM: number; recommendation: string }>();
+    for (const v of rackAirflow) {
+      const m = v.match(/Rack\s+(\d+)\s+AIRFLOW VIOLATION:\s+Requires\s+([\d,]+)\s*CFM,\s+exceeds\s+limit\s+([\d,]+)\s*CFM.*RECOMMENDATION:\s*(.+)/i);
+      if (m) airflowMap.set(Number(m[1]), { requiredCFM: parseInt(m[2].replace(/,/g, ""), 10), limitCFM: parseInt(m[3].replace(/,/g, ""), 10), recommendation: m[4].trim().replace(/\.$/, "") });
+    }
+    const allIds = Array.from(new Set([...hotspotMap.keys(), ...airflowMap.keys()])).sort((a, b) => a - b);
+    const rackRows = allIds.map(id => {
+      const h = hotspotMap.get(id);
+      const a = airflowMap.get(id);
+      const peakFromAirflow = a ? parseFloat((rackAirflow.find(v => v.startsWith(`Rack ${id} `)) ?? "").match(/Peak load:\s*([\d.]+)/i)?.[1] ?? "0") : 0;
+      return {
+        rack: `Rack ${id}`,
+        peakLoad_kW: h?.peakLoadKW ?? peakFromAirflow,
+        threshold_kW: h?.thresholdKW ?? 0,
+        over_percent: h?.overPercent != null ? `+${h.overPercent}%` : "—",
+        severity: (h?.overPercent ?? 0) >= 45 ? "Critical" : (h?.overPercent ?? 0) >= 30 ? "High" : "Moderate",
+        requiredCFM: a?.requiredCFM ?? null,
+        limitCFM: a?.limitCFM ?? null,
+        recommendation: a?.recommendation ?? "—",
+      };
+    });
+    if (rackRows.length > 0) {
+      out.push({
+        key: "air_rack_hotspots",
+        label: "Per-Rack Hotspot & Airflow Violations",
+        source: `rackAnalysis.warnings[] + rackAnalysis.airflowViolations[] — rack · peakLoad_kW · threshold_kW · over_percent · severity · requiredCFM · limitCFM · recommendation | ${rd?.rackAnalysis?.hotspotRacks ?? 0}/${rd?.rackAnalysis?.totalRacks ?? 0} racks are hotspots · avg load ${(rd?.rackAnalysis?.averageRackLoadKW ?? 0).toFixed(1)} kW · max ${(rd?.rackAnalysis?.maxRackLoadKW ?? 0).toFixed(1)} kW · imbalance factor ${(rd?.rackAnalysis?.loadImbalanceFactor ?? 0).toFixed(4)}`,
+        color: "#ef4444",
+        data: rackRows,
+        isSampled: false,
+        group: "Rack Analysis",
       });
     }
   }
@@ -546,6 +593,141 @@ export const ArrayDataSection: React.FC<ArrayDataSectionProps> = ({ resultData, 
     return buildChilledArrays(resultData, technique);
   }, [resultData, technique]);
 
+  // ── AI raw data explanation — cached per simulation ──────────
+  const [aiFieldExp, setAiFieldExp] = useState<Record<string, string>>({});
+  const [aiPattern, setAiPattern] = useState<string | null>(null);
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  // Sanitize: strip any JSON blobs that leaked into the pattern summary
+  // Split into readable paragraphs if the LLM returned a single block
+  const sanitizePattern = (text: string | null): string | null => {
+    if (!text) return null;
+    // Remove JSON code fences
+    let clean = text.replace(/```(?:json)?\s*[\s\S]*?```/gi, "").trim();
+    // Remove raw JSON objects that contain known keys
+    clean = clean.replace(/\{[\s\S]*?"(?:field_explanations|pattern_summary)"[\s\S]*?\}/g, "").trim();
+    // Strip leading comma + JSON key prefix (e.g. , "pattern_summary": ")
+    clean = clean.replace(/^,?\s*["']?(?:pattern_summary|key_insight)["']?\s*:\s*["']?/i, "").trim();
+    // Remove surrounding quotes
+    clean = clean.replace(/^["']|["']$/g, "").trim();
+    // Remove trailing comma + JSON key that sometimes leaks
+    clean = clean.replace(/,\s*"key_insight"[\s\S]*$/i, "").trim();
+    // Replace literal \n\n strings (LLM wrote escape sequence as text)
+    clean = clean.replace(/\\n\\n/g, "\n\n").replace(/\\n/g, "\n");
+    // Remove trailing quote that sometimes remains
+    clean = clean.replace(/"$/, "").trim();
+    if (clean.length < 10) return null;
+
+    // If already has double newline paragraph breaks, use them directly
+    if (clean.includes("\n\n")) {
+      return clean.split(/\n\n+/).map(p => p.trim()).filter(Boolean).join("\n\n");
+    }
+
+    // If has single newlines, group pairs into paragraphs
+    if (clean.includes("\n")) {
+      const lines = clean.split("\n").map(l => l.trim()).filter(Boolean);
+      const paragraphs: string[] = [];
+      for (let i = 0; i < lines.length; i += 2) {
+        paragraphs.push(lines.slice(i, i + 2).join(" "));
+      }
+      return paragraphs.join("\n\n");
+    }
+
+    // Single block — split on sentence-ending punctuation followed by a capital letter
+    const sentenceRegex = /(?<=[.!?])\s+(?=[A-Z])/g;
+    const sentences = clean.split(sentenceRegex).map(s => s.trim()).filter(Boolean);
+    if (sentences.length <= 2) return clean;
+
+    const paragraphs: string[] = [];
+    const perPara = Math.ceil(sentences.length / Math.ceil(sentences.length / 3));
+    for (let i = 0; i < sentences.length; i += perPara) {
+      paragraphs.push(sentences.slice(i, i + perPara).join(" "));
+    }
+    return paragraphs.join("\n\n");
+  };
+
+  useEffect(() => {
+    if (!resultData || arrays.length === 0) return;
+    const primary = arrays[0];
+    if (!primary || primary.data.length === 0) return;
+    const sampleRows = primary.data.slice(0, 24);
+    const fields = Object.keys(sampleRows[0] ?? {});
+    if (fields.length === 0) return;
+
+    // Build stable cache key — v4 includes improved prompt version
+    const cacheKey = `rawdata_explanation_v4_${techniqueLabel}_${fields.slice(0, 5).join(",")}`;
+
+    // Check localStorage cache first
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Only use cache if it has actual content
+        if (parsed.fieldExplanations && Object.keys(parsed.fieldExplanations).length > 0) {
+          setAiFieldExp(parsed.fieldExplanations ?? {});
+          setAiPattern(sanitizePattern(parsed.patternSummary ?? null));
+          setAiInsight(parsed.keyInsight ?? null);
+          return;
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+
+    // Build extra context: yearly projection + ML comparison summaries
+    const yearlyEntry = arrays.find(a => a.key.includes("yearly") || a.key.includes("projection"));
+    const mlEntry = arrays.find(a => a.key.includes("ml"));
+    const extraContext: Record<string, any> = {};
+    if (yearlyEntry && yearlyEntry.data.length > 0) {
+      extraContext.yearlyProjection = yearlyEntry.data;
+    }
+    if (mlEntry && mlEntry.data.length > 0) {
+      extraContext.mlComparison = mlEntry.data;
+    }
+
+    console.log(`[ArrayDataSection] Calling ${RAWDATA_API}/explain-raw-data for ${techniqueLabel} (${fields.length} fields, ${sampleRows.length} rows)`);
+    setAiLoading(true);
+
+    fetch(`${RAWDATA_API}/explain-raw-data`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        technique: techniqueLabel,
+        fields,
+        sampleRows,
+        totalRows: primary.data.length,
+        simulationContext: { technique: techniqueLabel },
+        extraArrays: extraContext,
+      }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status} from ${RAWDATA_API}`);
+        return r.json();
+      })
+      .then((data) => {
+        console.log("[ArrayDataSection] Got response:", Object.keys(data));
+        const fieldExp = data.fieldExplanations ?? {};
+        const pattern = sanitizePattern(data.patternSummary ?? null);
+        const insight = data.keyInsight ?? null;
+        setAiFieldExp(fieldExp);
+        setAiPattern(pattern);
+        setAiInsight(insight);
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify({ fieldExplanations: fieldExp, patternSummary: pattern, keyInsight: insight }));
+        } catch {
+          // ignore storage errors
+        }
+      })
+      .catch((err) => {
+        console.error("[ArrayDataSection] Raw data explanation failed:", err.message);
+        // Show a fallback message so the card is still visible
+        setAiPattern(`Analysis unavailable: ${err.message}. Make sure the Raw Data Explanation API is running on port 8006.`);
+      })
+      .finally(() => setAiLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [arrays.length, techniqueLabel]);
+
   // Single download: the complete raw API response for this technique
   const downloadJSON = () => {
     const payload = getDownloadPayload(resultData, technique);
@@ -592,6 +774,83 @@ export const ArrayDataSection: React.FC<ArrayDataSectionProps> = ({ resultData, 
         <div className={`flex items-start gap-2 text-xs px-3 py-2 rounded-lg mb-4 ${isDark ? "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20" : "bg-yellow-50 text-yellow-700 border border-yellow-200"}`}>
           <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
           <span>Arrays marked <strong>sampled</strong> were reduced to ~120 points before Supabase storage (from 8760 hourly rows). Re-run the simulation to get all rows in memory.</span>
+        </div>
+      )}
+
+      {/* AI Raw Data Analysis — plain text, no blue card, matches Detailed Metrics style */}
+      {(aiLoading || aiPattern || Object.keys(aiFieldExp).length > 0) && (
+        <div className="mb-6 space-y-3">
+          {aiLoading ? (
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+              <span className={`text-xs ${isDark ? "text-gray-400" : "text-gray-500"}`}>Analysing raw data fields...</span>
+            </div>
+          ) : (
+            <>
+              {/* Pattern summary — plain paragraphs, same style as detailed metrics */}
+              {aiPattern && aiPattern.split(/\n\n+/).filter(Boolean).map((para, i) => (
+                <p key={i} className={`text-sm leading-relaxed text-justify ${isDark ? "text-gray-100" : "text-gray-900"}`}>{para.trim()}</p>
+              ))}
+
+              {/* Key insight — italic, same as detailed metrics */}
+              {aiInsight && (
+                <p className={`text-sm leading-relaxed text-justify italic ${isDark ? "text-gray-300" : "text-gray-700"}`}>{aiInsight}</p>
+              )}
+
+              {/* Column Reference grid */}
+              {Object.keys(aiFieldExp).length > 0 && (
+                <div className="mt-2">
+                  <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                    Column Reference ({Object.keys(aiFieldExp).length} fields)
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5">
+                    {Object.entries(aiFieldExp).map(([field, desc]) => (
+                      <div key={field} className={`flex gap-2 text-xs p-2 rounded-lg ${isDark ? "bg-[#1a1f3a]" : "bg-gray-50 border border-gray-100"}`}>
+                        <code className={`font-mono font-bold shrink-0 ${isDark ? "text-[#5ce1e5]" : "text-blue-700"}`}>{field}</code>
+                        <span className={`leading-relaxed ${isDark ? "text-gray-300" : "text-gray-600"}`}>— {desc}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Yearly projection analysis */}
+              {(() => {
+                const yearlyEntry = arrays.find(a => a.key.includes("yearly") || a.key.includes("projection"));
+                if (!yearlyEntry || yearlyEntry.data.length === 0) return null;
+                const d = yearlyEntry.data;
+                const firstYear = d[0];
+                const lastYear = d[d.length - 1];
+                const totalCost = d.reduce((s: number, r: any) => s + (r.totalCostUSD ?? r.totalTCO ?? 0), 0);
+                const totalSavings = d.reduce((s: number, r: any) => s + (r.costSavingsUSD ?? 0), 0);
+                return (
+                  <div className={`mt-3 p-3 rounded-lg ${isDark ? "bg-[#1a1f3a] border border-[#3f4a68]" : "bg-white border border-gray-200"}`}>
+                    <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}>5-Year Projection Analysis</p>
+                    <p className={`text-sm leading-relaxed ${isDark ? "text-gray-200" : "text-gray-700"}`}>
+                      The {d.length}-year projection shows total operating costs rising from{" "}
+                      <strong>${(firstYear?.totalCostUSD ?? firstYear?.totalTCO ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> in Year {firstYear?.year ?? 1} to{" "}
+                      <strong>${(lastYear?.totalCostUSD ?? lastYear?.totalTCO ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> in Year {lastYear?.year ?? d.length},
+                      driven by carbon tax escalation and energy cost inflation.
+                      {totalSavings > 0 && <> Cumulative savings over the period total <strong>${totalSavings.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>.</>}
+                      {" "}Total projected cost over {d.length} years: <strong>${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>.
+                    </p>
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      {d.map((row: any) => (
+                        <div key={row.year} className={`text-xs p-2 rounded ${isDark ? "bg-[#0a0e27]" : "bg-gray-50"}`}>
+                          <div className={`font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Year {row.year}</div>
+                          <div className={isDark ? "text-gray-400" : "text-gray-500"}>Cost: ${(row.totalCostUSD ?? row.totalTCO ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                          {row.costSavingsUSD != null && <div className="text-green-500">Saved: ${row.costSavingsUSD.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>}
+                          {row.emissionsTonsCO2 != null && <div className={isDark ? "text-gray-400" : "text-gray-500"}>{row.emissionsTonsCO2.toFixed(1)} tCO₂</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* ML comparison is shown in the Recommendations tab — not duplicated here */}
+            </>
+          )}
         </div>
       )}
 

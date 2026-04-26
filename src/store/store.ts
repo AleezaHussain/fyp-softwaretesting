@@ -36,7 +36,7 @@ export interface Simulation {
   itLoad: number;
   coolingTechnique: "air" | "water" | "evaporative" | "hybrid";
   createdAt: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
   energySaved?: number;
   numberOfRacks?: number;
 }
@@ -224,6 +224,8 @@ export interface SimulationStore {
   setSimulationRunning: (isRunning: boolean) => void;
   setSimulationProgress: (progress: number) => void;
   setSimulationStatus: (status: string) => void;
+  simulationFailureReason: string | null;
+  setSimulationFailureReason: (reason: string | null) => void;
   runSimulation: (input: SimulationInput) => Promise<SimulationResult>;
   cancelSimulation: (simulationId: number) => Promise<void>;
   deleteSimulation: (simulationId: number) => Promise<void>;
@@ -288,30 +290,10 @@ export const useAuthStore = create<AuthStore>()(
             return { success: false, error: response.error };
           }
 
-          // Prefer profile returned by signup; fallback to session-based fetch.
-          const profile =
-            response.profile || (await authService.getCurrentUserProfile());
-          if (!profile) {
-            set({ isLoading: false, error: "Failed to fetch user profile" });
-            return { success: false, error: "Failed to fetch user profile" };
-          }
-
-          const user: User = {
-            id: profile.id.toString() || "",
-            name: profile.name || name,
-            email: profile.email || email,
-            authUserId: profile.auth_user_id,
-            role: profile.role,
-            simulationsRan: profile.simulations_ran || 0,
-            preferences: {
-              theme: "light",
-              units: "metric",
-              notifications: true,
-            },
-          };
-
-          set({ user, isAuthenticated: true, isLoading: false, error: null });
-          return { success: true };
+          // Supabase requires email confirmation — no session exists yet.
+          // Return success with a flag so the UI can show the confirmation message.
+          set({ isLoading: false, error: null });
+          return { success: true, requiresEmailConfirmation: true } as any;
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : "Signup failed";
@@ -355,6 +337,7 @@ export const useAuthStore = create<AuthStore>()(
 );
 
 let canceledSimulationId: number | null = null;
+let activeSimulationAbortController: AbortController | null = null;
 
 export const useSimulationStore = create<SimulationStore>((set, get) => ({
   simulations: [],
@@ -376,6 +359,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   setSimulationRunning: (isRunning) => set({ isSimulationRunning: isRunning }),
   setSimulationProgress: (progress) => set({ simulationProgress: progress }),
   setSimulationStatus: (status) => set({ simulationStatus: status }),
+  simulationFailureReason: null,
+  setSimulationFailureReason: (reason) => set({ simulationFailureReason: reason }),
 
   updateSimulationInput: (input) =>
     set((state) => ({
@@ -387,7 +372,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   // Cancel simulation: update status in DB and state
   cancelSimulation: async (simulationId: number) => {
     canceledSimulationId = simulationId;
-    set({ simulationStatus: "canceled", isSimulationRunning: false });
+    // Abort any in-flight HTTP request immediately
+    if (activeSimulationAbortController) {
+      activeSimulationAbortController.abort();
+      activeSimulationAbortController = null;
+    }
+    set({ simulationStatus: "canceled", isSimulationRunning: false, currentSimulation: null });
     await updateSimulationStatus(simulationId, "canceled");
   },
 
@@ -410,8 +400,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     // Helper returns the input value or null
     const val = (v: any) => (v !== undefined && v !== null ? v : null);
 
-    // Reset cancel flag
+    // Reset cancel flag and create a fresh AbortController for this run
     canceledSimulationId = null;
+    activeSimulationAbortController = new AbortController();
+    const abortSignal = activeSimulationAbortController.signal;
 
     // Set simulation running state
     set({
@@ -465,6 +457,19 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     const simulationId = createResult.data.id;
     console.log(`✅ [DATABASE] Simulation created with ID: ${simulationId}`);
+
+    // Store current simulation so cancel button can reference it
+    set({
+      currentSimulation: {
+        id: String(simulationId),
+        name: simName,
+        location: "",
+        itLoad: 0,
+        coolingTechnique: coolingTechnique as any,
+        createdAt: new Date().toISOString(),
+        status: "running",
+      },
+    });
 
     // Update status to running
     set({ simulationProgress: 20, simulationStatus: "Starting simulation..." });
@@ -540,6 +545,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         set({ simulationProgress: 90, simulationStatus: "Saving results..." });
         await updateSimulationStatus(simulationId, "completed");
         set({ simulationProgress: 100, simulationStatus: "Completed!" });
+        // Dispatch completion event so minimized modal can show notification
+        window.dispatchEvent(new CustomEvent("simulation-completed", {
+          detail: { simulationId, name: simName },
+        }));
         console.log(
           `✅ [DATABASE] ${technique} results saved and status updated to 'completed'`,
         );
@@ -549,11 +558,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           error,
         );
         await updateSimulationStatus(simulationId, "failed");
+        const reason = error instanceof Error ? error.message : "Unknown error saving results";
         set({
           isSimulationRunning: false,
           simulationProgress: 0,
           simulationStatus: "Failed",
+          simulationFailureReason: reason,
         });
+        window.dispatchEvent(new CustomEvent("simulation-failed", {
+          detail: { simulationId, name: simName, reason },
+        }));
       }
     };
 
@@ -641,12 +655,16 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           console.log("━━━ 1. RAW FRONTEND CONFIG (from form) ━━━");
           console.log(JSON.parse(JSON.stringify(chilledWaterConfig)));
           console.log("━━━ 2. SENDING TO API ━━━", "http://localhost:8081/api/v1/chilled-water/simulate");
-          result = await simulateChilledWater(chilledWaterConfig);
+          result = await simulateChilledWater(chilledWaterConfig, abortSignal);
           console.log("━━━ 3. RAW API RESPONSE (from CoolSim backend) ━━━");
           console.log(JSON.parse(JSON.stringify(result)));
           console.groupEnd();
         } catch (apiError: any) {
           clearInterval(progressInterval);
+          // If aborted by user cancel, don't mark as failed
+          if (apiError?.name === "AbortError" || canceledSimulationId === simulationId) {
+            return { success: false, canceled: true } as any;
+          }
           await updateSimulationStatus(simulationId, "failed");
           set({
             isSimulationRunning: false,
@@ -930,15 +948,31 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         }, 1500);
 
         // Call evaporative cooling API
-        const response = await fetch(
-          "http://localhost:8082/api/simulations/evaporative-cooling",
-          {
-            method: "POST",
-            body: formData,
-          },
-        );
+        let response: Response;
+        try {
+          response = await fetch(
+            "http://localhost:8082/api/simulations/evaporative-cooling",
+            {
+              method: "POST",
+              body: formData,
+              signal: abortSignal,
+            },
+          );
+        } catch (fetchErr: any) {
+          clearInterval(evapProgressInterval);
+          if (fetchErr?.name === "AbortError" || canceledSimulationId === simulationId) {
+            return { success: false, canceled: true } as any;
+          }
+          await updateSimulationStatus(simulationId, "failed");
+          set({ isSimulationRunning: false, simulationProgress: 0, simulationStatus: "Failed" });
+          throw fetchErr;
+        }
 
         clearInterval(evapProgressInterval);
+
+        if (abortSignal?.aborted || canceledSimulationId === simulationId) {
+          return { success: false, canceled: true } as any;
+        }
 
         if (!response.ok) {
           const errorData = await response
@@ -1196,13 +1230,29 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         }
       }, 800);
 
-      const response = await fetch("http://localhost:8080/api/simulate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      let response: Response;
+      try {
+        response = await fetch("http://localhost:8080/api/simulate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: abortSignal,
+        });
+      } catch (fetchErr: any) {
+        clearInterval(airProgressInterval);
+        if (fetchErr?.name === "AbortError" || canceledSimulationId === simulationId) {
+          return { success: false, canceled: true } as any;
+        }
+        await updateSimulationStatus(simulationId, "failed");
+        set({ isSimulationRunning: false, simulationProgress: 0, simulationStatus: "Failed" });
+        throw fetchErr;
+      }
 
       clearInterval(airProgressInterval);
+
+      if (abortSignal?.aborted || canceledSimulationId === simulationId) {
+        return { success: false, canceled: true } as any;
+      }
 
       if (!response.ok) {
         await updateSimulationStatus(simulationId, "failed");

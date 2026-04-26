@@ -129,7 +129,8 @@ export interface ChilledWaterSimulationResponse {
  * Run chilled water cooling simulation
  */
 export async function runChilledWaterSimulation(
-  request: ChilledWaterSimulationRequest
+  request: ChilledWaterSimulationRequest,
+  signal?: AbortSignal
 ): Promise<ChilledWaterSimulationResponse> {
   try {
     console.log('🚀 [API] Sending chilled water simulation request to backend...');
@@ -142,6 +143,7 @@ export async function runChilledWaterSimulation(
         'Accept': 'application/json',
       },
       body: JSON.stringify(request),
+      signal,
     });
 
     if (!response.ok) {
@@ -180,7 +182,7 @@ export async function checkBackendHealth(): Promise<boolean> {
  * Main function to simulate chilled water cooling
  * This is called from the store when user clicks "Run Simulation"
  */
-export async function simulateChilledWater(config: any): Promise<ChilledWaterSimulationResponse> {
+export async function simulateChilledWater(config: any, signal?: AbortSignal): Promise<ChilledWaterSimulationResponse> {
   console.log('╔═══════════════════════════════════════════════════════════════════════╗');
   console.log('║  CHILLED WATER SIMULATION - FRONTEND TO BACKEND                       ║');
   console.log('╚═══════════════════════════════════════════════════════════════════════╝');
@@ -234,7 +236,7 @@ export async function simulateChilledWater(config: any): Promise<ChilledWaterSim
   console.log('');
   
   // Call the backend API
-  const response = await runChilledWaterSimulation(apiRequest);
+  const response = await runChilledWaterSimulation(apiRequest, signal);
   
   console.log('');
   console.log('✅ [FRONTEND] Backend response received!');

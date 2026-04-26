@@ -647,57 +647,117 @@ const WeatherLocationPicker: React.FC<Props> = ({ onWeatherLoaded, isDark = fals
             <StatCard icon={Wind}        label="Free-Cool Hrs" value={`${stats.econHours.toLocaleString()} (${stats.econPct}%)`} iconColor="text-green-500" isDark={isDark} />
           </div>
 
-          {/* ── Debug CSV downloads ── */}
+          {/* ── Weather Data Fields info panel ── */}
           {loadedEpwUrl && (
-            <div className={`pt-2 border-t ${isDark ? "border-gray-700" : "border-gray-200"}`}>
-              <p className={`text-xs font-semibold mb-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-                🧪 Debug downloads:
+            <div className={`pt-3 border-t ${isDark ? "border-gray-700" : "border-gray-200"} space-y-3`}>
+
+              {/* Section title */}
+              <div className="flex items-center gap-2">
+                <FileText className={`w-4 h-4 ${isDark ? "text-[#5ce1e5]" : "text-blue-500"}`} />
+                <p className={`text-sm font-bold ${isDark ? "text-white" : "text-gray-800"}`}>
+                  Weather Data Fields Used
+                </p>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  mode === "chilled-water" ? isDark ? "bg-blue-500/20 text-blue-300" : "bg-blue-100 text-blue-700"
+                  : mode === "evaporative" ? isDark ? "bg-green-500/20 text-green-300" : "bg-green-100 text-green-700"
+                  : isDark ? "bg-cyan-500/20 text-cyan-300" : "bg-cyan-100 text-cyan-700"
+                }`}>
+                  {mode === "chilled-water" ? "Chilled Water" : mode === "evaporative" ? "Evaporative" : "Air-Side Economizer"}
+                </span>
+              </div>
+
+              {/* Plain-English intro */}
+              <p className={`text-sm leading-relaxed text-justify ${isDark ? "text-gray-200" : "text-gray-900"}`}>
+                {mode === "air-side" && "The simulation reads 8,760 hourly outdoor weather readings from the EPW file. Each hour, it checks the temperature and humidity to decide whether to use free outdoor air for cooling or switch to mechanical refrigeration."}
+                {mode === "chilled-water" && "The chilled water simulation needs to know how hot and humid it is outside every hour of the year. This tells the chiller how hard it needs to work — hotter outside means the chiller uses more electricity to reject heat."}
+                {mode === "evaporative" && "Evaporative cooling works by evaporating water into the air to cool it down. The simulation needs outdoor temperature, humidity, pressure, and wind speed to calculate how much cooling is possible each hour."}
               </p>
-              <div className="flex flex-wrap gap-2">
-                {/* Full EPW → CSV (all 35 columns) */}
+
+              {/* Column table */}
+              <div className={`rounded-xl overflow-hidden border ${isDark ? "border-[#2d3a5a]" : "border-gray-200"}`}>
+                {/* Header */}
+                <div className={`grid text-xs font-bold px-3 py-2 ${
+                  isDark ? "bg-[#1a1f3a] text-gray-300" : "bg-gray-100 text-gray-600"
+                }`} style={{ gridTemplateColumns: "1fr  1fr" }}>
+                  <span>Column</span>
+                  <span>Description</span>
+                </div>
+
+                {/* Rows per technique */}
+                {(mode === "air-side" ? [
+                  { col: "timestamp",     desc: "The date and time of this weather reading. The simulation runs one step per hour, so each row = one hour of the year." },
+                  { col: "temperature",    desc: "How hot it is outside. If it's cool enough (below 24°C), the system can use outdoor air for free cooling instead of running the compressor." },
+                  { col: "humidity",       desc: "How much moisture is in the air. If it's too humid (above 60%), the system can't use full free cooling because damp air causes condensation inside the data center." },
+                ] : mode === "chilled-water" ? [
+                  { col: "hour",                    desc: "Which hour of the year this is (0 = midnight Jan 1, 8759 = 11pm Dec 31). The simulation runs all 8,760 hours." },
+                  { col: "dry_bulb_c",                 desc: "Outdoor air temperature. The chiller rejects heat to the outside — the hotter it is outside, the harder the chiller works and the more electricity it uses." },
+                  { col: "wet_bulb_c",                desc: "The temperature the air would reach if water evaporated into it. Used to calculate how efficiently the cooling tower can reject heat." },
+                  { col: "relative_humidity",             desc: "How humid the air is. High humidity reduces cooling tower efficiency because the air is already close to saturation." },
+                  { col: "atmospheric_pressure_pa",   desc: "Air pressure at this location. Used in psychrometric calculations to accurately compute wet-bulb temperature and air density." },
+                ] : [
+                  { col: "timestamp",         desc: "Date and time of the reading. Each row covers one hour of the year." },
+                  { col: "hour",                      desc: "Hour index (0–8759). Used to align weather data with the hourly IT load from CloudSim." },
+                  { col: "dry_bulb_c",                desc: "Outdoor temperature. Evaporative cooling works by cooling air down toward the wet-bulb temperature — the bigger the gap between dry-bulb and wet-bulb, the more cooling is possible." },
+                  { col: "relative_humidity",         desc: "Outdoor humidity. High humidity means the air is already moist, so less water can evaporate into it — this limits how much cooling the system can deliver." },
+                  { col: "pressure_pa",               desc: "Atmospheric pressure. Used in psychrometric equations to calculate wet-bulb temperature and the exact amount of cooling available." },
+                  { col: "wind_speed_ms",             desc: "Wind speed outside. Affects how quickly heat is carried away from the cooling pads and how efficiently the evaporative system operates." },
+                ]).map(({ col, ex, desc }, i) => (
+                  <div
+                    key={col}
+                    className={`grid text-xs px-3 py-2.5 border-t ${
+                      isDark
+                        ? `border-[#2d3a5a] ${i % 2 === 0 ? "bg-[#0f1428]" : "bg-[#0a0e27]"}`
+                        : `border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`
+                    }`}
+                    style={{ gridTemplateColumns: "1fr 1fr 2fr" }}
+                  >
+                    <code className={`font-mono font-bold text-[11px] ${
+                      mode === "chilled-water" ? isDark ? "text-blue-400" : "text-blue-600"
+                      : mode === "evaporative" ? isDark ? "text-green-400" : "text-green-600"
+                      : isDark ? "text-[#5ce1e5]" : "text-cyan-600"
+                    }`}>{col}</code>
+                    <span className={`${isDark ? "text-gray-400" : "text-gray-500"}`}>{ex}</span>
+                    <span className={`leading-relaxed ${isDark ? "text-gray-300" : "text-gray-600"}`}>{desc}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Download buttons — renamed from "Debug" */}
+              <div className="flex flex-wrap gap-2 pt-1">
                 <button
-                  onClick={() => {
-                    const city = loadedEpwUrl.rsplit?.("/")?.pop()?.replace(".epw","") ?? loadedCity;
-                    downloadFile(
-                      `/debug/epw-full-csv?epw_url=${encodeURIComponent(loadedEpwUrl)}`,
-                      `${loadedCity}_full_epw.csv`
-                    );
-                  }}
+                  onClick={() => downloadFile(
+                    `/debug/epw-full-csv?epw_url=${encodeURIComponent(loadedEpwUrl)}`,
+                    `${loadedCity}_all_weather_columns.csv`
+                  )}
                   disabled={downloading !== null}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                    bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300
-                    disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isDark ? "bg-[#1a1f3a] text-gray-300 hover:bg-[#27304a] border-[#3f4a68]" : "bg-white text-gray-700 hover:bg-gray-50 border-gray-300"
+                  }`}
                 >
-                  {downloading === `${loadedCity}_full_epw.csv` ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : "⬇"}
-                  Full EPW CSV (35 cols)
+                  {downloading === `${loadedCity}_all_weather_columns.csv` ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                  Download {loadedCity} EPW File
                 </button>
 
-                {/* Technique-filtered CSV (final columns only) */}
                 <button
                   onClick={() => {
-                    const endpoint =
-                      mode === "chilled-water" ? "chilled-water" :
-                      mode === "evaporative"   ? "evaporative"   : "air-side";
-                    const label =
-                      mode === "chilled-water" ? "chilled_water" :
-                      mode === "evaporative"   ? "evaporative"   : "air_side";
+                    const endpoint = mode === "chilled-water" ? "chilled-water" : mode === "evaporative" ? "evaporative" : "air-side";
+                    const label    = mode === "chilled-water" ? "chilled_water" : mode === "evaporative" ? "evaporative" : "air_side";
                     downloadFile(
                       `/debug/${endpoint}-csv?epw_url=${encodeURIComponent(loadedEpwUrl)}`,
-                      `${loadedCity}_${label}.csv`
+                      `${loadedCity}_${label}_simulation_columns.csv`
                     );
                   }}
                   disabled={downloading !== null}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                    bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300
-                    disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    mode === "chilled-water"
+                      ? isDark ? "bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 border-blue-500/30" : "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-300"
+                      : mode === "evaporative"
+                        ? isDark ? "bg-green-500/20 text-green-300 hover:bg-green-500/30 border-green-500/30" : "bg-green-50 text-green-700 hover:bg-green-100 border-green-300"
+                        : isDark ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border-cyan-500/30" : "bg-cyan-50 text-cyan-700 hover:bg-cyan-100 border-cyan-300"
+                  }`}
                 >
-                  {downloading?.includes("air_side") || downloading?.includes("chilled") || downloading?.includes("evap") ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : "⬇"}
-                  {mode === "chilled-water" ? "Chilled Water" :
-                   mode === "evaporative"   ? "Evaporative"  : "Air-Side"} CSV (final cols)
+                  {downloading !== null && !downloading.includes("all_weather") ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />}
+                  Download {mode === "chilled-water" ? "Chilled Water" : mode === "evaporative" ? "Evaporative" : "Air-Side"} CSV File
                 </button>
               </div>
             </div>

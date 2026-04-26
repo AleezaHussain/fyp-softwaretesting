@@ -16,7 +16,6 @@ import {
 } from 'recharts'
 import { Download, Share2, Check } from 'lucide-react'
 import { SimulationResults as SimResults, TechniqueComparison, CoolingTechnique } from '../../types/simulation'
-import { ThermalMap } from './ThermalMap'
 
 interface SimulationResultsProps {
   results: SimResults
@@ -164,7 +163,7 @@ export const SimulationResults: React.FC<SimulationResultsProps> = ({ results, o
       {/* Tabs */}
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="flex border-b border-gray-200">
-          {['metrics', 'comparison', 'thermal', 'cost'].map((tab) => (
+          {['metrics', 'comparison', 'cost'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -288,15 +287,6 @@ export const SimulationResults: React.FC<SimulationResultsProps> = ({ results, o
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {activeTab === 'thermal' && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-bold text-[#1a1a2e]">Thermal Visualization</h3>
-              <ThermalMap
-                thermalData={results.thermalVisualization}
-              />
             </div>
           )}
 

@@ -10,6 +10,56 @@ export interface CapturedChart {
   imageData: string; // data:image/png;base64,...
   width: number;
   height: number;
+  explanationText?: string;
+  keyInsightText?: string;
+}
+
+function extractInsightText(element: HTMLElement): {
+  explanationText?: string;
+  keyInsightText?: string;
+} {
+  const explanationEl = element.querySelector(
+    '[data-role="chart-explanation-text"]',
+  ) as HTMLElement | null;
+  const keyInsightEl = element.querySelector(
+    '[data-role="chart-key-insight-text"]',
+  ) as HTMLElement | null;
+
+  const explanationText = explanationEl?.innerText?.trim();
+  const keyInsightText = keyInsightEl?.innerText?.trim();
+
+  return {
+    explanationText: explanationText || undefined,
+    keyInsightText: keyInsightText || undefined,
+  };
+}
+
+async function captureChartNode(
+  element: HTMLElement,
+  selectorLabel: string,
+  options?: { scale?: number; backgroundColor?: string },
+): Promise<CapturedChart | null> {
+  const bounds = element.getBoundingClientRect();
+  if (bounds.width < 40 || bounds.height < 40 || !element.offsetParent) {
+    console.warn(`Chart element is not visible or too small: ${selectorLabel}`);
+    return null;
+  }
+
+  const canvas = await html2canvas(element, {
+    scale: options?.scale ?? 2,
+    backgroundColor: options?.backgroundColor ?? "#ffffff",
+    useCORS: true,
+    logging: false,
+    allowTaint: true,
+  });
+
+  return {
+    selector: selectorLabel,
+    imageData: canvas.toDataURL("image/png"),
+    width: canvas.width,
+    height: canvas.height,
+    ...extractInsightText(element),
+  };
 }
 
 /**
@@ -17,29 +67,15 @@ export interface CapturedChart {
  */
 export async function captureChartElement(
   selector: string,
-  options?: { scale?: number; backgroundColor?: string }
+  options?: { scale?: number; backgroundColor?: string },
 ): Promise<CapturedChart | null> {
   try {
-    const element = document.querySelector(selector);
+    const element = document.querySelector(selector) as HTMLElement | null;
     if (!element) {
       console.warn(`Chart element not found: ${selector}`);
       return null;
     }
-
-    const canvas = await html2canvas(element as HTMLElement, {
-      scale: options?.scale ?? 2,
-      backgroundColor: options?.backgroundColor ?? "#ffffff",
-      useCORS: true,
-      logging: false,
-      allowTaint: true,
-    });
-
-    return {
-      selector,
-      imageData: canvas.toDataURL("image/png"),
-      width: canvas.width,
-      height: canvas.height,
-    };
+    return await captureChartNode(element, selector, options);
   } catch (error) {
     console.error(`Failed to capture chart: ${selector}`, error);
     return null;
@@ -50,50 +86,29 @@ export async function captureChartElement(
  * Capture all chart containers in the simulation detail view
  * Returns a map of chart identifiers to their image data
  */
-export async function captureAllCharts(): Promise<Record<string, CapturedChart>> {
+export async function captureAllCharts(): Promise<
+  Record<string, CapturedChart>
+> {
   const charts = new Map<string, CapturedChart>();
 
-  // Define chart selectors based on simulation view structure
-  // These should match the chart container IDs in SimulationCharts.tsx
-  const chartSelectors = [
-    // Chilled Water charts
-    { id: "chart-consumption-overview", selector: '[data-chart="consumption-overview"]' },
-    { id: "chart-cop-timeline", selector: '[data-chart="cop-timeline"]' },
-    { id: "chart-cooling-vs-chiller", selector: '[data-chart="cooling-vs-chiller"]' },
-    { id: "chart-power-breakdown", selector: '[data-chart="power-breakdown"]' },
-    { id: "chart-water-carbon", selector: '[data-chart="water-carbon"]' },
-    { id: "chart-cost-structure", selector: '[data-chart="cost-structure"]' },
-    { id: "chart-phase4-gates", selector: '[data-chart="phase4-gates"]' },
-    { id: "chart-performance-radar", selector: '[data-chart="performance-radar"]' },
-    { id: "chart-technique-comparison", selector: '[data-chart="technique-comparison"]' },
-    { id: "chart-5year-projection", selector: '[data-chart="5year-projection"]' },
+  // Capture all visible chart blocks in DOM order.
+  const dynamicNodes = Array.from(
+    document.querySelectorAll("[data-chart]"),
+  ) as HTMLElement[];
+  for (const node of dynamicNodes) {
+    const chartName = node.getAttribute("data-chart");
+    if (!chartName) continue;
+    const chartId = `chart-${chartName}`;
+    if (charts.has(chartId)) continue;
 
-    // Air Economizer charts
-    { id: "chart-air-power-breakdown", selector: '[data-chart="air-power-breakdown"]' },
-    { id: "chart-airflow-cooling", selector: '[data-chart="airflow-cooling"]' },
-    { id: "chart-mode-distribution", selector: '[data-chart="mode-distribution"]' },
-    { id: "chart-cost-structure-air", selector: '[data-chart="cost-structure-air"]' },
-    { id: "chart-rack-analysis", selector: '[data-chart="rack-analysis"]' },
-    { id: "chart-pue-cue", selector: '[data-chart="pue-cue"]' },
-    { id: "chart-ambient-conditions", selector: '[data-chart="ambient-conditions"]' },
-
-    // Evaporative charts
-    { id: "chart-evap-summary", selector: '[data-chart="evap-summary"]' },
-    { id: "chart-evap-power", selector: '[data-chart="evap-power"]' },
-    { id: "chart-cooling-capacity", selector: '[data-chart="cooling-capacity"]' },
-    { id: "chart-pue-hourly", selector: '[data-chart="pue-hourly"]' },
-    { id: "chart-temp-humidity", selector: '[data-chart="temp-humidity"]' },
-    { id: "chart-supply-air", selector: '[data-chart="supply-air"]' },
-    { id: "chart-cooling-mode", selector: '[data-chart="cooling-mode"]' },
-    { id: "chart-cooling-assessment", selector: '[data-chart="cooling-assessment"]' },
-  ];
-
-  // Capture each chart with a short delay to allow rendering
-  for (const { id, selector } of chartSelectors) {
-    const captured = await captureChartElement(selector);
+    const captured = await captureChartNode(
+      node,
+      `[data-chart="${chartName}"]`,
+    );
     if (captured) {
-      charts.set(id, captured);
+      charts.set(chartId, captured);
     }
+
     // Small delay to prevent overwhelming the browser
     await new Promise((r) => setTimeout(r, 50));
   }
@@ -108,7 +123,7 @@ export async function captureAllCharts(): Promise<Record<string, CapturedChart>>
 export async function captureChartsBatch(
   selectors: Array<{ id: string; selector: string }>,
   batchSize = 3,
-  onProgress?: (current: number, total: number) => void
+  onProgress?: (current: number, total: number) => void,
 ): Promise<Record<string, CapturedChart>> {
   const charts = new Map<string, CapturedChart>();
   const total = selectors.length;
@@ -121,7 +136,7 @@ export async function captureChartsBatch(
           charts.set(id, result);
         }
         onProgress?.(Math.min(i + batch.length, total), total);
-      })
+      }),
     );
     await Promise.all(promises);
   }
@@ -134,7 +149,7 @@ export async function captureChartsBatch(
  */
 export function getCapturedChart(
   charts: Record<string, CapturedChart>,
-  chartId: string
+  chartId: string,
 ): CapturedChart | undefined {
   return charts[chartId];
 }
@@ -143,7 +158,7 @@ export function getCapturedChart(
  * Estimate total size of captured charts (in MB)
  */
 export function estimateChartDataSize(
-  charts: Record<string, CapturedChart>
+  charts: Record<string, CapturedChart>,
 ): number {
   let totalSize = 0;
   for (const chart of Object.values(charts)) {

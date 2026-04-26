@@ -135,8 +135,9 @@ public class CloudSimWorkloadService {
         System.out.println("[CloudSimWorkloadService] Submitted " + vms.size() + " VMs");
         if (log != null) log.println("Submitted " + vms.size() + " VMs");
         
-        // Create cloudlets based on AI workload mode
-        List<Cloudlet> cloudlets = createCloudlets(config.workloadMode);
+        // Create cloudlets based on AI workload mode, pinned to their specific VMs
+        // so the broker never stacks multiple servers' cloudlets onto one VM.
+        List<Cloudlet> cloudlets = createCloudlets(config.workloadMode, vms);
         broker.submitCloudletList(cloudlets);
         System.out.println("[CloudSimWorkloadService] Submitted " + cloudlets.size() + " cloudlets");
         if (log != null) log.println("Submitted " + cloudlets.size() + " cloudlets");
@@ -394,6 +395,11 @@ public class CloudSimWorkloadService {
     
     /**
      * Create VMs (1 VM per Host for 1:1 mapping)
+     *
+     * RAM and BW are sized to handle the maximum concurrent cloudlet load.
+     * AI Training creates up to 5 cloudlets per VM each requesting 80% of VM RAM/BW,
+     * so we provision enough headroom: host has 16 GB / 10 Gbps, VM gets 14 GB / 8 Gbps
+     * to stay under host limits while supporting concurrent cloudlets without starvation.
      */
     private List<Vm> createVMs() {
         List<Vm> vmList = new ArrayList<>();
@@ -402,9 +408,12 @@ public class CloudSimWorkloadService {
             // Create VM with MIPS per PE (not total MIPS)
             Vm vm = new VmSimple(config.mipsPerCore, config.coresPerServer);
             
-            // Set VM resources (less than host to ensure allocation)
-            vm.setRam(8192)  // 8 GB (less than host's 16 GB)
-              .setBw(5000)   // 5 Gbps (less than host's 10 Gbps)
+            // Provision VM with ample RAM and BW to avoid cloudlet starvation.
+            // Multiple concurrent cloudlets (up to 5 in AI_TRAINING mode) each request
+            // up to 80% of VM resources via UtilizationModelDynamic — TimeShared scheduler
+            // divides available resources, so the VM must have enough total capacity.
+            vm.setRam(14336) // 14 GB (leaves 2 GB headroom under host's 16 GB)
+              .setBw(8000)   // 8 Gbps (leaves 2 Gbps headroom under host's 10 Gbps)
               .setSize(100000); // 100 GB (less than host's 1 TB)
             
             // Use TimeShared scheduler for concurrent cloudlet execution
@@ -417,24 +426,25 @@ public class CloudSimWorkloadService {
     }
     
     /**
-     * Create cloudlets based on AI workload mode
+     * Create cloudlets based on AI workload mode, pinned to their specific VMs.
+     * Pinning prevents the broker from stacking all cloudlets onto one VM.
      */
-    private List<Cloudlet> createCloudlets(AIWorkloadMode mode) {
+    private List<Cloudlet> createCloudlets(AIWorkloadMode mode, List<Vm> vmList) {
         List<Cloudlet> cloudletList = new ArrayList<>();
         
         switch (mode) {
             case AI_TRAINING:
-                cloudletList = createAITrainingWorkload();
+                cloudletList = createAITrainingWorkload(vmList);
                 break;
             case AI_INFERENCE:
-                cloudletList = createAIInferenceWorkload();
+                cloudletList = createAIInferenceWorkload(vmList);
                 break;
             case MIXED:
-                cloudletList = createMixedWorkload();
+                cloudletList = createMixedWorkload(vmList);
                 break;
             case ENTERPRISE:
             default:
-                cloudletList = createEnterpriseWorkload();
+                cloudletList = createEnterpriseWorkload(vmList);
                 break;
         }
         
@@ -443,42 +453,45 @@ public class CloudSimWorkloadService {
     
     /**
      * AI Training: Long-running, sustained high utilization (85-95%)
-     * 1 long cloudlet per VM to keep CPU hot for entire simulation
+     * Each cloudlet is pinned to its server's VM so the broker never stacks
+     * multiple servers' jobs onto one VM.
+     *
+     * Per-cloudlet RAM/BW utilization is set to 1/numJobs so that even when
+     * all jobs for a server run concurrently the total never exceeds 100% of
+     * the VM's provisioned RAM/BW.
      */
-    private List<Cloudlet> createAITrainingWorkload() {
+    private List<Cloudlet> createAITrainingWorkload(List<Vm> vmList) {
         List<Cloudlet> cloudlets = new ArrayList<>();
         
-        // Create multiple cloudlets per server with different start times
-        // This creates natural load variation as cloudlets start/finish
         for (int i = 0; i < config.numberOfServers; i++) {
-            final int serverIndex = i;
+            Vm vm = vmList.get(i);
             
-            // Create 3-5 training jobs per server with staggered start times
+            // 3-5 training jobs per server with staggered start times
             int numJobs = 3 + (int)(Math.random() * 3);
+            // Each job gets an equal share of VM RAM/BW so total ≤ 100%
+            double perJobRamBw = 1.0 / numJobs;
             
             for (int job = 0; job < numJobs; job++) {
-                // Job duration: 6-12 hours
                 double jobDurationHours = 6.0 + (Math.random() * 6.0);
                 long length = (long) (jobDurationHours * 3600 * config.mipsPerCore * config.coresPerServer);
                 
                 Cloudlet cloudlet = new CloudletSimple(length, config.coresPerServer);
-                
-                // Set explicit resource requirements
                 cloudlet.setFileSize(1024).setOutputSize(1024);
                 
                 // Stagger start times throughout the simulation
                 double startDelay = (config.simulationHours / (double)numJobs) * job * 3600.0;
                 cloudlet.setSubmissionDelay(startDelay);
                 
-                // High utilization with per-job variance (80-95%)
-                final double jobUtilization = 0.80 + (Math.random() * 0.15);
-                
-                // Use dynamic utilization model with time-based variation
+                // High CPU utilization (80-95%)
+                double jobUtilization = 0.80 + (Math.random() * 0.15);
                 cloudlet.setUtilizationModelCpu(new UtilizationModelDynamic(jobUtilization));
                 
-                // Use 80% of RAM and BW
-                cloudlet.setUtilizationModelRam(new UtilizationModelDynamic(0.8));
-                cloudlet.setUtilizationModelBw(new UtilizationModelDynamic(0.8));
+                // RAM/BW: each job gets 1/numJobs share so concurrent total ≤ 100%
+                cloudlet.setUtilizationModelRam(new UtilizationModelDynamic(perJobRamBw));
+                cloudlet.setUtilizationModelBw(new UtilizationModelDynamic(perJobRamBw));
+                
+                // Pin to this server's VM — prevents broker from stacking onto one VM
+                cloudlet.setVm(vm);
                 
                 cloudlets.add(cloudlet);
             }
@@ -488,35 +501,41 @@ public class CloudSimWorkloadService {
     }
     
     /**
-     * AI Inference: Bursty spikes with baseline load
-     * Multiple short cloudlets per VM to simulate request bursts
+     * AI Inference: Bursty spikes with baseline load.
+     * Baseline + bursts are all pinned to the same VM per server.
+     * RAM/BW is divided by (1 baseline + max bursts) so concurrent total ≤ 100%.
      */
-    private List<Cloudlet> createAIInferenceWorkload() {
+    private List<Cloudlet> createAIInferenceWorkload(List<Vm> vmList) {
         List<Cloudlet> cloudlets = new ArrayList<>();
         
-        // Create baseline + burst cloudlets for each server
         for (int server = 0; server < config.numberOfServers; server++) {
+            Vm vm = vmList.get(server);
+            int maxBursts = 5; // worst-case concurrent count
+            // 1 baseline + maxBursts concurrent → divide by (1 + maxBursts)
+            double perCloudletShare = 1.0 / (1 + maxBursts);
+            
             // Baseline cloudlet (runs entire simulation at low utilization)
             long baselineLength = (long) (config.simulationHours * 3600 * config.mipsPerCore);
             Cloudlet baseline = new CloudletSimple(baselineLength, 1);
             baseline.setFileSize(512).setOutputSize(512);
-            baseline.setUtilizationModelCpu(new UtilizationModelDynamic(0.25)); // 25% baseline
-            baseline.setUtilizationModelRam(new UtilizationModelDynamic(0.3));
-            baseline.setUtilizationModelBw(new UtilizationModelDynamic(0.2));
+            baseline.setUtilizationModelCpu(new UtilizationModelDynamic(0.25));
+            baseline.setUtilizationModelRam(new UtilizationModelDynamic(perCloudletShare));
+            baseline.setUtilizationModelBw(new UtilizationModelDynamic(perCloudletShare));
+            baseline.setVm(vm);
             cloudlets.add(baseline);
             
-            // Add burst cloudlets (short, high utilization)
-            int numBursts = 3 + (int)(Math.random() * 3); // 3-5 bursts per server
+            // Burst cloudlets (short, high CPU utilization)
+            int numBursts = 3 + (int)(Math.random() * 3); // 3-5 bursts
             for (int burst = 0; burst < numBursts; burst++) {
-                long burstLength = (long) ((300 + Math.random() * 600) * config.mipsPerCore); // 5-15 min
+                long burstLength = (long) ((300 + Math.random() * 600) * config.mipsPerCore);
                 Cloudlet burstCloudlet = new CloudletSimple(burstLength, config.coresPerServer);
                 burstCloudlet.setFileSize(1024).setOutputSize(1024);
                 
-                // High utilization during burst (85-95%)
                 double burstUtil = 0.85 + Math.random() * 0.10;
                 burstCloudlet.setUtilizationModelCpu(new UtilizationModelDynamic(burstUtil));
-                burstCloudlet.setUtilizationModelRam(new UtilizationModelDynamic(0.8));
-                burstCloudlet.setUtilizationModelBw(new UtilizationModelDynamic(0.8));
+                burstCloudlet.setUtilizationModelRam(new UtilizationModelDynamic(perCloudletShare));
+                burstCloudlet.setUtilizationModelBw(new UtilizationModelDynamic(perCloudletShare));
+                burstCloudlet.setVm(vm);
                 
                 cloudlets.add(burstCloudlet);
             }
@@ -526,41 +545,42 @@ public class CloudSimWorkloadService {
     }
     
     /**
-     * Mixed: 60% enterprise + 40% AI training
+     * Mixed: 60% enterprise + 40% AI training, each cloudlet pinned to its VM.
      */
-    private List<Cloudlet> createMixedWorkload() {
+    private List<Cloudlet> createMixedWorkload(List<Vm> vmList) {
         List<Cloudlet> cloudlets = new ArrayList<>();
         
         int enterpriseServers = (int) (config.numberOfServers * 0.6);
         int aiServers = config.numberOfServers - enterpriseServers;
         
-        // Enterprise workload (60% of servers)
+        // Enterprise workload (60% of servers) — 1 cloudlet per VM, safe utilization
         for (int i = 0; i < enterpriseServers; i++) {
-            // Continuous moderate load
+            Vm vm = vmList.get(i);
             long length = (long) (config.simulationHours * 3600 * config.mipsPerCore * 2);
             Cloudlet cloudlet = new CloudletSimple(length, 2);
             cloudlet.setFileSize(512).setOutputSize(512);
             
-            // Moderate utilization (50-65%)
             double utilization = 0.50 + Math.random() * 0.15;
             cloudlet.setUtilizationModelCpu(new UtilizationModelDynamic(utilization));
             cloudlet.setUtilizationModelRam(new UtilizationModelDynamic(0.5));
             cloudlet.setUtilizationModelBw(new UtilizationModelDynamic(0.3));
+            cloudlet.setVm(vm);
             
             cloudlets.add(cloudlet);
         }
         
-        // AI training workload (40% of servers)
+        // AI training workload (40% of servers) — 1 cloudlet per VM
         for (int i = 0; i < aiServers; i++) {
+            Vm vm = vmList.get(enterpriseServers + i);
             long length = (long) (config.simulationHours * 3600 * config.mipsPerCore * config.coresPerServer);
             Cloudlet cloudlet = new CloudletSimple(length, config.coresPerServer);
             cloudlet.setFileSize(1024).setOutputSize(1024);
             
-            // High utilization (80-90%)
             double utilization = 0.80 + Math.random() * 0.10;
             cloudlet.setUtilizationModelCpu(new UtilizationModelDynamic(utilization));
             cloudlet.setUtilizationModelRam(new UtilizationModelDynamic(0.8));
             cloudlet.setUtilizationModelBw(new UtilizationModelDynamic(0.7));
+            cloudlet.setVm(vm);
             
             cloudlets.add(cloudlet);
         }
@@ -569,22 +589,22 @@ public class CloudSimWorkloadService {
     }
     
     /**
-     * Enterprise: Traditional workload with daily patterns
+     * Enterprise: Traditional workload — 1 cloudlet per VM, pinned.
      */
-    private List<Cloudlet> createEnterpriseWorkload() {
+    private List<Cloudlet> createEnterpriseWorkload(List<Vm> vmList) {
         List<Cloudlet> cloudlets = new ArrayList<>();
         
         for (int i = 0; i < config.numberOfServers; i++) {
-            // Continuous moderate load
+            Vm vm = vmList.get(i);
             long length = (long) (config.simulationHours * 3600 * config.mipsPerCore * 2);
             Cloudlet cloudlet = new CloudletSimple(length, 2);
             cloudlet.setFileSize(512).setOutputSize(512);
             
-            // Moderate utilization (50-65%)
             double utilization = 0.50 + Math.random() * 0.15;
             cloudlet.setUtilizationModelCpu(new UtilizationModelDynamic(utilization));
             cloudlet.setUtilizationModelRam(new UtilizationModelDynamic(0.5));
             cloudlet.setUtilizationModelBw(new UtilizationModelDynamic(0.3));
+            cloudlet.setVm(vm);
             
             cloudlets.add(cloudlet);
         }

@@ -5,7 +5,6 @@ import {
   ComponentType,
   ServerRackSize,
 } from "../../types/simulation";
-import { DataCenterVisualizer } from "./DataCenterVisualizer";
 
 interface DataCenterConfigProps {
   components: DataCenterComponent[];
@@ -34,7 +33,6 @@ export const DataCenterConfig: React.FC<DataCenterConfigProps> = ({
   onProceed,
 }) => {
   const [showModal, setShowModal] = useState(false);
-  const [showVisualization, setShowVisualization] = useState(false);
   const [selectedType, setSelectedType] =
     useState<ComponentType>("server_rack");
   const [quantity, setQuantity] = useState(1);
@@ -66,9 +64,9 @@ export const DataCenterConfig: React.FC<DataCenterConfigProps> = ({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel - Form */}
-        <div className="lg:col-span-1 space-y-6">
+      <div className="grid grid-cols-1 gap-6">
+        {/* Components Panel */}
+        <div className="space-y-6">
           <div className="bg-white rounded-lg border border-gray-200 p-4">
             <div className="text-sm text-gray-600">Total Components</div>
             <div className="text-4xl font-bold text-[#fd5757]">
@@ -135,24 +133,7 @@ export const DataCenterConfig: React.FC<DataCenterConfigProps> = ({
             Add Component
           </button>
         </div>
-
-        {/* Right Panel - Visualization */}
-        <div className="lg:col-span-2">
-          <DataCenterVisualizer
-            components={components}
-            totalHeatLoad={totalHeatLoad}
-          />
-        </div>
       </div>
-
-      {/* Visualize Configuration Button */}
-      <button
-        onClick={() => setShowVisualization(true)}
-        disabled={components.length === 0}
-        className="w-full bg-[#5ce1e5] text-[#1a1a2e] py-3 rounded-lg font-semibold hover:bg-cyan-400 disabled:bg-gray-300 disabled:cursor-not-allowed transition mb-4"
-      >
-        Visualize Configuration
-      </button>
 
       {/* Proceed Button */}
       <button
@@ -162,27 +143,6 @@ export const DataCenterConfig: React.FC<DataCenterConfigProps> = ({
       >
         Proceed to Cooling Selection
       </button>
-
-      {/* Visualization Modal */}
-      {showVisualization && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-3xl w-full mx-4 relative">
-            <button
-              onClick={() => setShowVisualization(false)}
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-900 text-xl font-bold"
-            >
-              ×
-            </button>
-            <h3 className="text-xl font-bold text-[#1a1a2e] mb-6">
-              3D Data Center Visualization
-            </h3>
-            <DataCenterVisualizer
-              components={components}
-              totalHeatLoad={totalHeatLoad}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Modal */}
       {showModal && (

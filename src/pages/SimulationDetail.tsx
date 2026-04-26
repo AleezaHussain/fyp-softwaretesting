@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Sidebar } from "../components/shared/Sidebar";
 import { useThemeStore } from "../hooks/useTheme";
@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { ArrayDataSection } from "../components/simulation/ArrayDataSection";
-import { SimulationCharts } from "../components/simulation/SimulationCharts";
+import { SimulationCharts, SimulationChartsHandle } from "../components/simulation/SimulationCharts";
 import { generateSimulationPDF } from "../utils/pdfExport";
 import { SimulationDetailedView } from "../components/simulation/SimulationDetailedView";
 import { SimulationRecommendations } from "../components/simulation/SimulationRecommendations";
@@ -66,6 +66,8 @@ const SimulationDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const chartsRef = useRef<SimulationChartsHandle>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (!id || isNaN(simId)) {
@@ -129,6 +131,9 @@ const SimulationDetail: React.FC = () => {
         return <XCircle className="w-5 h-5 text-red-500" />;
       case "running":
         return <Activity className="w-5 h-5 text-blue-500 animate-pulse" />;
+      case "cancelled":
+      case "canceled":
+        return <XCircle className="w-5 h-5 text-orange-400" />;
       default:
         return <Clock className="w-5 h-5 text-gray-500" />;
     }
@@ -155,71 +160,133 @@ const SimulationDetail: React.FC = () => {
 
   const handleExportPDF = async () => {
     if (!simulation?.result) return;
+    setIsExporting(true);
 
-    console.log("[PDF Export] Starting chart capture...");
+    // Switch to charts tab so the chart component is mounted and capturable
+    const prevTab = activeTab;
+    setActiveTab("charts");
+    // Give React time to mount the charts tab + ResponsiveContainer layout pass
+    await new Promise<void>((r) => setTimeout(r, 800));
 
+    let capturedCharts: Record<string, string> = {};
     try {
-      // Dynamically import chart capture utilities
-      const { captureAllCharts, estimateChartDataSize } = await import(
-        "../utils/chartCapture"
-      );
-
-      // Capture all visible charts
-      console.log("[PDF Export] Capturing charts...");
-      const capturedCharts = await captureAllCharts();
-
-      const capturedCount = Object.keys(capturedCharts).length;
-      const estimatedSize = estimateChartDataSize(capturedCharts);
-      console.log(
-        `[PDF Export] Captured ${capturedCount} charts (${estimatedSize.toFixed(2)} MB)`
-      );
-
-      // Generate PDF with captured charts
-      generateSimulationPDF({
-        simulation: {
-          id: simulation.id,
-          name: simulation.name,
-          description: simulation.description,
-          simulation_type: simulation.simulation_type,
-          created_at: simulation.created_at,
-          status: simulation.status,
-        },
-        result: {
-          energy_consumed_kwh: simulation.result.energy_consumed_kwh,
-          cooling_efficiency: simulation.result.cooling_efficiency,
-          cost_saving_percent: simulation.result.cost_saving_percent,
-          runtime_minutes: simulation.result.runtime_minutes,
-          completed_at: simulation.result.completed_at,
-          result_data: simulation.result.result_data,
-        },
-        capturedCharts,
-      });
-
-      console.log("[PDF Export] PDF generated successfully");
-    } catch (error) {
-      console.error("[PDF Export] Failed to capture charts:", error);
-
-      // Fallback: Generate PDF without captured charts
-      console.log("[PDF Export] Falling back to approximations...");
-      generateSimulationPDF({
-        simulation: {
-          id: simulation.id,
-          name: simulation.name,
-          description: simulation.description,
-          simulation_type: simulation.simulation_type,
-          created_at: simulation.created_at,
-          status: simulation.status,
-        },
-        result: {
-          energy_consumed_kwh: simulation.result.energy_consumed_kwh,
-          cooling_efficiency: simulation.result.cooling_efficiency,
-          cost_saving_percent: simulation.result.cost_saving_percent,
-          runtime_minutes: simulation.result.runtime_minutes,
-          completed_at: simulation.result.completed_at,
-          result_data: simulation.result.result_data,
-        },
-      });
+      if (chartsRef.current) {
+        capturedCharts = await chartsRef.current.captureAllCharts();
+      }
+    } catch (e) {
+      console.warn("Chart capture failed, continuing without chart images", e);
     }
+
+    // Fetch AI metrics explanation — check cache first
+    let aiMetricsExplanation: string | undefined;
+    let aiMetricsInsight: string | undefined;
+    const cacheKey = `metrics_explanation_${simulation.id}`;
+    
+    try {
+      // Try localStorage first
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        aiMetricsExplanation = parsed.explanation;
+        aiMetricsInsight = parsed.keyInsight;
+      } else {
+        // Generate fresh from API
+        const METRICS_API = import.meta.env.VITE_METRICS_EXPLANATION_API_URL ?? "http://localhost:8005/api";
+        const rd2 = simulation.result.result_data ?? {};
+        const m2 = rd2?.results?.metrics ?? {};
+        const a2 = rd2?.results?.annual ?? {};
+        const e2 = rd2?.results?.economics ?? {};
+        const s2 = rd2?.summary ?? {};
+        const evapPerf2 = rd2?.rawEvaporativeData?.results?.performance ?? {};
+        const evapCost2 = rd2?.rawEvaporativeData?.results?.cost ?? {};
+        const evapWater2 = rd2?.rawEvaporativeData?.results?.water ?? {};
+        const simType2 = (simulation.simulation_type ?? "").toLowerCase();
+        const isEvap = rd2?.coolingTechnique === "evaporative" || simType2.includes("evap");
+        const isAir = rd2?.coolingTechnique === "air_economizer" || simType2.includes("air");
+
+        // Build full metrics list from result_data directly
+        const allMetrics: { label: string; value: any; unit: string }[] = [
+          { label: "Runtime", value: simulation.result.runtime_minutes, unit: "min" },
+          ...(isAir ? [
+            { label: "Average PUE", value: s2.averagePUE, unit: "" },
+            { label: "Average CUE", value: s2.averageCUE, unit: "kgCO2/kWh" },
+            { label: "IT Energy", value: s2.totalItEnergy_kWh, unit: "kWh" },
+            { label: "Cooling Energy", value: s2.totalCoolingEnergy_kWh, unit: "kWh" },
+            { label: "Electricity Cost", value: s2.electricityCostUSD, unit: "USD" },
+            { label: "Carbon Tax", value: s2.carbonTaxCostUSD, unit: "USD" },
+            { label: "Annual OpEx", value: s2.annualOpExUSD, unit: "USD" },
+            { label: "CAPEX", value: s2.totalCapexUSD, unit: "USD" },
+            { label: "Payback Period", value: s2.paybackPeriodYears, unit: "years" },
+            { label: "Carbon Savings", value: s2.carbonSavings_kg, unit: "kg" },
+          ] : isEvap ? [
+            { label: "PUE Average", value: evapPerf2.pue_average, unit: "" },
+            { label: "WUE", value: evapPerf2.wue_average, unit: "L/kWh" },
+            { label: "CUE", value: evapPerf2.cue_average, unit: "kgCO2/kWh" },
+            { label: "Annual Water", value: evapWater2.total_liters, unit: "L" },
+            { label: "Annual Cost", value: evapCost2.total_energy_cost_usd, unit: "USD" },
+          ] : [
+            { label: "Average COP", value: m2.averageCOP, unit: "" },
+            { label: "PUE", value: m2.pue, unit: "" },
+            { label: "WUE", value: m2.wue, unit: "L/kWh" },
+            { label: "CUE", value: m2.cue, unit: "kgCO2/kWh" },
+            { label: "Annual Energy", value: a2.energyConsumption_kWh, unit: "kWh" },
+            { label: "Annual Water", value: a2.waterUsage_L, unit: "L" },
+            { label: "Annual Carbon", value: a2.carbonEmissions_kg, unit: "kg" },
+            { label: "CAPEX", value: e2.capex_USD, unit: "USD" },
+            { label: "NPV", value: e2.npv_USD, unit: "USD" },
+            { label: "Payback Period", value: e2.paybackPeriod_years, unit: "years" },
+            { label: "LCCP", value: e2.lccp_USD, unit: "USD" },
+          ]),
+        ].filter(m => m.value !== null && m.value !== undefined);
+
+        const resp = await fetch(`${METRICS_API}/explain-metrics`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            technique: simulation.simulation_type,
+            metrics: allMetrics,
+            simulationContext: { technique: simulation.simulation_type },
+          }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          aiMetricsExplanation = data.explanation;
+          aiMetricsInsight = data.keyInsight;
+          // Cache for future exports
+          localStorage.setItem(cacheKey, JSON.stringify({ explanation: aiMetricsExplanation, keyInsight: aiMetricsInsight }));
+        }
+      }
+    } catch (e) {
+      console.warn("Metrics explanation fetch failed", e);
+      // Continue without explanation
+    }
+
+    // Restore previous tab
+    setActiveTab(prevTab);
+
+    await generateSimulationPDF({
+      simulation: {
+        id: simulation.id,
+        name: simulation.name,
+        description: simulation.description,
+        simulation_type: simulation.simulation_type,
+        created_at: simulation.created_at,
+        status: simulation.status,
+      },
+      result: {
+        energy_consumed_kwh: simulation.result.energy_consumed_kwh,
+        cooling_efficiency: simulation.result.cooling_efficiency,
+        cost_saving_percent: simulation.result.cost_saving_percent,
+        runtime_minutes: simulation.result.runtime_minutes,
+        completed_at: simulation.result.completed_at,
+        result_data: simulation.result.result_data,
+      },
+      capturedCharts,
+      aiMetricsExplanation,
+      aiMetricsInsight,
+    });
+
+    setIsExporting(false);
   };
 
   // ── shared styles ─────────────────────────────────────────────────────────
@@ -253,10 +320,10 @@ const SimulationDetail: React.FC = () => {
             <XCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
             <p className={`mb-4 ${muted}`}>{error || "Simulation not found"}</p>
             <button
-              onClick={() => navigate("/simulations")}
+              onClick={() => navigate("/reports")}
               className={`px-6 py-2 rounded-lg ${isDark ? "bg-[#27304a] text-white hover:bg-[#3f4a68]" : "bg-white text-gray-900 hover:bg-gray-100"} transition-colors`}
             >
-              Back to Simulations
+              Back to Reports
             </button>
           </div>
         </main>
@@ -420,11 +487,11 @@ const SimulationDetail: React.FC = () => {
         {/* ── Page header ── */}
         <div className="mb-6">
           <button
-            onClick={() => navigate("/simulations")}
+            onClick={() => navigate("/reports")}
             className={`flex items-center gap-2 mb-4 ${isDark ? "text-gray-300 hover:text-white" : "text-gray-600 hover:text-gray-900"} transition-colors`}
           >
             <ArrowLeft className="w-5 h-5" />
-            <span>Back to Simulations</span>
+            <span>Back to Reports</span>
           </button>
 
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -447,14 +514,24 @@ const SimulationDetail: React.FC = () => {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleExportPDF}
-                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-105 ${
+                  disabled={isExporting}
+                  className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 ${
                     isDark
                       ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white shadow-lg shadow-cyan-500/20"
                       : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white shadow-lg shadow-cyan-500/20"
                   }`}
                 >
-                  <Download className="w-4 h-4" />
-                  Export PDF
+                  {isExporting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Capturing charts...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Export PDF
+                    </>
+                  )}
                 </button>
               </div>
             )}
@@ -539,24 +616,34 @@ const SimulationDetail: React.FC = () => {
             {simulation.status.toLowerCase() === "running" ? (
               <>
                 <Activity className="w-12 h-12 mx-auto mb-3 text-blue-500 animate-pulse" />
-                <p className={`text-lg font-medium ${text}`}>
-                  Simulation in progress
-                </p>
-                <p className={`text-sm ${muted}`}>
-                  Results will appear here when complete
-                </p>
+                <p className={`text-lg font-medium ${text}`}>Simulation in progress</p>
+                <p className={`text-sm ${muted}`}>Results will appear here when complete</p>
+              </>
+            ) : simulation.status.toLowerCase() === "failed" ? (
+              <>
+                <XCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
+                <p className={`text-lg font-medium text-red-500`}>Simulation Failed</p>
+                <p className={`text-sm ${muted} mt-1`}>This simulation encountered an error and could not complete.</p>
+                {rd?.failureReason && (
+                  <div className={`mt-4 mx-auto max-w-sm px-4 py-3 rounded-xl text-sm text-left border ${
+                    isDark ? "bg-red-500/10 border-red-500/30 text-red-300" : "bg-red-50 border-red-200 text-red-700"
+                  }`}>
+                    <p className="font-semibold mb-1">Failure Reason:</p>
+                    <p className="leading-relaxed">{rd.failureReason}</p>
+                  </div>
+                )}
+              </>
+            ) : simulation.status.toLowerCase() === "cancelled" || simulation.status.toLowerCase() === "canceled" ? (
+              <>
+                <XCircle className="w-12 h-12 mx-auto mb-3 text-orange-400" />
+                <p className={`text-lg font-medium text-orange-400`}>Simulation Cancelled</p>
+                <p className={`text-sm ${muted} mt-1`}>This simulation was cancelled before it could complete.</p>
               </>
             ) : (
               <>
-                <XCircle
-                  className={`w-12 h-12 mx-auto mb-3 ${isDark ? "text-gray-600" : "text-gray-400"}`}
-                />
-                <p className={`text-lg font-medium ${text}`}>
-                  No results available
-                </p>
-                <p className={`text-sm ${muted}`}>
-                  This simulation hasn't produced any results yet
-                </p>
+                <XCircle className={`w-12 h-12 mx-auto mb-3 ${isDark ? "text-gray-600" : "text-gray-400"}`} />
+                <p className={`text-lg font-medium ${text}`}>No results available</p>
+                <p className={`text-sm ${muted}`}>This simulation hasn't produced any results yet</p>
               </>
             )}
           </div>
@@ -634,8 +721,11 @@ const SimulationDetail: React.FC = () => {
           <div className={`p-6 ${card}`}>
             <h2 className={`text-lg font-bold mb-6 ${text}`}>Visualisations</h2>
             <SimulationCharts
+              ref={chartsRef}
               resultData={simulation.result.result_data}
               simulationType={simulation.simulation_type}
+              simulationName={simulation.name}
+              simulationDescription={simulation.description}
               isDark={isDark}
             />
           </div>

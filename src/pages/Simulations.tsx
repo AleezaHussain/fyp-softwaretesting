@@ -260,10 +260,14 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
                 ? isDark ? "bg-blue-500/20 text-blue-400" : "bg-blue-100 text-blue-700"
                 : simulation.status === "pending"
                   ? isDark ? "bg-yellow-500/20 text-yellow-400" : "bg-yellow-100 text-yellow-700"
-                  : isDark ? "bg-gray-500/20 text-gray-400" : "bg-gray-100 text-gray-700"
+                  : simulation.status === "failed"
+                    ? isDark ? "bg-red-500/20 text-red-400" : "bg-red-100 text-red-700"
+                    : simulation.status === "cancelled" || simulation.status === "canceled"
+                      ? isDark ? "bg-orange-500/20 text-orange-400" : "bg-orange-100 text-orange-700"
+                      : isDark ? "bg-gray-500/20 text-gray-400" : "bg-gray-100 text-gray-700"
           }`}
         >
-          {simulation.status || "N/A"}
+          {simulation.status === "cancelled" || simulation.status === "canceled" ? "Cancelled" : simulation.status || "N/A"}
         </span>
       </div>
 
@@ -361,27 +365,7 @@ const SimulationCard: React.FC<SimulationCardProps> = ({
           </div>
         </button>
 
-        {simulation.status === "canceled" && (
-          <button
-            onClick={handleResume}
-            className={`px-4 py-2 rounded-lg font-bold transition-all duration-300 hover:scale-105 ${
-              isDark ? "bg-blue-500 text-white hover:bg-blue-600" : "bg-blue-500 text-white hover:bg-blue-600"
-            }`}
-          >
-            Resume
-          </button>
-        )}
-
-        <button
-          onClick={handleDownload}
-          className={`p-2.5 rounded-lg font-medium transition-all duration-300 hover:scale-105 ${
-            isDark
-              ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900"
-          }`}
-        >
-          <Download className="w-4 h-4" />
-        </button>
+        {simulation.status === "canceled" && null}
 
         <DeleteButtonWithModal sim={simulation} isDark={isDark} />
       </div>
@@ -825,38 +809,6 @@ export const Simulations: React.FC = () => {
                                 }`}
                               >
                                 <Eye className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={() => {
-                                  import("../utils/pdfExport").then(({ generateSimulationPDF }) => {
-                                    const pdfData = {
-                                      simulation: {
-                                        id: sim.id,
-                                        name: sim.name,
-                                        description: sim.description || "",
-                                        simulation_type: sim.coolingTechnique || "N/A",
-                                        created_at: sim.createdAt || sim.timestamp || new Date().toISOString(),
-                                        status: sim.status || "N/A",
-                                      },
-                                      result: {
-                                        energy_consumed_kwh: sim.totalEnergyConsumption || sim.result?.energy_consumed_kwh || 0,
-                                        cooling_efficiency: sim.cooling_efficiency || sim.result?.cooling_efficiency || 0,
-                                        cost_saving_percent: sim.cost_saving_percent || sim.result?.cost_saving_percent || 0,
-                                        runtime_minutes: sim.runtimeMinutes || sim.result?.runtime_minutes || 0,
-                                        completed_at: sim.completedAt || sim.result?.completed_at || "",
-                                        result_data: sim.result_data || sim.rawEvaporativeData || sim.rawChilledWaterData || sim,
-                                      },
-                                    };
-                                    generateSimulationPDF(pdfData);
-                                  });
-                                }}
-                                className={`p-2 rounded-lg transition-all duration-300 hover:scale-105 ${
-                                  isDark
-                                    ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white"
-                                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                                }`}
-                              >
-                                <Download className="w-4 h-4" />
                               </button>
                               <DeleteButtonWithModal sim={sim} isDark={isDark} />
                             </div>

@@ -23,7 +23,11 @@ import {
   User,
   LogIn,
 } from "lucide-react";
-import { getRecentActivity, activityLabel, ActivityEntry } from "../services/activityService";
+import {
+  getRecentActivity,
+  activityLabel,
+  ActivityEntry,
+} from "../services/activityService";
 import {
   ResponsiveContainer,
   PieChart,
@@ -35,6 +39,14 @@ import {
   Bar,
   XAxis,
   YAxis,
+  CartesianGrid,
+  RadarChart,
+  Radar,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  LineChart,
+  Line,
 } from "recharts";
 
 // Custom hooks and services
@@ -77,12 +89,22 @@ type ChartDatum = {
   name: string;
   energy: number;
   cost: number;
+  pue: number;
+  annualCost: number;
+  annualCarbon: number;
+  color: string;
+};
+
+type RuntimeDatum = {
+  name: string;
+  runtime: number;
+  technique: string;
+  simulationCount: number;
   color: string;
 };
 
 // Constants
 const TECH_COLORS = ["#5ce1e5", "#0ea5e9", "#fd5757", "#8b5cf6", "#10b981"];
-const SERVER_COLORS = ["#0ea5e9", "#5ce1e5", "#8b5cf6", "#fd5757", "#10b981"];
 
 // Helper functions
 const groupByTechnique = (simulations: SimulationWithResults[]) => {
@@ -95,15 +117,26 @@ const groupByTechnique = (simulations: SimulationWithResults[]) => {
   return grouped;
 };
 
-const groupByServer = (simulations: SimulationWithResults[]) => {
-  const grouped: Record<string, SimulationWithResults[]> = {};
-  simulations.forEach((sim) => {
-    // Use simulation_type for server grouping
-    const server = sim.simulation_type || "unknown";
-    if (!grouped[server]) grouped[server] = [];
-    grouped[server].push(sim);
-  });
-  return grouped;
+const normalizeTechniqueKey = (technique: string) => {
+  const t = (technique || "").toLowerCase();
+  if (t.includes("air")) return "air";
+  if (t.includes("evap")) return "evap";
+  if (t.includes("chilled") || t.includes("water")) return "chilled";
+  return "other";
+};
+
+const techniqueLabelFromKey = (key: string) => {
+  if (key === "air") return "Air-Side";
+  if (key === "evap") return "Evaporative";
+  if (key === "chilled") return "Chilled Water";
+  return "Other";
+};
+
+const techniqueColorFromKey = (key: string) => {
+  if (key === "air") return "#5ce1e5";
+  if (key === "evap") return "#10b981";
+  if (key === "chilled") return "#fd5757";
+  return "#8b5cf6";
 };
 
 // Stat Card Component
@@ -415,7 +448,10 @@ const SimulationRow: React.FC<{
 };
 
 // Recent Activity Component
-const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({ userId, isDark }) => {
+const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({
+  userId,
+  isDark,
+}) => {
   const navigate = useNavigate();
   const [activities, setActivities] = useState<ActivityEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -426,27 +462,49 @@ const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({ userId,
     if (!userId) return;
     setLoading(true);
     // fetch enough for several pages
-    getRecentActivity(userId, 50).then(setActivities).finally(() => setLoading(false));
+    getRecentActivity(userId, 50)
+      .then(setActivities)
+      .finally(() => setLoading(false));
   }, [userId]);
 
   const totalPages = Math.ceil(activities.length / PAGE_SIZE);
-  const paged = activities.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+  const paged = activities.slice(
+    page * PAGE_SIZE,
+    page * PAGE_SIZE + PAGE_SIZE,
+  );
 
   const iconFor = (action: string) => {
-    if (action.startsWith("simulation")) return <Activity className="w-4 h-4" />;
-    if (action.startsWith("report"))     return <FileText className="w-4 h-4" />;
-    if (action === "login" || action === "logout") return <LogIn className="w-4 h-4" />;
-    if (action === "profile_updated")    return <User className="w-4 h-4" />;
+    if (action.startsWith("simulation"))
+      return <Activity className="w-4 h-4" />;
+    if (action.startsWith("report")) return <FileText className="w-4 h-4" />;
+    if (action === "login" || action === "logout")
+      return <LogIn className="w-4 h-4" />;
+    if (action === "profile_updated") return <User className="w-4 h-4" />;
     return <Clock className="w-4 h-4" />;
   };
 
   const colorFor = (action: string) => {
-    if (action.includes("completed")) return isDark ? "text-green-400 bg-green-500/15"  : "text-green-700 bg-green-100";
-    if (action.includes("created"))   return isDark ? "text-cyan-400 bg-cyan-500/15"    : "text-cyan-700 bg-cyan-100";
-    if (action.includes("deleted"))   return isDark ? "text-red-400 bg-red-500/15"      : "text-red-700 bg-red-100";
-    if (action.includes("export") || action.includes("email")) return isDark ? "text-purple-400 bg-purple-500/15" : "text-purple-700 bg-purple-100";
-    if (action.includes("viewed"))    return isDark ? "text-blue-400 bg-blue-500/15"    : "text-blue-700 bg-blue-100";
-    return isDark ? "text-gray-400 bg-gray-500/15" : "text-gray-600 bg-gray-100";
+    if (action.includes("completed"))
+      return isDark
+        ? "text-green-400 bg-green-500/15"
+        : "text-green-700 bg-green-100";
+    if (action.includes("created"))
+      return isDark
+        ? "text-cyan-400 bg-cyan-500/15"
+        : "text-cyan-700 bg-cyan-100";
+    if (action.includes("deleted"))
+      return isDark ? "text-red-400 bg-red-500/15" : "text-red-700 bg-red-100";
+    if (action.includes("export") || action.includes("email"))
+      return isDark
+        ? "text-purple-400 bg-purple-500/15"
+        : "text-purple-700 bg-purple-100";
+    if (action.includes("viewed"))
+      return isDark
+        ? "text-blue-400 bg-blue-500/15"
+        : "text-blue-700 bg-blue-100";
+    return isDark
+      ? "text-gray-400 bg-gray-500/15"
+      : "text-gray-600 bg-gray-100";
   };
 
   // Resolve where clicking an activity row should navigate
@@ -473,24 +531,38 @@ const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({ userId,
   };
 
   return (
-    <div className={`rounded-2xl p-5 border ${isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-white border-gray-200"}`}>
+    <div
+      className={`rounded-2xl p-5 border ${isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-white border-gray-200"}`}
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
-          <Clock className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-cyan-600"}`} />
-          <h2 className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}>Recent Activity</h2>
+          <Clock
+            className={`w-5 h-5 ${isDark ? "text-cyan-400" : "text-cyan-600"}`}
+          />
+          <h2
+            className={`text-lg font-bold ${isDark ? "text-white" : "text-gray-900"}`}
+          >
+            Recent Activity
+          </h2>
           {activities.length > 0 && (
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${isDark ? "bg-[#27304a] text-gray-400" : "bg-gray-100 text-gray-500"}`}>
+            <span
+              className={`text-xs px-2 py-0.5 rounded-full font-medium ${isDark ? "bg-[#27304a] text-gray-400" : "bg-gray-100 text-gray-500"}`}
+            >
               {activities.length} total
             </span>
           )}
         </div>
-        {loading && <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />}
+        {loading && (
+          <div className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+        )}
       </div>
 
       {/* Empty state */}
       {!loading && activities.length === 0 && (
-        <div className={`text-center py-8 text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}>
+        <div
+          className={`text-center py-8 text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}
+        >
           No activity recorded yet. Activity is logged as you use the platform.
         </div>
       )}
@@ -511,34 +583,56 @@ const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({ userId,
                   ${isClickable ? "cursor-pointer group" : "cursor-default"}`}
               >
                 {/* Icon */}
-                <div className={`p-2 rounded-lg shrink-0 ${colorFor(a.action)}`}>
+                <div
+                  className={`p-2 rounded-lg shrink-0 ${colorFor(a.action)}`}
+                >
                   {iconFor(a.action)}
                 </div>
 
                 {/* Text */}
                 <div className="flex-1 min-w-0">
-                  <div className={`text-sm font-medium flex items-center gap-1.5 ${isDark ? "text-white" : "text-gray-900"}`}>
+                  <div
+                    className={`text-sm font-medium flex items-center gap-1.5 ${isDark ? "text-white" : "text-gray-900"}`}
+                  >
                     {activityLabel(a.action as any)}
                     {a.metadata?.name && (
-                      <span className={`font-normal truncate ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                      <span
+                        className={`font-normal truncate ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                      >
                         — {a.metadata.name}
                       </span>
                     )}
                   </div>
-                  <div className={`text-xs flex items-center gap-1 mt-0.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-                    {a.entity_type && <span className="capitalize">{a.entity_type}</span>}
+                  <div
+                    className={`text-xs flex items-center gap-1 mt-0.5 ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                  >
+                    {a.entity_type && (
+                      <span className="capitalize">{a.entity_type}</span>
+                    )}
                     {a.entity_id && <span>#{a.entity_id}</span>}
                   </div>
                 </div>
 
                 {/* Time + arrow */}
                 <div className="flex flex-col items-end gap-0.5 shrink-0">
-                  <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>{timeAgo(a.created_at)}</span>
-                  <span className={`text-xs ${isDark ? "text-gray-600" : "text-gray-300"}`}>
-                    {new Date(a.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                  <span
+                    className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                  >
+                    {timeAgo(a.created_at)}
+                  </span>
+                  <span
+                    className={`text-xs ${isDark ? "text-gray-600" : "text-gray-300"}`}
+                  >
+                    {new Date(a.created_at).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
                   </span>
                   {isClickable && (
-                    <ChevronRight className={`w-4 h-4 transition-transform ${isDark ? "text-gray-600 group-hover:text-gray-300" : "text-gray-300 group-hover:text-gray-600"} group-hover:translate-x-0.5`} />
+                    <ChevronRight
+                      className={`w-4 h-4 transition-transform ${isDark ? "text-gray-600 group-hover:text-gray-300" : "text-gray-300 group-hover:text-gray-600"} group-hover:translate-x-0.5`}
+                    />
                   )}
                 </div>
               </Row>
@@ -550,8 +644,12 @@ const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({ userId,
       {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-opacity-20 border-gray-500">
-          <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>
-            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, activities.length)} of {activities.length}
+          <span
+            className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}
+          >
+            {page * PAGE_SIZE + 1}–
+            {Math.min((page + 1) * PAGE_SIZE, activities.length)} of{" "}
+            {activities.length}
           </span>
           <div className="flex gap-1">
             <button
@@ -567,9 +665,14 @@ const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({ userId,
                 key={i}
                 onClick={() => setPage(i)}
                 className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors
-                  ${page === i
-                    ? isDark ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30" : "bg-blue-100 text-blue-700"
-                    : isDark ? "bg-[#27304a] text-gray-400 hover:bg-[#3f4a68]" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  ${
+                    page === i
+                      ? isDark
+                        ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                        : "bg-blue-100 text-blue-700"
+                      : isDark
+                        ? "bg-[#27304a] text-gray-400 hover:bg-[#3f4a68]"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                   }`}
               >
                 {i + 1}
@@ -661,46 +764,202 @@ export const Dashboard: React.FC = () => {
   const techniqueData: ChartDatum[] = useMemo(() => {
     const grouped = groupByTechnique(dbSimulations);
     return Object.entries(grouped).map(([tech, sims], i) => {
-      const totalEnergy = sims.reduce(
+      const completed = sims.filter((s) => s.status === "completed");
+      const totalEnergy = completed.reduce(
         (sum, s) => sum + (s.result?.energy_consumed_kwh || 0),
         0,
       );
-      const avgCost = sims.length
-        ? sims.reduce(
-            (sum, s) => sum + (s.result?.cost_saving_percent || 0),
-            0,
-          ) / sims.length
+
+      // PUE: extract from result_data per technique
+      const pueValues = completed
+        .map((s) => {
+          const rd = s.result?.result_data ?? {};
+          return (
+            rd?.results?.metrics?.pue ??
+            rd?.summary?.averagePUE ??
+            rd?.rawEvaporativeData?.results?.performance?.pue_average ??
+            0
+          );
+        })
+        .filter((v) => v > 0);
+      const avgPUE = pueValues.length
+        ? pueValues.reduce((a, b) => a + b, 0) / pueValues.length
         : 0;
+
+      // Annual cost: extract from result_data
+      const costValues = completed
+        .map((s) => {
+          const rd = s.result?.result_data ?? {};
+          return (
+            rd?.results?.annual?.cost_USD ??
+            rd?.summary?.annualOpExUSD ??
+            rd?.rawEvaporativeData?.results?.cost?.total_energy_cost_usd ??
+            0
+          );
+        })
+        .filter((v) => v > 0);
+      const avgAnnualCost = costValues.length
+        ? costValues.reduce((a, b) => a + b, 0) / costValues.length
+        : 0;
+
+      const carbonValues = completed
+        .map((s) => {
+          const rd = s.result?.result_data ?? {};
+          return (
+            rd?.results?.annual?.carbonEmissions_kg ??
+            rd?.summary?.totalCarbonEmissions_kg ??
+            rd?.rawEvaporativeData?.results?.emissions?.co2_kg_total ??
+            0
+          );
+        })
+        .filter((v) => v > 0);
+      const avgAnnualCarbon = carbonValues.length
+        ? carbonValues.reduce((a, b) => a + b, 0) / carbonValues.length
+        : 0;
+
       return {
-        name: tech,
+        name: tech
+          .replace("Air Side Economization", "Air-Side")
+          .replace("Chilled Water Cooling", "Chilled Water")
+          .replace("Evaporative Cooling", "Evaporative"),
         energy: Math.round(totalEnergy * 100) / 100,
-        cost: Math.round(avgCost * 100) / 100,
+        cost:
+          Math.round(
+            (completed.reduce(
+              (sum, s) => sum + (s.result?.cost_saving_percent || 0),
+              0,
+            ) /
+              (completed.length || 1)) *
+              100,
+          ) / 100,
+        pue: Math.round(avgPUE * 1000) / 1000,
+        annualCost: Math.round(avgAnnualCost),
+        annualCarbon: Math.round(avgAnnualCarbon),
         color: TECH_COLORS[i % TECH_COLORS.length],
       };
     });
   }, [dbSimulations]);
 
-  const serverData: ChartDatum[] = useMemo(() => {
-    const grouped = groupByServer(dbSimulations);
-    return Object.entries(grouped).map(([server, sims], i) => {
-      const totalEnergy = sims.reduce(
-        (sum, s) => sum + (s.result?.energy_consumed_kwh || 0),
-        0,
-      );
-      const avgCost = sims.length
-        ? sims.reduce(
-            (sum, s) => sum + (s.result?.cost_saving_percent || 0),
+  const simulationComparisonData = useMemo(() => {
+    return dbSimulations
+      .filter((s) => s.status === "completed")
+      .sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      )
+      .map((s, i) => {
+        const rd = s.result?.result_data ?? {};
+        const annualCost = Number(
+          rd?.results?.annual?.cost_USD ??
+            rd?.summary?.annualOpExUSD ??
+            rd?.rawEvaporativeData?.results?.cost?.total_energy_cost_usd ??
             0,
-          ) / sims.length
-        : 0;
-      return {
-        name: server,
-        energy: Math.round(totalEnergy * 100) / 100,
-        cost: Math.round(avgCost * 100) / 100,
-        color: SERVER_COLORS[i % SERVER_COLORS.length],
-      };
-    });
+        );
+        const annualCarbon = Number(
+          rd?.results?.annual?.carbonEmissions_kg ??
+            rd?.summary?.totalCarbonEmissions_kg ??
+            rd?.rawEvaporativeData?.results?.emissions?.co2_kg_total ??
+            0,
+        );
+
+        const techKey = normalizeTechniqueKey(
+          s.coolingTechnique || s.simulation_type || "",
+        );
+        return {
+          sim: `S${i + 1}`,
+          date: new Date(s.created_at).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+          }),
+          airCost: techKey === "air" ? annualCost : null,
+          evapCost: techKey === "evap" ? annualCost : null,
+          chilledCost: techKey === "chilled" ? annualCost : null,
+          airCarbon: techKey === "air" ? annualCarbon : null,
+          evapCarbon: techKey === "evap" ? annualCarbon : null,
+          chilledCarbon: techKey === "chilled" ? annualCarbon : null,
+        };
+      });
   }, [dbSimulations]);
+
+  // Runtime data — aggregated total runtime per technique
+  const runtimeData: RuntimeDatum[] = useMemo(() => {
+    const grouped: Record<
+      string,
+      { totalRuntime: number; simulationCount: number }
+    > = {};
+
+    dbSimulations
+      .filter((s) => s.status === "completed" && s.result?.runtime_minutes)
+      .forEach((s) => {
+        const techKey = normalizeTechniqueKey(
+          s.coolingTechnique || s.simulation_type || "",
+        );
+        if (!grouped[techKey]) {
+          grouped[techKey] = { totalRuntime: 0, simulationCount: 0 };
+        }
+        grouped[techKey].totalRuntime += s.result?.runtime_minutes || 0;
+        grouped[techKey].simulationCount += 1;
+      });
+
+    const order = ["air", "evap", "chilled", "other"];
+    return order
+      .filter((key) => grouped[key])
+      .map((key) => ({
+        name: techniqueLabelFromKey(key),
+        runtime: Math.round(grouped[key].totalRuntime * 100) / 100,
+        technique: techniqueLabelFromKey(key),
+        simulationCount: grouped[key].simulationCount,
+        color: techniqueColorFromKey(key),
+      }));
+  }, [dbSimulations]);
+
+  // Radar data — technique comparison across key metrics (normalised 0-10)
+  const radarData = useMemo(() => {
+    if (techniqueData.length === 0) return [];
+    const maxEnergy = Math.max(...techniqueData.map((t) => t.energy), 1);
+    const maxCost = Math.max(...techniqueData.map((t) => t.annualCost), 1);
+    const maxPUE = Math.max(...techniqueData.map((t) => t.pue), 1);
+    return [
+      {
+        metric: "Low Energy",
+        ...Object.fromEntries(
+          techniqueData.map((t) => [
+            t.name,
+            Math.round((1 - t.energy / maxEnergy) * 10),
+          ]),
+        ),
+      },
+      {
+        metric: "Low PUE",
+        ...Object.fromEntries(
+          techniqueData.map((t) => [
+            t.name,
+            t.pue > 0
+              ? Math.round((1 - (t.pue - 1) / Math.max(maxPUE - 1, 0.01)) * 10)
+              : 0,
+          ]),
+        ),
+      },
+      {
+        metric: "Low Cost",
+        ...Object.fromEntries(
+          techniqueData.map((t) => [
+            t.name,
+            Math.round((1 - t.annualCost / maxCost) * 10),
+          ]),
+        ),
+      },
+      {
+        metric: "Efficiency",
+        ...Object.fromEntries(
+          techniqueData.map((t) => [
+            t.name,
+            Math.min(10, Math.round(t.cost / 10)),
+          ]),
+        ),
+      },
+    ];
+  }, [techniqueData]);
 
   // Quick Actions
   const quickActions = [
@@ -874,7 +1133,6 @@ export const Dashboard: React.FC = () => {
                   day: "numeric",
                 })}
               </span>
-              
             </div>
           </div>
 
@@ -955,21 +1213,22 @@ export const Dashboard: React.FC = () => {
         {/* Charts Section */}
         {!loading && !error && dbSimulations.length > 0 && (
           <>
-            {/* Technique Comparison Charts */}
+            {/* Row 1: Energy by Technique + PUE by Technique */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <div
-                className={`rounded-2xl p-6 ${
-                  isDark
-                    ? "bg-[#1a1f3a] border border-[#3f4a68]"
-                    : "bg-white border border-gray-200"
-                }`}
+                className={`rounded-2xl p-6 ${isDark ? "bg-[#1a1f3a] border border-[#3f4a68]" : "bg-white border border-gray-200"}`}
               >
                 <h3
-                  className={`text-lg font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+                  className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
                 >
                   Energy Consumed by Technique
                 </h3>
-                <ResponsiveContainer width="100%" height={300}>
+                <p
+                  className={`text-xs mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                >
+                  Total kWh across all completed simulations per technique
+                </p>
+                <ResponsiveContainer width="100%" height={280}>
                   <PieChart>
                     <Pie
                       data={techniqueData}
@@ -978,10 +1237,9 @@ export const Dashboard: React.FC = () => {
                       cx="50%"
                       cy="50%"
                       outerRadius={100}
-                      label
                     >
                       {techniqueData.map((entry, i) => (
-                        <Cell key={`cell-tech-${i}`} fill={entry.color} />
+                        <Cell key={i} fill={entry.color} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -989,7 +1247,12 @@ export const Dashboard: React.FC = () => {
                         backgroundColor: isDark ? "#1a1f3a" : "#fff",
                         border: `1px solid ${isDark ? "#3f4a68" : "#e5e7eb"}`,
                         borderRadius: "0.5rem",
+                        color: isDark ? "#fff" : "#111",
                       }}
+                      formatter={(v: any) => [
+                        `${Number(v).toLocaleString()} kWh`,
+                        "Energy",
+                      ]}
                     />
                     <Legend />
                   </PieChart>
@@ -997,39 +1260,63 @@ export const Dashboard: React.FC = () => {
               </div>
 
               <div
-                className={`rounded-2xl p-6 ${
-                  isDark
-                    ? "bg-[#1a1f3a] border border-[#3f4a68]"
-                    : "bg-white border border-gray-200"
-                }`}
+                className={`rounded-2xl p-6 ${isDark ? "bg-[#1a1f3a] border border-[#3f4a68]" : "bg-white border border-gray-200"}`}
               >
                 <h3
-                  className={`text-lg font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+                  className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
                 >
-                  Cost Savings by Technique
+                  Average PUE by Technique
                 </h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={techniqueData}>
+                <p
+                  className={`text-xs mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                >
+                  Power Usage Effectiveness — lower is better (ideal = 1.0)
+                </p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart
+                    data={techniqueData.filter((t) => t.pue > 0)}
+                    margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={isDark ? "#2d3a5a" : "#e5e7eb"}
+                    />
                     <XAxis
                       dataKey="name"
-                      stroke={isDark ? "#9ca3af" : "#4b5563"}
-                      tick={{ fill: isDark ? "#9ca3af" : "#4b5563" }}
+                      tick={{
+                        fill: isDark ? "#9ca3af" : "#4b5563",
+                        fontSize: 11,
+                      }}
                     />
                     <YAxis
-                      stroke={isDark ? "#9ca3af" : "#4b5563"}
-                      tick={{ fill: isDark ? "#9ca3af" : "#4b5563" }}
+                      domain={[1, "auto"]}
+                      tick={{
+                        fill: isDark ? "#9ca3af" : "#4b5563",
+                        fontSize: 11,
+                      }}
                     />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: isDark ? "#1a1f3a" : "#fff",
                         border: `1px solid ${isDark ? "#3f4a68" : "#e5e7eb"}`,
                         borderRadius: "0.5rem",
+                        color: isDark ? "#fff" : "#111",
                       }}
+                      formatter={(v: any) => [Number(v).toFixed(4), "PUE"]}
                     />
-                    <Legend />
-                    <Bar dataKey="cost" fill="#5ce1e5">
+                    <Legend
+                      payload={techniqueData
+                        .filter((t) => t.pue > 0)
+                        .map((t) => ({
+                          value: t.name,
+                          type: "square" as const,
+                          id: t.name,
+                          color: t.color,
+                        }))}
+                    />
+                    <Bar dataKey="pue" name="Avg PUE" radius={[4, 4, 0, 0]}>
                       {techniqueData.map((entry, i) => (
-                        <Cell key={`bar-tech-${i}`} fill={entry.color} />
+                        <Cell key={i} fill={entry.color} />
                       ))}
                     </Bar>
                   </BarChart>
@@ -1037,85 +1324,314 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Server Comparison Charts */}
+            {/* Row 2: Annual Cost + Carbon Comparison (Non-bar) */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               <div
-                className={`rounded-2xl p-6 ${
-                  isDark
-                    ? "bg-[#1a1f3a] border border-[#3f4a68]"
-                    : "bg-white border border-gray-200"
-                }`}
+                className={`rounded-2xl p-6 ${isDark ? "bg-[#1a1f3a] border border-[#3f4a68]" : "bg-white border border-gray-200"}`}
               >
                 <h3
-                  className={`text-lg font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+                  className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
                 >
-                  Energy Consumed by Server
+                  Annual OpEx Comparison by Simulation
                 </h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={serverData}
-                      dataKey="energy"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      label
-                    >
-                      {serverData.map((entry, i) => (
-                        <Cell key={`cell-server-${i}`} fill={entry.color} />
-                      ))}
-                    </Pie>
+                <p
+                  className={`text-xs mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                >
+                  Non-bar trend comparison of Air-Side, Evaporative, and Chilled
+                  Water annual cost values
+                </p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart
+                    data={simulationComparisonData}
+                    margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={isDark ? "#2d3a5a" : "#e5e7eb"}
+                    />
+                    <XAxis
+                      dataKey="sim"
+                      tick={{
+                        fill: isDark ? "#9ca3af" : "#4b5563",
+                        fontSize: 11,
+                      }}
+                    />
+                    <YAxis
+                      tick={{
+                        fill: isDark ? "#9ca3af" : "#4b5563",
+                        fontSize: 11,
+                      }}
+                      tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                    />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: isDark ? "#1a1f3a" : "#fff",
                         border: `1px solid ${isDark ? "#3f4a68" : "#e5e7eb"}`,
                         borderRadius: "0.5rem",
+                        color: isDark ? "#fff" : "#111",
+                      }}
+                      formatter={(v: any) =>
+                        v == null
+                          ? ["—", "Value"]
+                          : [`$${Number(v).toLocaleString()}`, "Annual OpEx"]
+                      }
+                      labelFormatter={(label: any, payload: any) => {
+                        const d = payload?.[0]?.payload?.date;
+                        return d ? `${label} (${d})` : String(label);
                       }}
                     />
                     <Legend />
-                  </PieChart>
+                    <Line
+                      type="monotone"
+                      dataKey="airCost"
+                      name="Air-Side"
+                      stroke="#5ce1e5"
+                      strokeWidth={2.5}
+                      dot={{ r: 3 }}
+                      connectNulls={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="evapCost"
+                      name="Evaporative"
+                      stroke="#10b981"
+                      strokeWidth={2.5}
+                      dot={{ r: 3 }}
+                      connectNulls={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="chilledCost"
+                      name="Chilled Water"
+                      stroke="#fd5757"
+                      strokeWidth={2.5}
+                      dot={{ r: 3 }}
+                      connectNulls={false}
+                    />
+                  </LineChart>
                 </ResponsiveContainer>
               </div>
 
               <div
-                className={`rounded-2xl p-6 ${
-                  isDark
-                    ? "bg-[#1a1f3a] border border-[#3f4a68]"
-                    : "bg-white border border-gray-200"
-                }`}
+                className={`rounded-2xl p-6 ${isDark ? "bg-[#1a1f3a] border border-[#3f4a68]" : "bg-white border border-gray-200"}`}
               >
                 <h3
-                  className={`text-lg font-bold mb-4 ${isDark ? "text-white" : "text-gray-900"}`}
+                  className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
                 >
-                  Cost Savings by Server
+                  Carbon Emissions Comparison by Simulation
                 </h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={serverData}>
+                <p
+                  className={`text-xs mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                >
+                  Non-bar trend comparison of annual carbon emissions for all
+                  three techniques
+                </p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <LineChart
+                    data={simulationComparisonData}
+                    margin={{ top: 10, right: 20, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={isDark ? "#2d3a5a" : "#e5e7eb"}
+                    />
                     <XAxis
                       dataKey="name"
-                      stroke={isDark ? "#9ca3af" : "#4b5563"}
-                      tick={{ fill: isDark ? "#9ca3af" : "#4b5563" }}
+                      tick={{
+                        fill: isDark ? "#9ca3af" : "#4b5563",
+                        fontSize: 11,
+                      }}
                     />
                     <YAxis
-                      stroke={isDark ? "#9ca3af" : "#4b5563"}
-                      tick={{ fill: isDark ? "#9ca3af" : "#4b5563" }}
+                      tick={{
+                        fill: isDark ? "#9ca3af" : "#4b5563",
+                        fontSize: 11,
+                      }}
+                      tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
                     />
                     <Tooltip
                       contentStyle={{
                         backgroundColor: isDark ? "#1a1f3a" : "#fff",
                         border: `1px solid ${isDark ? "#3f4a68" : "#e5e7eb"}`,
                         borderRadius: "0.5rem",
+                        color: isDark ? "#fff" : "#111",
+                      }}
+                      formatter={(v: any) =>
+                        v == null
+                          ? ["—", "Value"]
+                          : [
+                              `${Number(v).toLocaleString()} kg`,
+                              "Annual Carbon",
+                            ]
+                      }
+                      labelFormatter={(label: any, payload: any) => {
+                        const d = payload?.[0]?.payload?.date;
+                        return d ? `${label} (${d})` : String(label);
                       }}
                     />
                     <Legend />
-                    <Bar dataKey="cost" fill="#0ea5e9">
-                      {serverData.map((entry, i) => (
-                        <Cell key={`bar-server-${i}`} fill={entry.color} />
+                    <Line
+                      type="monotone"
+                      dataKey="airCarbon"
+                      name="Air-Side"
+                      stroke="#5ce1e5"
+                      strokeWidth={2.5}
+                      dot={{ r: 3 }}
+                      connectNulls={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="evapCarbon"
+                      name="Evaporative"
+                      stroke="#10b981"
+                      strokeWidth={2.5}
+                      dot={{ r: 3 }}
+                      connectNulls={false}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="chilledCarbon"
+                      name="Chilled Water"
+                      stroke="#fd5757"
+                      strokeWidth={2.5}
+                      dot={{ r: 3 }}
+                      connectNulls={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Row 3: Simulation Runtime Timeline + Technique Radar */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              <div
+                className={`rounded-2xl p-6 ${isDark ? "bg-[#1a1f3a] border border-[#3f4a68]" : "bg-white border border-gray-200"}`}
+              >
+                <h3
+                  className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
+                >
+                  Simulation Runtime History
+                </h3>
+                <p
+                  className={`text-xs mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                >
+                  Total runtime (minutes) aggregated by technique across
+                  completed simulations
+                </p>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart
+                    data={runtimeData}
+                    margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke={isDark ? "#2d3a5a" : "#e5e7eb"}
+                    />
+                    <XAxis
+                      dataKey="name"
+                      tick={{
+                        fill: isDark ? "#9ca3af" : "#4b5563",
+                        fontSize: 10,
+                      }}
+                      interval={0}
+                    />
+                    <YAxis
+                      tick={{
+                        fill: isDark ? "#9ca3af" : "#4b5563",
+                        fontSize: 11,
+                      }}
+                      label={{
+                        value: "min",
+                        angle: -90,
+                        position: "insideLeft",
+                        fill: isDark ? "#9ca3af" : "#6b7280",
+                        fontSize: 10,
+                      }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: isDark ? "#1a1f3a" : "#fff",
+                        border: `1px solid ${isDark ? "#3f4a68" : "#e5e7eb"}`,
+                        borderRadius: "0.5rem",
+                        color: isDark ? "#fff" : "#111",
+                      }}
+                      formatter={(v: any, _: any, props: any) => {
+                        const sims = props.payload?.simulationCount || 0;
+                        return [
+                          `${Number(v).toFixed(2)} min (${sims} runs)`,
+                          "Runtime",
+                        ];
+                      }}
+                    />
+                    <Bar dataKey="runtime" radius={[4, 4, 0, 0]}>
+                      {runtimeData.map((entry, i) => (
+                        <Cell key={i} fill={entry.color} />
                       ))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+
+              <div
+                className={`rounded-2xl p-6 ${isDark ? "bg-[#1a1f3a] border border-[#3f4a68]" : "bg-white border border-gray-200"}`}
+              >
+                <h3
+                  className={`text-lg font-bold mb-1 ${isDark ? "text-white" : "text-gray-900"}`}
+                >
+                  Technique Performance Radar
+                </h3>
+                <p
+                  className={`text-xs mb-4 ${isDark ? "text-gray-400" : "text-gray-500"}`}
+                >
+                  Normalised scores (0–10) across energy, PUE, cost, and
+                  efficiency
+                </p>
+                {radarData.length > 0 && techniqueData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={280}>
+                    <RadarChart data={radarData}>
+                      <PolarGrid stroke={isDark ? "#2d3a5a" : "#e5e7eb"} />
+                      <PolarAngleAxis
+                        dataKey="metric"
+                        tick={{
+                          fill: isDark ? "#9ca3af" : "#4b5563",
+                          fontSize: 11,
+                        }}
+                      />
+                      <PolarRadiusAxis
+                        domain={[0, 10]}
+                        tick={{
+                          fill: isDark ? "#9ca3af" : "#6b7280",
+                          fontSize: 9,
+                        }}
+                      />
+                      {techniqueData.map((t) => (
+                        <Radar
+                          key={t.name}
+                          name={t.name}
+                          dataKey={t.name}
+                          stroke={t.color}
+                          fill={t.color}
+                          fillOpacity={0.25}
+                        />
+                      ))}
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: isDark ? "#1a1f3a" : "#fff",
+                          border: `1px solid ${isDark ? "#3f4a68" : "#e5e7eb"}`,
+                          borderRadius: "0.5rem",
+                          color: isDark ? "#fff" : "#111",
+                        }}
+                      />
+                      <Legend />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div
+                    className={`flex items-center justify-center h-64 text-sm ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                  >
+                    Run simulations with multiple techniques to see comparison
+                  </div>
+                )}
               </div>
             </div>
           </>
@@ -1149,7 +1665,6 @@ export const Dashboard: React.FC = () => {
             <RecentActivity userId={user?.id ?? ""} isDark={isDark} />
           </div>
         </div>
-
       </main>
 
       {/* Custom Animations */}
@@ -1186,4 +1701,3 @@ export const Dashboard: React.FC = () => {
     </div>
   );
 };
-

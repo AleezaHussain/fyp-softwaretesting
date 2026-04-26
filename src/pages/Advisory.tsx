@@ -1,4 +1,4 @@
-﻿import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ChevronDown, Sparkles, MessageCircle, PanelTop, PlusCircle, Bot, User as UserIcon, Zap } from "lucide-react";
 import { Sidebar } from "../components/shared/Sidebar";
 import { useAuthStore } from "../store/store";
@@ -263,7 +263,11 @@ const Advisory = () => {
           throw new Error(error || "Failed to load simulations.");
         }
 
-        setSimulations(data.simulations);
+        // Only show simulations that have completed — others have no results to advise on
+        const completed = data.simulations.filter(
+          (sim) => sim.status === "completed",
+        );
+        setSimulations(completed);
       } catch (err) {
         setSimError(err instanceof Error ? err.message : "Unknown error.");
       } finally {
