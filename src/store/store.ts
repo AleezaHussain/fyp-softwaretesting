@@ -1,7 +1,6 @@
 ﻿import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import * as authService from "../services/authService";
-import type { UserProfile } from "../services/authService";
 import {
   createSimulation,
   updateSimulationStatus,
@@ -252,8 +251,11 @@ export const useAuthStore = create<AuthStore>()(
           // Always fetch the full user profile from the users table
           const profile = await authService.getCurrentUserProfile();
           if (!profile) {
-            set({ isLoading: false, error: "Failed to fetch user profile" });
-            return { success: false, error: "Failed to fetch user profile" };
+            await authService.signOut();
+            const missingProfileError =
+              "Account profile not found. This account may have been deleted. Please sign up again.";
+            set({ isLoading: false, error: missingProfileError });
+            return { success: false, error: missingProfileError };
           }
 
           const user: User = {
@@ -291,9 +293,13 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           // Supabase requires email confirmation — no session exists yet.
-          // Return success with a flag so the UI can show the confirmation message.
+          // Return behavior flag from auth service so UI only shows confirmation modal when required.
           set({ isLoading: false, error: null });
-          return { success: true, requiresEmailConfirmation: true } as any;
+          return {
+            success: true,
+            requiresEmailConfirmation:
+              response.requiresEmailConfirmation === true,
+          } as any;
         } catch (error) {
           const errorMessage =
             error instanceof Error ? error.message : "Signup failed";
@@ -360,7 +366,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   setSimulationProgress: (progress) => set({ simulationProgress: progress }),
   setSimulationStatus: (status) => set({ simulationStatus: status }),
   simulationFailureReason: null,
-  setSimulationFailureReason: (reason) => set({ simulationFailureReason: reason }),
+  setSimulationFailureReason: (reason) =>
+    set({ simulationFailureReason: reason }),
 
   updateSimulationInput: (input) =>
     set((state) => ({
@@ -377,7 +384,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       activeSimulationAbortController.abort();
       activeSimulationAbortController = null;
     }
-    set({ simulationStatus: "canceled", isSimulationRunning: false, currentSimulation: null });
+    set({
+      simulationStatus: "canceled",
+      isSimulationRunning: false,
+      currentSimulation: null,
+    });
     await updateSimulationStatus(simulationId, "canceled");
   },
 
@@ -429,11 +440,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     }
 
     // Check cooling technique to determine which API to call
-    const coolingTechnique = (input as any).coolingTechnique || "Air Side Economization";
+    const coolingTechnique =
+      (input as any).coolingTechnique || "Air Side Economization";
 
     // Create simulation record in database
-    const simName =
-      input.dataCenterName || `${coolingTechnique} Simulation`;
+    const simName = input.dataCenterName || `${coolingTechnique} Simulation`;
     const simDescription = `Simulation initialized for ${coolingTechnique}. Detailed summary will be generated after execution.`;
 
     set({
@@ -446,6 +457,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       simName,
       simDescription,
       coolingTechnique,
+      input,
     );
 
     if (!createResult.success || !createResult.data) {
@@ -546,9 +558,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         await updateSimulationStatus(simulationId, "completed");
         set({ simulationProgress: 100, simulationStatus: "Completed!" });
         // Dispatch completion event so minimized modal can show notification
-        window.dispatchEvent(new CustomEvent("simulation-completed", {
-          detail: { simulationId, name: simName },
-        }));
+        window.dispatchEvent(
+          new CustomEvent("simulation-completed", {
+            detail: { simulationId, name: simName },
+          }),
+        );
         console.log(
           `✅ [DATABASE] ${technique} results saved and status updated to 'completed'`,
         );
@@ -558,16 +572,21 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           error,
         );
         await updateSimulationStatus(simulationId, "failed");
-        const reason = error instanceof Error ? error.message : "Unknown error saving results";
+        const reason =
+          error instanceof Error
+            ? error.message
+            : "Unknown error saving results";
         set({
           isSimulationRunning: false,
           simulationProgress: 0,
           simulationStatus: "Failed",
           simulationFailureReason: reason,
         });
-        window.dispatchEvent(new CustomEvent("simulation-failed", {
-          detail: { simulationId, name: simName, reason },
-        }));
+        window.dispatchEvent(
+          new CustomEvent("simulation-failed", {
+            detail: { simulationId, name: simName, reason },
+          }),
+        );
       }
     };
 
@@ -600,13 +619,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const chilledWaterConfig = (input as any).chilledWaterConfig;
 
       if (!chilledWaterConfig) {
-        await updateSimulationStatus(simulationId, "failed");
+        const missingMsg = "Chilled water configuration is missing";
+        await updateSimulationStatus(simulationId, "failed", missingMsg);
         set({
           isSimulationRunning: false,
           simulationProgress: 0,
           simulationStatus: "Chilled water configuration missing",
+          simulationFailureReason: missingMsg,
         });
-        throw new Error("Chilled water configuration is missing");
+        throw new Error(missingMsg);
       }
 
       console.log(
@@ -654,7 +675,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           console.group("🌊 CHILLED WATER — API TRACE");
           console.log("━━━ 1. RAW FRONTEND CONFIG (from form) ━━━");
           console.log(JSON.parse(JSON.stringify(chilledWaterConfig)));
-          console.log("━━━ 2. SENDING TO API ━━━", "http://localhost:8081/api/v1/chilled-water/simulate");
+          console.log(
+            "━━━ 2. SENDING TO API ━━━",
+            "http://localhost:8081/api/v1/chilled-water/simulate",
+          );
           result = await simulateChilledWater(chilledWaterConfig, abortSignal);
           console.log("━━━ 3. RAW API RESPONSE (from CoolSim backend) ━━━");
           console.log(JSON.parse(JSON.stringify(result)));
@@ -662,14 +686,18 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         } catch (apiError: any) {
           clearInterval(progressInterval);
           // If aborted by user cancel, don't mark as failed
-          if (apiError?.name === "AbortError" || canceledSimulationId === simulationId) {
+          if (
+            apiError?.name === "AbortError" ||
+            canceledSimulationId === simulationId
+          ) {
             return { success: false, canceled: true } as any;
           }
-          await updateSimulationStatus(simulationId, "failed");
+          await updateSimulationStatus(simulationId, "failed", "Chilled Water API error: " + apiError?.message);
           set({
             isSimulationRunning: false,
             simulationProgress: 0,
             simulationStatus: "Chilled Water API error: " + apiError?.message,
+            simulationFailureReason: "Chilled Water API error: " + apiError?.message,
           });
           throw new Error("Chilled Water API error: " + apiError?.message);
         }
@@ -698,7 +726,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         console.log("━━━ 4. TRANSFORMED RESULT (frontend model) ━━━");
         console.log(JSON.parse(JSON.stringify(transformedResult)));
         console.log("━━━ 5. SUPABASE PAYLOAD (what gets stored) ━━━");
-        console.log({ simulation_id: simulationId, technique: "CHILLED WATER", result_data_keys: Object.keys(transformedResult) });
+        console.log({
+          simulation_id: simulationId,
+          technique: "CHILLED WATER",
+          result_data_keys: Object.keys(transformedResult),
+        });
         console.groupEnd();
 
         await saveResults(
@@ -714,11 +746,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         return transformedResult;
       } catch (error: any) {
         console.error("🌊 [CHILLED WATER] Error:", error);
-        await updateSimulationStatus(simulationId, "failed");
+        await updateSimulationStatus(simulationId, "failed", error?.message);
         set({
           isSimulationRunning: false,
           simulationProgress: 0,
           simulationStatus: "Failed: " + error?.message,
+          simulationFailureReason: error?.message || "Unknown chilled water error",
         });
         throw error;
       }
@@ -733,9 +766,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const evapConfig = (input as any).evaporativeConfig;
 
       if (!evapConfig || !evapConfig.weatherData) {
-        await updateSimulationStatus(simulationId, "failed");
-        set({ isSimulationRunning: false, simulationProgress: 0 });
-        throw new Error("Evaporative configuration or weather data is missing");
+        const missingMsg = "Evaporative configuration or weather data is missing";
+        await updateSimulationStatus(simulationId, "failed", missingMsg);
+        set({ isSimulationRunning: false, simulationProgress: 0, simulationFailureReason: missingMsg });
+        throw new Error(missingMsg);
       }
 
       console.log("💧 [EVAPORATIVE] Configuration found:", evapConfig);
@@ -914,8 +948,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         console.log(JSON.parse(JSON.stringify(evapConfig)));
         console.log("━━━ 2. API PAYLOAD SENT TO COOLSIM ━━━");
         console.log(JSON.parse(JSON.stringify(evaporativePayload)));
-        console.log("━━━ 2b. WEATHER DATA ━━━", `${evapConfig.weatherData?.length ?? 0} points, first row:`, evapConfig.weatherData?.[0]);
-        console.log("━━━ SENDING TO ━━━", "http://localhost:8082/api/simulations/evaporative-cooling");
+        console.log(
+          "━━━ 2b. WEATHER DATA ━━━",
+          `${evapConfig.weatherData?.length ?? 0} points, first row:`,
+          evapConfig.weatherData?.[0],
+        );
+        console.log(
+          "━━━ SENDING TO ━━━",
+          "http://localhost:8082/api/simulations/evaporative-cooling",
+        );
 
         // Track start time for runtime calculation
         const evapStartTime = Date.now();
@@ -960,11 +1001,18 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           );
         } catch (fetchErr: any) {
           clearInterval(evapProgressInterval);
-          if (fetchErr?.name === "AbortError" || canceledSimulationId === simulationId) {
+          if (
+            fetchErr?.name === "AbortError" ||
+            canceledSimulationId === simulationId
+          ) {
             return { success: false, canceled: true } as any;
           }
           await updateSimulationStatus(simulationId, "failed");
-          set({ isSimulationRunning: false, simulationProgress: 0, simulationStatus: "Failed" });
+          set({
+            isSimulationRunning: false,
+            simulationProgress: 0,
+            simulationStatus: "Failed",
+          });
           throw fetchErr;
         }
 
@@ -978,10 +1026,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           const errorData = await response
             .json()
             .catch(() => ({ message: "Unknown error" }));
-          await updateSimulationStatus(simulationId, "failed");
-          throw new Error(
-            `Evaporative cooling simulation failed: ${errorData.message || response.statusText}`,
-          );
+          const evapErrMsg = `Evaporative cooling simulation failed: ${errorData.message || response.statusText}`;
+          await updateSimulationStatus(simulationId, "failed", evapErrMsg);
+          throw new Error(evapErrMsg);
         }
 
         const data = await response.json();
@@ -1006,14 +1053,26 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
           // ── Derived hourly arrays from hourly_data[] ──────────────────────
           const evapHourlyIT = hourlyData.map((h: any) => h.itLoadKW ?? 0);
           const evapHourlyFan = hourlyData.map((h: any) => h.fanPowerKW ?? 0);
-          const evapHourlyTotal = hourlyData.map((h: any) => h.totalElectricalKW ?? 0);
+          const evapHourlyTotal = hourlyData.map(
+            (h: any) => h.totalElectricalKW ?? 0,
+          );
           const evapHourlyPUE = hourlyData.map((h: any) => h.pue ?? 0);
           const evapHourlyInlet = hourlyData.map((h: any) => h.inletTempC ?? 0);
-          const evapHourlySupply = hourlyData.map((h: any) => h.supplyTempC ?? 0);
-          const evapHourlyAmbient = hourlyData.map((h: any) => h.ambientTempC ?? 0);
-          const evapHourlyHumid = hourlyData.map((h: any) => h.ambientHumidity ?? 0);
-          const evapHourlyCooling = hourlyData.map((h: any) => h.coolingCapacityKW ?? 0);
-          const evapHourlyWater = hourlyData.map((h: any) => h.waterEvaporationLph ?? 0);
+          const evapHourlySupply = hourlyData.map(
+            (h: any) => h.supplyTempC ?? 0,
+          );
+          const evapHourlyAmbient = hourlyData.map(
+            (h: any) => h.ambientTempC ?? 0,
+          );
+          const evapHourlyHumid = hourlyData.map(
+            (h: any) => h.ambientHumidity ?? 0,
+          );
+          const evapHourlyCooling = hourlyData.map(
+            (h: any) => h.coolingCapacityKW ?? 0,
+          );
+          const evapHourlyWater = hourlyData.map(
+            (h: any) => h.waterEvaporationLph ?? 0,
+          );
           const evapHourlyDX = hourlyData.map((h: any) => h.dxPowerKW ?? 0);
 
           return {
@@ -1029,8 +1088,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             pue: results.performance?.pue_average || 1.0,
             wue: results.performance?.wue_average || 0,
             cue: results.performance?.cue_average || 0,
-            availability_percent: results.performance?.availability_percent || 0,
-            cooling_failure_hours: results.performance?.cooling_failure_hours || 0,
+            availability_percent:
+              results.performance?.availability_percent || 0,
+            cooling_failure_hours:
+              results.performance?.cooling_failure_hours || 0,
             pue_max: results.performance?.pue_max || 0,
 
             // ── Energy breakdown ──────────────────────────────────────────
@@ -1049,7 +1110,8 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
             // ── Emissions ─────────────────────────────────────────────────
             co2_kg_per_kwh_it: results.emissions?.co2_kg_per_kwh_it || 0,
-            co2_kg_per_server_annual: results.emissions?.co2_kg_per_server_annual || 0,
+            co2_kg_per_server_annual:
+              results.emissions?.co2_kg_per_server_annual || 0,
 
             // ── Water ─────────────────────────────────────────────────────
             evaporation_liters: results.water?.evaporation_liters || 0,
@@ -1057,7 +1119,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             makeup_liters: results.water?.makeup_liters || 0,
 
             // ── Hourly arrays (from hourly_data[]) ────────────────────────
-            hourlyData,                   // full raw hourly_data array
+            hourlyData, // full raw hourly_data array
             hourlyEnergyUse: evapHourlyTotal,
             hourlyITLoad: evapHourlyIT,
             hourlyFanPower: evapHourlyFan,
@@ -1069,7 +1131,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             hourlyHumidity: evapHourlyHumid,
             hourlyCoolingCap: evapHourlyCooling,
             hourlyWaterEvap: evapHourlyWater,
-            copOverTime: [],   // evaporative has no COP field
+            copOverTime: [], // evaporative has no COP field
 
             // ── Cooling assessment ────────────────────────────────────────
             coolingAdequacy: {
@@ -1091,9 +1153,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
               waterEvaporation: results.water?.evaporation_liters || 0,
               waterBlowdown: results.water?.blowdown_liters || 0,
               maxInletTemp: assessment.key_metrics?.max_inlet_temp_c || 0,
-              coolingCapacityAvg: assessment.key_metrics?.cooling_capacity_avg_kw || 0,
+              coolingCapacityAvg:
+                assessment.key_metrics?.cooling_capacity_avg_kw || 0,
               heatLoadAvg: assessment.key_metrics?.heat_load_avg_kw || 0,
-              coolingFailureHours: results.performance?.cooling_failure_hours || 0,
+              coolingFailureHours:
+                results.performance?.cooling_failure_hours || 0,
             },
 
             // ── Raw API response (full) ───────────────────────────────────
@@ -1116,7 +1180,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         console.log("━━━ 4. TRANSFORMED RESULT (frontend model) ━━━");
         console.log(JSON.parse(JSON.stringify(transformedData)));
         console.log("━━━ 5. SUPABASE PAYLOAD (what gets stored) ━━━");
-        console.log({ simulation_id: simulationId, technique: "EVAPORATIVE", result_data_keys: Object.keys(transformedData) });
+        console.log({
+          simulation_id: simulationId,
+          technique: "EVAPORATIVE",
+          result_data_keys: Object.keys(transformedData),
+        });
         console.groupEnd();
 
         await saveResults(
@@ -1129,11 +1197,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         return transformedData;
       } catch (error: any) {
         console.error("💧 [EVAPORATIVE] Error:", error);
-        await updateSimulationStatus(simulationId, "failed");
+        await updateSimulationStatus(simulationId, "failed", error?.message);
         set({
           isSimulationRunning: false,
           simulationProgress: 0,
           simulationStatus: "Failed",
+          simulationFailureReason: error?.message || "Unknown evaporative error",
         });
         throw error;
       }
@@ -1146,10 +1215,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
     const weatherData = Array.isArray((input as any).locationData)
       ? (input as any).locationData.map((d: any) => ({
-        timestamp: d.timestamp,
-        temperature: d.temperature,
-        humidity: d.humidity,
-      }))
+          timestamp: d.timestamp,
+          temperature: d.temperature,
+          humidity: d.humidity,
+        }))
       : [];
 
     const payload = {
@@ -1174,9 +1243,9 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       electricityTariff: val(input.electricityTariff),
       carbonIntensity: val(
         input.co2EmissionFactor ??
-        (input as any).carbon_intensity ??
-        (input as any).carbonIntensity ??
-        (input as any).co2_grid_factor,
+          (input as any).carbon_intensity ??
+          (input as any).carbonIntensity ??
+          (input as any).co2_grid_factor,
       ),
       weatherData,
       airflowCFM: val(input.airflowCFM),
@@ -1201,7 +1270,10 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     console.log(JSON.parse(JSON.stringify(input)));
     console.log("━━━ 2. API PAYLOAD SENT TO COOLSIM ━━━");
     console.log(JSON.parse(JSON.stringify(payload)));
-    console.log("━━━ SENDING TO ━━━", "http://localhost:8080/api/simulate (EconomizerController — full fields)");
+    console.log(
+      "━━━ SENDING TO ━━━",
+      "http://localhost:8080/api/simulate (EconomizerController — full fields)",
+    );
 
     try {
       // Track start time for runtime calculation
@@ -1240,11 +1312,19 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         });
       } catch (fetchErr: any) {
         clearInterval(airProgressInterval);
-        if (fetchErr?.name === "AbortError" || canceledSimulationId === simulationId) {
+        if (
+          fetchErr?.name === "AbortError" ||
+          canceledSimulationId === simulationId
+        ) {
           return { success: false, canceled: true } as any;
         }
-        await updateSimulationStatus(simulationId, "failed");
-        set({ isSimulationRunning: false, simulationProgress: 0, simulationStatus: "Failed" });
+        await updateSimulationStatus(simulationId, "failed", fetchErr?.message);
+        set({
+          isSimulationRunning: false,
+          simulationProgress: 0,
+          simulationStatus: "Failed",
+          simulationFailureReason: fetchErr?.message || "Network error connecting to Air Economizer API",
+        });
         throw fetchErr;
       }
 
@@ -1255,13 +1335,15 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       }
 
       if (!response.ok) {
-        await updateSimulationStatus(simulationId, "failed");
+        const airErrMsg = `Air Economizer API responded with status ${response.status}`;
+        await updateSimulationStatus(simulationId, "failed", airErrMsg);
         set({
           isSimulationRunning: false,
           simulationProgress: 0,
           simulationStatus: "Failed",
+          simulationFailureReason: airErrMsg,
         });
-        throw new Error(`Server responded with ${response.status}`);
+        throw new Error(airErrMsg);
       }
 
       const data = await response.json();
@@ -1287,39 +1369,103 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       // ── IT Load directly from CoolSim ─────────────────────────────────
       const _h0 = data?.hourlyResults?.[0] ?? data?.hourlyProfile?.[0];
       console.group("⚡ IT LOAD FROM CLOUDSIM (EconomizerController fields)");
-      console.log("Hour 0 itLoad_kW (EconomizerController):", _h0?.itLoad_kW ?? "NOT FOUND — check if using /api/simulate");
-      console.log("Hour 0 itLoadKW  (SimulationController):", _h0?.itLoadKW ?? "NOT FOUND");
-      console.log("Hour 0 coolingLoad_kW:", _h0?.coolingLoad_kW ?? _h0?.coolingLoadKW ?? "NOT FOUND");
-      console.log("Hour 0 fanPower_kW:", _h0?.fanPower_kW ?? _h0?.fanPowerKW ?? "NOT FOUND");
-      console.log("Hour 0 mechPower_kW:", _h0?.mechPower_kW ?? _h0?.mechPowerKW ?? "NOT FOUND");
-      console.log("Hour 0 totalPower_kW:", _h0?.totalPower_kW ?? _h0?.totalPowerKW ?? "NOT FOUND");
-      console.log("Hour 0 requiredAirflow_CFM:", _h0?.requiredAirflow_CFM ?? "NOT FOUND (EconomizerController only)");
-      console.log("Hour 0 airflowViolation:", _h0?.airflowViolation ?? "NOT FOUND (EconomizerController only)");
-      console.log("Hour 0 q_free_kW:", _h0?.q_free_kW ?? "NOT FOUND (EconomizerController only)");
-      console.log("Hour 0 mech_load_kW:", _h0?.mech_load_kW ?? "NOT FOUND (EconomizerController only)");
+      console.log(
+        "Hour 0 itLoad_kW (EconomizerController):",
+        _h0?.itLoad_kW ?? "NOT FOUND — check if using /api/simulate",
+      );
+      console.log(
+        "Hour 0 itLoadKW  (SimulationController):",
+        _h0?.itLoadKW ?? "NOT FOUND",
+      );
+      console.log(
+        "Hour 0 coolingLoad_kW:",
+        _h0?.coolingLoad_kW ?? _h0?.coolingLoadKW ?? "NOT FOUND",
+      );
+      console.log(
+        "Hour 0 fanPower_kW:",
+        _h0?.fanPower_kW ?? _h0?.fanPowerKW ?? "NOT FOUND",
+      );
+      console.log(
+        "Hour 0 mechPower_kW:",
+        _h0?.mechPower_kW ?? _h0?.mechPowerKW ?? "NOT FOUND",
+      );
+      console.log(
+        "Hour 0 totalPower_kW:",
+        _h0?.totalPower_kW ?? _h0?.totalPowerKW ?? "NOT FOUND",
+      );
+      console.log(
+        "Hour 0 requiredAirflow_CFM:",
+        _h0?.requiredAirflow_CFM ?? "NOT FOUND (EconomizerController only)",
+      );
+      console.log(
+        "Hour 0 airflowViolation:",
+        _h0?.airflowViolation ?? "NOT FOUND (EconomizerController only)",
+      );
+      console.log(
+        "Hour 0 q_free_kW:",
+        _h0?.q_free_kW ?? "NOT FOUND (EconomizerController only)",
+      );
+      console.log(
+        "Hour 0 mech_load_kW:",
+        _h0?.mech_load_kW ?? "NOT FOUND (EconomizerController only)",
+      );
       console.log("Hour 0 violationMsg:", _h0?.violationMsg ?? "none");
       console.log("Hour 0 mode:", _h0?.mode ?? "NOT FOUND");
       console.log("Hour 0 pue:", _h0?.pue ?? "NOT FOUND");
       console.log("Hour 0 cue:", _h0?.cue ?? "NOT FOUND");
-      console.log("Total hourly rows:", (data?.hourlyResults ?? data?.hourlyProfile ?? []).length);
+      console.log(
+        "Total hourly rows:",
+        (data?.hourlyResults ?? data?.hourlyProfile ?? []).length,
+      );
       console.log("─── Summary cost fields (EconomizerController only) ───");
-      console.log("electricityCostUSD:", data?.summary?.electricityCostUSD ?? "NOT FOUND");
-      console.log("carbonTaxCostUSD:", data?.summary?.carbonTaxCostUSD ?? "NOT FOUND");
-      console.log("annualOpExUSD:", data?.summary?.annualOpExUSD ?? "NOT FOUND");
-      console.log("totalCapexUSD:", data?.summary?.totalCapexUSD ?? "NOT FOUND");
-      console.log("annualSavingsUSD:", data?.summary?.annualSavingsUSD ?? "NOT FOUND");
-      console.log("paybackPeriodYears:", data?.summary?.paybackPeriodYears ?? "NOT FOUND");
-      console.log("energySavingsPercent:", data?.summary?.energySavingsPercent ?? "NOT FOUND");
-      console.log("carbonSavings_kg:", data?.summary?.carbonSavings_kg ?? "NOT FOUND");
+      console.log(
+        "electricityCostUSD:",
+        data?.summary?.electricityCostUSD ?? "NOT FOUND",
+      );
+      console.log(
+        "carbonTaxCostUSD:",
+        data?.summary?.carbonTaxCostUSD ?? "NOT FOUND",
+      );
+      console.log(
+        "annualOpExUSD:",
+        data?.summary?.annualOpExUSD ?? "NOT FOUND",
+      );
+      console.log(
+        "totalCapexUSD:",
+        data?.summary?.totalCapexUSD ?? "NOT FOUND",
+      );
+      console.log(
+        "annualSavingsUSD:",
+        data?.summary?.annualSavingsUSD ?? "NOT FOUND",
+      );
+      console.log(
+        "paybackPeriodYears:",
+        data?.summary?.paybackPeriodYears ?? "NOT FOUND",
+      );
+      console.log(
+        "energySavingsPercent:",
+        data?.summary?.energySavingsPercent ?? "NOT FOUND",
+      );
+      console.log(
+        "carbonSavings_kg:",
+        data?.summary?.carbonSavings_kg ?? "NOT FOUND",
+      );
       console.groupEnd();
 
       // Normalize the raw CoolSim response into a consistent shape
-      const enrichedData = transformAirEconomizerResults(data, airExecutionTimeMs);
+      const enrichedData = transformAirEconomizerResults(
+        data,
+        airExecutionTimeMs,
+      );
 
       console.log("━━━ 4. NORMALIZED RESULT (frontend model) ━━━");
       console.log(JSON.parse(JSON.stringify(enrichedData)));
       console.log("━━━ 5. SUPABASE PAYLOAD (what gets stored) ━━━");
-      console.log({ simulation_id: simulationId, technique: "AIR ECONOMIZER", result_data_keys: Object.keys(enrichedData) });
+      console.log({
+        simulation_id: simulationId,
+        technique: "AIR ECONOMIZER",
+        result_data_keys: Object.keys(enrichedData),
+      });
       console.groupEnd();
 
       await saveResults(simulationId, enrichedData, "AIR ECONOMIZER", payload);
@@ -1327,11 +1473,12 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       return enrichedData;
     } catch (error: any) {
       console.error("💨 [AIR ECONOMIZER] Error:", error);
-      await updateSimulationStatus(simulationId, "failed");
+      await updateSimulationStatus(simulationId, "failed", error?.message);
       set({
         isSimulationRunning: false,
         simulationProgress: 0,
         simulationStatus: "Failed",
+        simulationFailureReason: error?.message || "Unknown air economizer error",
       });
       throw error;
     }
@@ -1419,7 +1566,9 @@ const transformChilledWaterResults = (chilledWaterData: any): any => {
       { label: "Water", value: annual.waterUsage_L || 0 },
     ],
     water_usage: [{ label: "Total Water", value: annual.waterUsage_L || 0 }],
-    carbon_sources: [{ label: "Total Emissions", value: annual.carbonEmissions_kg || 0 }],
+    carbon_sources: [
+      { label: "Total Emissions", value: annual.carbonEmissions_kg || 0 },
+    ],
     savings_trend: [],
     scenario_projections: [],
 
@@ -1427,7 +1576,8 @@ const transformChilledWaterResults = (chilledWaterData: any): any => {
     energy: {
       electricity_kwh_total: annual.energyConsumption_kWh || 0,
       cooling_load_kwh: annual.coolingLoad_kWh || 0,
-      it_kwh: (annual.energyConsumption_kWh || 0) - (annual.coolingLoad_kWh || 0),
+      it_kwh:
+        (annual.energyConsumption_kWh || 0) - (annual.coolingLoad_kWh || 0),
     },
     water: { consumption_liters_total: annual.waterUsage_L || 0 },
     cost: {
@@ -1478,7 +1628,10 @@ const transformChilledWaterResults = (chilledWaterData: any): any => {
 //   aiConfig: computeIntensityFactor, forecastYears, upliftMessage
 //   NOTE: electricityCostUSD, annualSavingsUSD, paybackPeriodYears, energySavingsPercent,
 //         carbonSavings_kg, totalCapexUSD are NOT in this response — set to 0 unless present
-const transformAirEconomizerResults = (data: any, executionTimeMs: number): any => {
+const transformAirEconomizerResults = (
+  data: any,
+  executionTimeMs: number,
+): any => {
   const s = data?.summary ?? {};
   const totalEnergy = s.totalEnergy_kWh ?? s.totalEnergyKWh ?? 0;
   const totalItEnergy = s.totalItEnergy_kWh ?? s.totalItEnergyKWh ?? 0;
@@ -1541,37 +1694,54 @@ const transformAirEconomizerResults = (data: any, executionTimeMs: number): any 
   });
   const normalisedYearly = rawYearly.map(normaliseYearly);
 
-  const violations = normalisedHourly.filter(h => h.airflowViolation === true);
+  const violations = normalisedHourly.filter(
+    (h) => h.airflowViolation === true,
+  );
   const violationHours = violations.length;
   const violationMessages = violations
-    .filter(h => h.violationMsg)
-    .map(h => h.violationMsg as string)
+    .filter((h) => h.violationMsg)
+    .map((h) => h.violationMsg as string)
     .filter((v, i, arr) => arr.indexOf(v) === i)
     .slice(0, 3);
   const modeCount: Record<string, number> = {};
-  normalisedHourly.forEach(h => { modeCount[h.mode] = (modeCount[h.mode] ?? 0) + 1; });
+  normalisedHourly.forEach((h) => {
+    modeCount[h.mode] = (modeCount[h.mode] ?? 0) + 1;
+  });
 
   return {
     coolingTechnique: "air_economizer",
     _simulationDurationMs: executionTimeMs,
     runtimeMinutes: Math.round((executionTimeMs / 60000) * 100) / 100,
     summary: {
-      totalItEnergy_kWh: totalItEnergy, totalCoolingEnergy_kWh: totalCooling,
-      totalEnergy_kWh: totalEnergy, averagePUE: avgPUE, averageCUE: avgCUE,
-      estimatedOpExUSD: elecCostUSD, electricityCostUSD: elecCostUSD,
-      carbonTaxCostUSD: carbonTaxUSD, annualOpExUSD: opExUSD,
-      totalCapexUSD: capexUSD, annualSavingsUSD: annualSavings,
-      paybackPeriodYears: payback, energySavingsPercent: energySavPct,
-      carbonSavings_kg: carbonSavings, totalCarbonEmissions_kg: totalCarbon,
+      totalItEnergy_kWh: totalItEnergy,
+      totalCoolingEnergy_kWh: totalCooling,
+      totalEnergy_kWh: totalEnergy,
+      averagePUE: avgPUE,
+      averageCUE: avgCUE,
+      estimatedOpExUSD: elecCostUSD,
+      electricityCostUSD: elecCostUSD,
+      carbonTaxCostUSD: carbonTaxUSD,
+      annualOpExUSD: opExUSD,
+      totalCapexUSD: capexUSD,
+      annualSavingsUSD: annualSavings,
+      paybackPeriodYears: payback,
+      energySavingsPercent: energySavPct,
+      carbonSavings_kg: carbonSavings,
+      totalCarbonEmissions_kg: totalCarbon,
       waterUsage_liters: waterLiters,
     },
     hourlyResults: normalisedHourly,
     projection: {
       forecastYears: proj.forecastYears ?? normalisedYearly.length,
-      totalEnergy: proj.totalEnergy ?? 0, totalEmissions: proj.totalEmissions ?? 0,
-      totalCost: proj.totalCost ?? normalisedYearly.reduce((a, y) => a + y.totalCostUSD, 0),
-      totalCarbonTax: proj.totalCarbonTax ?? 0, totalSavings: proj.totalSavings ?? 0,
-      npvSavings: proj.npvSavings ?? 0, adjustedPaybackYears: proj.adjustedPaybackYears ?? payback,
+      totalEnergy: proj.totalEnergy ?? 0,
+      totalEmissions: proj.totalEmissions ?? 0,
+      totalCost:
+        proj.totalCost ??
+        normalisedYearly.reduce((a, y) => a + y.totalCostUSD, 0),
+      totalCarbonTax: proj.totalCarbonTax ?? 0,
+      totalSavings: proj.totalSavings ?? 0,
+      npvSavings: proj.npvSavings ?? 0,
+      adjustedPaybackYears: proj.adjustedPaybackYears ?? payback,
       yearlyData: normalisedYearly,
     },
     cloudSimEnabled: data?.cloudSimEnabled ?? false,
@@ -1582,19 +1752,27 @@ const transformAirEconomizerResults = (data: any, executionTimeMs: number): any 
     aiConfig: data?.aiConfig ?? null,
     airflowViolations: {
       totalViolationHours: violationHours,
-      percentageHours: normalisedHourly.length > 0 ? (violationHours / normalisedHourly.length * 100).toFixed(1) : "0",
+      percentageHours:
+        normalisedHourly.length > 0
+          ? ((violationHours / normalisedHourly.length) * 100).toFixed(1)
+          : "0",
       uniqueMessages: violationMessages,
       modeBreakdown: modeCount,
     },
     results: {
       metrics: { pue: avgPUE, cue: avgCUE, averageCOP: null, wue: null },
       annual: {
-        energyConsumption_kWh: totalEnergy, coolingLoad_kWh: totalCooling,
-        waterUsage_L: waterLiters, cost_USD: opExUSD, carbonEmissions_kg: totalCarbon,
+        energyConsumption_kWh: totalEnergy,
+        coolingLoad_kWh: totalCooling,
+        waterUsage_L: waterLiters,
+        cost_USD: opExUSD,
+        carbonEmissions_kg: totalCarbon,
       },
       economics: {
-        capex_USD: capexUSD, opex_annual_USD: opExUSD,
-        npv_USD: proj.npvSavings ?? null, paybackPeriod_years: payback,
+        capex_USD: capexUSD,
+        opex_annual_USD: opExUSD,
+        npv_USD: proj.npvSavings ?? null,
+        paybackPeriod_years: payback,
         annualSavings_USD: annualSavings,
       },
       hourlyResults: normalisedHourly,
@@ -1645,4 +1823,3 @@ const transformAirEconomizerResults = (data: any, executionTimeMs: number): any 
 //   projection.yearlyData[i].totalCostUSD
 //   projection.yearlyData[i].costSavingsUSD
 //   projection.yearlyData[i].cumulativeSavings
-

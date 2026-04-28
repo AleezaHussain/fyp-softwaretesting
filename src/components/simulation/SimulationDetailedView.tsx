@@ -290,8 +290,12 @@ export const SimulationDetailedView: React.FC<Props> = ({
     const recs: string[] = ca.recommendations ?? [];
     const notes: string[] = ca.engineering_notes ?? ca.engineeringNotes ?? [];
 
-    // Build a stable cache key from the assessment status + confidence
-    const cacheKey = `assess_explanation_v1_${ca.status}_${(ca.confidence ?? 0).toFixed(2)}`;
+    // Helper to round numeric values so LLM doesn't quote 15-digit floats
+    const rnd = (v: any, decimals = 3) =>
+      typeof v === "number" ? +v.toFixed(decimals) : v;
+
+    // Build a stable cache key — v2 includes rounded values to bust old unrounded cache
+    const cacheKey = `assess_explanation_v2_${ca.status}_${(ca.confidence ?? 0).toFixed(2)}_${rnd(km.max_inlet_temp_c, 2)}`;
     try {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
@@ -304,24 +308,24 @@ export const SimulationDetailedView: React.FC<Props> = ({
 
     // Build metrics payload from all cooling assessment fields
     const assessMetrics = [
-      { label: "Assessment Status",       value: ca.status,                                    unit: "" },
-      { label: "Confidence",              value: ca.confidence != null ? +(ca.confidence * 100).toFixed(0) : null, unit: "%" },
-      { label: "PUE Avg",                 value: km.pue_avg,                                   unit: "" },
-      { label: "Heat Load Avg",           value: km.heat_load_avg_kw,                          unit: "kW" },
-      { label: "Max Inlet Temp",          value: km.max_inlet_temp_c,                          unit: "°C" },
-      { label: "Cooling Capacity Avg",    value: km.cooling_capacity_avg_kw,                   unit: "kW" },
-      { label: "Max Humidity",            value: km.max_humidity_percent > 0 ? km.max_humidity_percent : null, unit: "%" },
-      { label: "Check: Heat Balance",     value: checks.heat_balance ? "PASS" : "FAIL",        unit: "" },
-      { label: "Check: Inlet Temp OK",    value: checks.inlet_temperature_ok ? "PASS" : "FAIL", unit: "" },
-      { label: "Check: Humidity OK",      value: checks.humidity_ok ? "PASS" : "FAIL",         unit: "" },
-      { label: "Check: Energy Efficiency",value: checks.energy_efficiency_ok ? "PASS" : "FAIL", unit: "" },
-      { label: "Temp Violations",         value: hf.temperature_violations,                    unit: "hrs" },
-      { label: "Capacity Violations",     value: hf.capacity_violations,                       unit: "hrs" },
-      { label: "Humidity Violations",     value: hf.humidity_violations,                       unit: "hrs" },
+      { label: "Assessment Status",       value: ca.status,                                                          unit: "" },
+      { label: "Confidence",              value: ca.confidence != null ? +(ca.confidence * 100).toFixed(0) : null,   unit: "%" },
+      { label: "PUE Avg",                 value: rnd(km.pue_avg, 4),                                                 unit: "" },
+      { label: "Heat Load Avg",           value: rnd(km.heat_load_avg_kw, 2),                                        unit: "kW" },
+      { label: "Max Inlet Temp",          value: rnd(km.max_inlet_temp_c, 2),                                        unit: "°C" },
+      { label: "Cooling Capacity Avg",    value: rnd(km.cooling_capacity_avg_kw, 2),                                 unit: "kW" },
+      { label: "Max Humidity",            value: km.max_humidity_percent > 0 ? rnd(km.max_humidity_percent, 1) : null, unit: "%" },
+      { label: "Check: Heat Balance",     value: checks.heat_balance ? "PASS" : "FAIL",                              unit: "" },
+      { label: "Check: Inlet Temp OK",    value: checks.inlet_temperature_ok ? "PASS" : "FAIL",                      unit: "" },
+      { label: "Check: Humidity OK",      value: checks.humidity_ok ? "PASS" : "FAIL",                               unit: "" },
+      { label: "Check: Energy Efficiency",value: checks.energy_efficiency_ok ? "PASS" : "FAIL",                      unit: "" },
+      { label: "Temp Violations",         value: hf.temperature_violations,                                          unit: "hrs" },
+      { label: "Capacity Violations",     value: hf.capacity_violations,                                             unit: "hrs" },
+      { label: "Humidity Violations",     value: hf.humidity_violations,                                             unit: "hrs" },
     ].filter(m => m.value !== null && m.value !== undefined);
 
     const capacityDeficit = km.cooling_capacity_avg_kw != null && km.heat_load_avg_kw != null
-      ? +(km.cooling_capacity_avg_kw - km.heat_load_avg_kw).toFixed(2)
+      ? +((km.cooling_capacity_avg_kw - km.heat_load_avg_kw).toFixed(2))
       : null;
     if (capacityDeficit != null) {
       assessMetrics.push({ label: capacityDeficit < 0 ? "Capacity Deficit" : "Capacity Surplus", value: capacityDeficit, unit: "kW" });
@@ -594,6 +598,18 @@ export const SimulationDetailedView: React.FC<Props> = ({
   const evapRecs: string[] = evapAssessRaw?.recommendations ?? [];
   const evapNotes: string[] =
     evapAssessRaw?.engineering_notes ?? evapAssessRaw?.engineeringNotes ?? [];
+
+  // Derive thresholds from stored API payload — fall back to ASHRAE A1 defaults
+  const evapConstraints = {
+    max_inlet_temp_c:
+      rd?._api_payload?.constraints?.max_inlet_temp_c ??
+      evapRaw?.constraints?.max_inlet_temp_c ??
+      27,
+    max_relative_humidity:
+      rd?._api_payload?.constraints?.max_relative_humidity ??
+      evapRaw?.constraints?.max_relative_humidity ??
+      80,
+  };
 
   const evap: KPI[] =
     !isChilled && !isAir
@@ -971,8 +987,8 @@ export const SimulationDetailedView: React.FC<Props> = ({
                   const pass = val === true || String(val) === "true";
                   const tipMap: Record<string, string> = {
                     heat_balance: "Whether the cooling capacity matches or exceeds the IT heat load on average. FAIL means the system is undersized for the workload.",
-                    inlet_temperature_ok: "Whether rack inlet temperatures stayed below the ASHRAE A1 limit of 27°C throughout the simulation.",
-                    humidity_ok: "Whether supply air humidity stayed within ASHRAE limits. High humidity risks condensation on IT equipment.",
+                    inlet_temperature_ok: `Whether rack inlet temperatures stayed below the ${evapConstraints.max_inlet_temp_c}°C ASHRAE A1 limit throughout the simulation.`,
+                    humidity_ok: `Whether supply air humidity stayed within the ${evapConstraints.max_relative_humidity}% ASHRAE limit. High humidity risks condensation on IT equipment.`,
                     energy_efficiency_ok: "Whether the system achieved an acceptable PUE. PASS means the cooling overhead is within efficient operating bounds.",
                   };
                   return (
@@ -998,15 +1014,18 @@ export const SimulationDetailedView: React.FC<Props> = ({
                 {[
                   { key: "pue_avg",                 label: "PUE Avg",           unit: "",   tip: "Average PUE computed by the assessment engine." },
                   { key: "heat_load_avg_kw",         label: "Heat Load Avg",     unit: "kW", tip: "Average IT heat load per hour. Cooling capacity must exceed this." },
-                  { key: "max_inlet_temp_c",         label: "Max Inlet Temp",    unit: "°C", tip: "Maximum rack inlet temperature. Must stay below 27°C for ASHRAE A1 compliance." },
+                  { key: "max_inlet_temp_c",         label: "Max Inlet Temp",    unit: "°C", tip: `Maximum rack inlet temperature. Must stay below ${evapConstraints.max_inlet_temp_c}°C for ASHRAE A1 compliance.` },
                   { key: "cooling_capacity_avg_kw",  label: "Cooling Cap Avg",   unit: "kW", tip: "Average cooling capacity delivered. If below heat load average, a thermal deficit exists." },
-                  { key: "max_humidity_percent",     label: "Max Humidity",      unit: "%",  tip: "Maximum supply air humidity. High values risk condensation on IT equipment." },
+                  { key: "max_humidity_percent",     label: "Max Humidity",      unit: "%",  tip: `Maximum supply air humidity. Values above ${evapConstraints.max_relative_humidity}% risk condensation on IT equipment.` },
                   { key: "min_wetbulb_depression_c", label: "Min WB Depression", unit: "°C", tip: "Minimum wet-bulb depression. Larger values mean more evaporative cooling potential." },
                 ].map(({ key, label, unit, tip }) => {
                   const raw = evapKeyM[key];
                   if (raw == null || raw === 1.7976931348623157e308) return null;
                   const display = typeof raw === "number" ? raw.toFixed(raw > 100 ? 1 : 3) : String(raw);
-                  const isWarning = (key === "max_inlet_temp_c" && raw > 27) || (key === "max_humidity_percent" && raw > 60);
+                  // Use thresholds from API response, not hardcoded values
+                  const inletLimit = evapConstraints.max_inlet_temp_c;
+                  const humidityLimit = evapConstraints.max_relative_humidity;
+                  const isWarning = (key === "max_inlet_temp_c" && raw > inletLimit) || (key === "max_humidity_percent" && raw > humidityLimit);
                   return (
                     <div key={key} className={`p-3 rounded-xl border ${isDark ? "bg-[#0a0e27] border-[#3f4a68]" : "bg-white border-gray-200"}`}>
                       <div className={`text-xs mb-1 flex items-center ${isDark ? "text-gray-400" : "text-gray-500"}`}>
@@ -1044,9 +1063,9 @@ export const SimulationDetailedView: React.FC<Props> = ({
               <p className={`text-xs font-semibold uppercase tracking-wide mb-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}>Hourly Failure Counts</p>
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { key: "temperature_violations", label: "Temp Violations",    tip: "Hours where rack inlet temperature exceeded 27°C (ASHRAE A1 limit)." },
+                  { key: "temperature_violations", label: "Temp Violations",    tip: `Hours where rack inlet temperature exceeded ${evapConstraints.max_inlet_temp_c}°C (ASHRAE A1 limit).` },
                   { key: "capacity_violations",    label: "Capacity Violations", tip: "Hours where cooling capacity was insufficient to remove all IT heat." },
-                  { key: "humidity_violations",    label: "Humidity Violations", tip: "Hours where supply air humidity exceeded ASHRAE limits." },
+                  { key: "humidity_violations",    label: "Humidity Violations", tip: `Hours where supply air humidity exceeded the ${evapConstraints.max_relative_humidity}% ASHRAE limit.` },
                 ].map(({ key, label, tip }) => {
                   const val = evapHourlyF[key];
                   if (val == null) return null;

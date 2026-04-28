@@ -316,17 +316,17 @@ export const getSimulation = async (
  * Create a new simulation
  */
 export const createSimulation = async (
-  userId: string, // This should be the users.id (UUID)
+  userId: string,
   name: string,
   description: string,
   simulationType: string,
+  inputConfig?: any,
 ): Promise<{
   success: boolean;
   data?: SimulationWithResults;
   error?: string;
 }> => {
   try {
-    // Validate userId (should be UUID)
     if (!userId || userId === "NaN" || userId === "undefined") {
       return {
         success: false,
@@ -334,21 +334,43 @@ export const createSimulation = async (
       };
     }
 
+    const insertPayload: any = {
+      user_id: userId,
+      name,
+      description,
+      simulation_type: simulationType,
+      status: "pending",
+    };
+
+    // Store input config if provided (requires input_config JSONB column)
+    if (inputConfig) {
+      // Keep all config including weatherData — it's needed for re-runs
+      // Strip only very large hourly result arrays, not input weather data
+      const configToStore = { ...inputConfig };
+      // Remove any result arrays that may have leaked into input
+      delete configToStore.hourlyResults;
+      delete configToStore.hourlyProfile;
+      delete configToStore.hourlyEnergyUse;
+      insertPayload.input_config = configToStore;
+    }
+
     const { data: simulation, error } = await supabase
       .from("simulations")
-      .insert([
-        {
-          user_id: userId, // This should be UUID
-          name,
-          description,
-          simulation_type: simulationType,
-          status: "pending",
-        },
-      ])
+      .insert([insertPayload])
       .select()
       .single();
 
     if (error) {
+      // PGRST204 = input_config column doesn't exist yet — retry without it
+      if (error.code === "PGRST204") {
+        const { data: sim2, error: err2 } = await supabase
+          .from("simulations")
+          .insert([{ user_id: userId, name, description, simulation_type: simulationType, status: "pending" }])
+          .select()
+          .single();
+        if (err2) return { success: false, error: err2.message };
+        return { success: true, data: { ...sim2, coolingTechnique: sim2.simulation_type } };
+      }
       return { success: false, error: error.message };
     }
 
@@ -375,14 +397,31 @@ export const createSimulation = async (
 export const updateSimulationStatus = async (
   simulationId: number,
   status: string,
+  errorMessage?: string,
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    // Build update payload — only include error_message if provided,
+    // and gracefully skip it if the column doesn't exist yet in the schema.
+    const updatePayload: any = { status, updated_at: new Date().toISOString() };
+    if (errorMessage) {
+      updatePayload.error_message = errorMessage;
+    }
+
     const { error } = await supabase
       .from("simulations")
-      .update({ status, updated_at: new Date().toISOString() })
+      .update(updatePayload)
       .eq("id", simulationId);
 
     if (error) {
+      // PGRST204 = column not found in schema cache — retry without error_message
+      if (error.code === "PGRST204" && errorMessage) {
+        const { error: retryError } = await supabase
+          .from("simulations")
+          .update({ status, updated_at: new Date().toISOString() })
+          .eq("id", simulationId);
+        if (retryError) return { success: false, error: retryError.message };
+        return { success: true };
+      }
       return { success: false, error: error.message };
     }
 

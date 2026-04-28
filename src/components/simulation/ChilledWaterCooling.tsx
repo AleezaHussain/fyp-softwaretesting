@@ -1154,7 +1154,7 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
               {/* Number of Racks */}
               <div>
                 <label className={`block mb-2 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                  Number of Racks
+                  Number of Racks <span className="opacity-60">(1–50)</span>
                 </label>
                 <input
                   type="number"
@@ -1169,14 +1169,18 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
                       : "bg-white border-gray-300 text-gray-900"
                     }
                     focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                    ${numberOfRacks < 1 || numberOfRacks > 50 ? "border-red-500 ring-1 ring-red-500" : ""}
                   `}
                 />
+                {(numberOfRacks < 1 || numberOfRacks > 50) && (
+                  <p className="text-red-500 text-xs mt-1">Must be between 1 and 50</p>
+                )}
               </div>
 
               {/* Servers per Rack */}
               <div>
                 <label className={`block mb-2 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                  Servers per Rack
+                  Servers per Rack <span className="opacity-60">(1–42)</span>
                 </label>
                 <input
                   type="number"
@@ -1191,8 +1195,12 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
                       : "bg-white border-gray-300 text-gray-900"
                     }
                     focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                    ${serversPerRack < 1 || serversPerRack > 42 ? "border-red-500 ring-1 ring-red-500" : ""}
                   `}
                 />
+                {(serversPerRack < 1 || serversPerRack > 42) && (
+                  <p className="text-red-500 text-xs mt-1">Must be between 1 and 42</p>
+                )}
               </div>
             </div>
           </div>
@@ -1207,7 +1215,7 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
               {/* Idle Power */}
               <div>
                 <label className={`block mb-2 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                  Idle Power (W)
+                  Idle Power (W) <span className="opacity-60">(50–500)</span>
                 </label>
                 <input
                   type="number"
@@ -1223,14 +1231,18 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
                       : "bg-white border-gray-300 text-gray-900"
                     }
                     focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                    ${serverIdlePowerW < 50 || serverIdlePowerW > 500 ? "border-red-500 ring-1 ring-red-500" : ""}
                   `}
                 />
+                {(serverIdlePowerW < 50 || serverIdlePowerW > 500) && (
+                  <p className="text-red-500 text-xs mt-1">Must be between 50W and 500W</p>
+                )}
               </div>
 
               {/* Max Power */}
               <div>
                 <label className={`block mb-2 text-sm ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                  Max Power (W)
+                  Max Power (W) <span className="opacity-60">(100–2000)</span>
                 </label>
                 <input
                   type="number"
@@ -1246,8 +1258,12 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
                       : "bg-white border-gray-300 text-gray-900"
                     }
                     focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                    ${serverMaxPowerW < 100 || serverMaxPowerW > 2000 ? "border-red-500 ring-1 ring-red-500" : ""}
                   `}
                 />
+                {(serverMaxPowerW < 100 || serverMaxPowerW > 2000) && (
+                  <p className="text-red-500 text-xs mt-1">Must be between 100W and 2000W</p>
+                )}
               </div>
             </div>
           </div>
@@ -1783,7 +1799,7 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
             <div className="flex items-center space-x-4 mb-4">
               <div className="flex-1">
                 <label className={`block mb-2 text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                  Base Rate ($/kWh)
+                  Base Rate ($/kWh) <span className="opacity-60">(0.01–1.00)</span>
                 </label>
                 <input
                   type="number"
@@ -1799,8 +1815,12 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
                       : "bg-white border-gray-300 text-gray-900"
                     }
                     focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500
+                    ${baseElectricityRate < 0.01 || baseElectricityRate > 1.0 ? "border-red-500 ring-1 ring-red-500" : ""}
                   `}
                 />
+                {(baseElectricityRate < 0.01 || baseElectricityRate > 1.0) && (
+                  <p className="text-red-500 text-xs mt-1">Must be between $0.01 and $1.00 per kWh</p>
+                )}
               </div>
 
               {/* TOU Toggle Switch */}
