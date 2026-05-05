@@ -65,68 +65,67 @@
 \makeglossaries
 
 \newglossaryentry{pue}{name={PUE},
-  description={Power Usage Effectiveness --- ratio of total facility power to IT equipment
+  description={Power Usage Effectiveness: ratio of total facility power to IT equipment
   power. PUE = 1.000 is ideal; lower is better}}
 
 \newglossaryentry{cue}{name={CUE},
-  description={Carbon Usage Effectiveness --- kg of CO$_2$ emitted per kWh of IT energy
+  description={Carbon Usage Effectiveness: kg of CO$_2$ emitted per kWh of IT energy
   consumed. Lower is better}}
 
 \newglossaryentry{wue}{name={WUE},
-  description={Water Usage Effectiveness --- litres of water consumed per kWh of IT energy.
+  description={Water Usage Effectiveness: litres of water consumed per kWh of IT energy.
   Lower is better}}
 
 \newglossaryentry{cop}{name={COP},
-  description={Coefficient of Performance --- ratio of useful cooling output to electrical
+  description={Coefficient of Performance: ratio of useful cooling output to electrical
   energy input for a refrigeration system. Higher is better}}
 
 \newglossaryentry{dec}{name={DEC},
-  description={Direct Evaporative Cooling --- a cooling method that lowers air temperature
+  description={Direct Evaporative Cooling: a cooling method that lowers air temperature
   by evaporating water into the airstream, requiring only fan power}}
 
 \newglossaryentry{dx}{name={DX},
-  description={Direct Expansion --- a mechanical refrigeration system where refrigerant
+  description={Direct Expansion: a mechanical refrigeration system where refrigerant
   expands directly in the cooling coil to absorb heat}}
 
 \newglossaryentry{crah}{name={CRAH},
-  description={Computer Room Air Handler --- a precision air-conditioning unit that
+  description={Computer Room Air Handler: a precision air-conditioning unit that
   circulates chilled water to cool data center air}}
 
 \newglossaryentry{ashrae}{name={ASHRAE},
-  description={American Society of Heating, Refrigerating and Air-Conditioning Engineers ---
-  publishes thermal guidelines for data center equipment. Class A1 permits server inlet
+  description={American Society of Heating, Refrigerating and Air-Conditioning Engineers: publishes thermal guidelines for data center equipment. Class A1 permits server inlet
   temperatures of 15--27\degC}}
 
 \newglossaryentry{capex}{name={CAPEX},
-  description={Capital Expenditure --- one-time upfront investment cost for infrastructure
+  description={Capital Expenditure: one-time upfront investment cost for infrastructure
   or equipment}}
 
 \newglossaryentry{opex}{name={OpEx},
-  description={Operational Expenditure --- recurring annual costs including electricity,
+  description={Operational Expenditure: recurring annual costs including electricity,
   water, and maintenance}}
 
 \newglossaryentry{npv}{name={NPV},
-  description={Net Present Value --- the present value of future cash flows minus initial
+  description={Net Present Value: the present value of future cash flows minus initial
   investment. Negative NPV indicates the investment does not recover its cost at the
   chosen discount rate}}
 
 \newglossaryentry{lccp}{name={LCCP},
-  description={Life-Cycle Cost of Cooling Plant --- total cost of ownership over the
+  description={Life-Cycle Cost of Cooling Plant: total cost of ownership over the
   system lifetime, including CAPEX, OpEx, and end-of-life costs}}
 
 \newglossaryentry{cfm}{name={CFM},
-  description={Cubic Feet per Minute --- unit of volumetric airflow rate}}
+  description={Cubic Feet per Minute: unit of volumetric airflow rate}}
 
 \newglossaryentry{hpc}{name={HPC},
-  description={High-Performance Computing --- compute workloads requiring sustained high
+  description={High-Performance Computing: compute workloads requiring sustained high
   CPU/GPU utilisation, generating high heat densities per rack}}
 
 \newglossaryentry{ml}{name={ML},
-  description={Machine Learning --- a subset of artificial intelligence in which models
+  description={Machine Learning: a subset of artificial intelligence in which models
   learn patterns from data; used here for the cooling technique recommender system}}
 
 \newglossaryentry{ai}{name={AI},
-  description={Artificial Intelligence --- the simulation of human intelligence by
+  description={Artificial Intelligence: the simulation of human intelligence by
   computer systems; AI inference and training workloads drive high rack power densities}}
 
 \newglossaryentry{cloudsim}{name={CloudSim Plus},
@@ -147,7 +146,7 @@
 %% ============================================================
 
 \noindent This chapter presents the complete simulation results for three data center cooling
-techniques --- Air-Side Economization, Evaporative Cooling, and Chilled Water System ---
+techniques: Air-Side Economization, Evaporative Cooling, and Chilled Water System,
 evaluated over a full annual horizon of 8{,}760 hours. Results are drawn directly from
 the simulation outputs generated at each run, including hourly performance records,
 annual summaries, and post-simulation assessment metrics. Each technique is analysed in
@@ -203,7 +202,7 @@ generated by CloudSim Plus across 22 server racks with a 5-year financial projec
 
 \begin{table}[H]
 \centering
-\caption{Air-Side Economization --- Annual Performance Summary}
+\caption{Air-Side Economization - Annual Performance Summary}
 \label{tab:air_annual}
 \renewcommand{\arraystretch}{1.4}
 \begin{tabular}{lrp{5.8cm}}
@@ -254,7 +253,7 @@ The hourly simulation reveals two distinct operating modes driven by ambient tem
 
 \begin{table}[H]
 \centering
-\caption{Air-Side Economization --- Sample Hourly Results (Representative Day)}
+\caption{Air-Side Economization - Sample Hourly Results (Representative Day)}
 \label{tab:air_hourly}
 \renewcommand{\arraystretch}{1.25}
 \begin{tabular}{rrrrrrl}
@@ -287,7 +286,7 @@ generate heat densities that air-side economization alone cannot dissipate.
 
 \begin{table}[H]
 \centering
-\caption{Air-Side Economization --- Rack Airflow Violations (All 22 Racks)}
+\caption{Air-Side Economization - Rack Airflow Violations (All 22 Racks)}
 \label{tab:air_airflow}
 \renewcommand{\arraystretch}{1.25}
 \begin{tabular}{lrrr}
@@ -331,7 +330,7 @@ incompatible with AI inference rack densities at this scale.
 \centering
 \small  % or \footnotesize
 
-\caption{Air-Side Economization --- 5-Year Cost and Emissions Projection}
+\caption{Air-Side Economization - 5-Year Cost and Emissions Projection}
 \label{tab:air_5yr}
 \renewcommand{\arraystretch}{1.20}
 \begin{tabular}{rrrrrr}
@@ -358,7 +357,7 @@ financially viable return at AI inference workload densities.
 
 \begin{table}[H]
 \centering
-\caption{Air-Side Economization --- Climate Scenario Analysis}
+\caption{Air-Side Economization - Climate Scenario Analysis}
 \label{tab:air_climate}
 \renewcommand{\arraystretch}{1.35}
 \begin{tabular}{lrrrr}
@@ -395,7 +394,7 @@ not high-density AI inference deployments.
 
 Direct Evaporative Cooling (DEC) lowers supply air temperature by passing warm air through
 a water-saturated medium. As water evaporates it absorbs latent heat from the air, reducing
-its dry-bulb temperature. The system requires only fan power --- no compressor, no
+its dry-bulb temperature. The system requires only fan power, no compressor, no
 refrigerant. The simulation ran for 8{,}760 hours with a constant ambient temperature of
 25\degC and 50\% relative humidity, representing a warm-arid climate baseline, across
 50 servers.
@@ -404,7 +403,7 @@ refrigerant. The simulation ran for 8{,}760 hours with a constant ambient temper
 
 \begin{table}[H]
 \centering
-\caption{Evaporative Cooling --- Annual Performance Summary}
+\caption{Evaporative Cooling - Annual Performance Summary}
 \label{tab:evap_annual}
 \renewcommand{\arraystretch}{1.4}
 \begin{tabular}{lrp{5.8cm}}
@@ -414,7 +413,7 @@ refrigerant. The simulation ran for 8{,}760 hours with a constant ambient temper
 Total IT Energy & 336{,}149.6 kWh & Server and compute energy over 8{,}760 hours \\
 Fan Energy (Auxiliary) & 3{,}452.4 kWh & Only overhead: no pump, no DX compressor \\
 Total Facility Energy & 339{,}601.9 kWh & IT + fan combined \\
-Average PUE & 1.009 & Overhead is only 0.9\% of IT energy --- near-ideal \\
+Average PUE & 1.009 & Overhead is only 0.9\% of IT energy, near-ideal \\
 Peak PUE & 1.018 & Maximum overhead across all 8{,}760 hours \\
 Average CUE & 0.377 kg\,CO$_2$/kWh$_{IT}$ & Carbon per unit of IT work \\
 Total Carbon Emissions & 126{,}841.3 kg\,CO$_2$ & Annual facility carbon footprint \\
@@ -431,7 +430,7 @@ Availability & 100\% & No downtime recorded \\
 
 \subsection{Energy and PUE Analysis}
 
-The evaporative cooling system achieved a PUE of 1.009 --- exceptionally close to the
+The evaporative cooling system achieved a PUE of 1.009, exceptionally close to the
 theoretical minimum of 1.000. This result is explained by the operating mode: the system
 ran entirely in DEC mode throughout the simulation, meaning the compressor-based DX unit
 was never activated. Fan power ranged from approximately 0.135 kW at low IT loads (28 kW,
@@ -439,7 +438,7 @@ hours 0--4) to 0.878 kW at peak IT loads (52.3 kW, hour 35), representing a fan 
 of only 0.48--1.68\% of IT load. This near-linear fan-to-IT relationship is characteristic
 of well-designed evaporative systems where fan speed tracks cooling demand.
 
-A PUE of 1.009 is world-class --- comparable to the most efficient hyperscale facilities
+A PUE of 1.009 is world-class, comparable to the most efficient hyperscale facilities
 operated by Google and Meta. The entire cooling overhead of 3{,}452 kWh over a full year
 is less than the energy consumed by a single server in one month at peak load.
 
@@ -447,7 +446,7 @@ is less than the energy consumed by a single server in one month at peak load.
 
 \begin{table}[H]
 \centering
-\caption{Evaporative Cooling --- Representative Hourly Results}
+\caption{Evaporative Cooling - Representative Hourly Results}
 \label{tab:evap_hourly}
 \renewcommand{\arraystretch}{1.25}
 \begin{tabular}{rrrrrrr}
@@ -469,14 +468,14 @@ is less than the energy consumed by a single server in one month at peak load.
 
 \noindent The supply temperature of 19.2\degC is well within the ASHRAE A1 supply range.
 However, the server inlet temperature (after heat pickup across the rack) consistently
-reaches 34.2--34.7\degC --- 7--8\degC above the ASHRAE A1 limit of 27\degC. This is
+reaches 34.2--34.7\degC, 7--8\degC above the ASHRAE A1 limit of 27\degC. This is
 the critical failure point of the evaporative system.
 
 \subsection{Thermal Compliance Assessment}
 
 \begin{table}[H]
 \centering
-\caption{Evaporative Cooling --- ASHRAE Thermal Compliance}
+\caption{Evaporative Cooling - ASHRAE Thermal Compliance}
 \label{tab:evap_thermal}
 \renewcommand{\arraystretch}{1.35}
 \begin{tabular}{lrl}
@@ -494,7 +493,7 @@ DX backup activation & 0 hours & DX never engaged \\
 
 \noindent The evaporative system maintained a supply temperature of approximately 19.2\degC,
 but the server inlet temperature reached 34.2--34.7\degC after heat pickup across the
-rack. This is a sustained, severe violation --- not a marginal exceedance. In a real
+rack. This is a sustained, severe violation, not a marginal exceedance. In a real
 deployment, this would trigger server thermal throttling, increased internal fan speeds,
 accelerated hardware degradation, and potential unplanned downtime. The DX backup unit
 was never activated, indicating the control logic was not configured to respond to inlet
@@ -504,7 +503,7 @@ temperature exceedances.
 
 \begin{table}[H]
 \centering
-\caption{Evaporative Cooling --- Cost and Emissions Breakdown}
+\caption{Evaporative Cooling - Cost and Emissions Breakdown}
 \label{tab:evap_cost}
 \renewcommand{\arraystretch}{1.35}
 \begin{tabular}{lrr}
@@ -554,7 +553,7 @@ from approximately 11 kW to 18 kW across the 8{,}760-hour period.
 
 \begin{table}[H]
 \centering
-\caption{Chilled Water System --- Annual Performance Summary}
+\caption{Chilled Water System - Annual Performance Summary}
 \label{tab:chw_annual}
 \renewcommand{\arraystretch}{1.4}
 \begin{tabular}{lrp{5.8cm}}
@@ -582,7 +581,7 @@ Payback Period & 50 years & Against mechanical-only baseline \\
 
 The chilled water system achieved a PUE of 1.157, placing it between the near-ideal
 evaporative system (1.009) and the air-side economizer (1.291). The average COP of 1.000
-is notably low --- a well-optimised chiller typically achieves COP 3--8 --- suggesting
+is notably low, a well-optimised chiller typically achieves COP 3--8, suggesting
 the simulation modelled a conservative or partially loaded chiller scenario. The COP
 varies with ambient temperature: it is highest (8.0) at moderate ambient temperatures
 (16--17\degC) and floors at 6.154 at very low temperatures, reflecting real-world chiller
@@ -590,7 +589,7 @@ limitations such as condenser freeze protection and minimum lift constraints.
 
 \begin{table}[H]
 \centering
-\caption{Chilled Water --- COP vs Ambient Temperature (Selected Hours)}
+\caption{Chilled Water - COP vs Ambient Temperature (Selected Hours)}
 \label{tab:chw_cop}
 \renewcommand{\arraystretch}{1.3}
 \begin{tabular}{rrrrrr}
@@ -619,14 +618,14 @@ freeze protection controls limit efficiency.
 
 The WUE of 1.796 L/kWh$_{IT}$ means the chilled water system consumes 1.796 litres of
 cooling tower makeup water for every kilowatt-hour of IT work performed. Over a year,
-this totals 268{,}342 litres --- equivalent to approximately 268 cubic metres, or the
+this totals 268{,}342 litres - equivalent to approximately 268 cubic metres, or the
 annual water consumption of roughly 4--5 households. This is the most significant
 environmental liability of the chilled water system compared to the other two techniques,
 both of which consume zero water.
 
 \begin{table}[H]
 \centering
-\caption{Chilled Water --- Water Consumption Summary}
+\caption{Chilled Water - Water Consumption Summary}
 \label{tab:chw_water}
 \renewcommand{\arraystretch}{1.35}
 \begin{tabular}{lrr}
@@ -648,7 +647,7 @@ envelope at all times.
 
 \begin{table}[H]
 \centering
-\caption{Chilled Water --- Phase 4 Deployment Gate Assessment}
+\caption{Chilled Water - Phase 4 Deployment Gate Assessment}
 \label{tab:chw_gates}
 \renewcommand{\arraystretch}{1.35}
 \begin{tabular}{llp{7.5cm}}
@@ -702,7 +701,7 @@ non-negotiable, these costs are justified by the value of the protected AI infra
 
 \begin{table}[H]
 \centering
-\caption{Annual Performance Comparison --- All Three Techniques}
+\caption{Annual Performance Comparison - All Three Techniques}
 \label{tab:master_compare}
 \renewcommand{\arraystretch}{1.45}
 \begin{tabular}{lrrrr}
@@ -753,8 +752,8 @@ Industry average (2024) & $\approx$1.56 & 35.7\% & Reference \\
 
 \noindent All three simulated techniques outperform the 2024 industry average PUE of
 approximately 1.56.
-The evaporative system's PUE of 1.009 is exceptional --- comparable to Google's global
-fleet average of 1.09 for 2024 --- but comes at the cost of
+The evaporative system's PUE of 1.009 is exceptional, comparable to Google's global
+fleet average of 1.09 for 2024 but comes at the cost of
 thermal compliance failure. The chilled water PUE of 1.157 is genuinely excellent and
 achievable in practice. The air-side PUE of 1.291 is good but is inflated by the
 mechanical cooling hours required when ambient temperature exceeds the economizer threshold.
@@ -763,7 +762,7 @@ mechanical cooling hours required when ambient temperature exceeds the economize
 
 \begin{table}[H]
 \centering
-\caption{Carbon Emissions --- Normalised Comparison}
+\caption{Carbon Emissions - Normalised Comparison}
 \label{tab:carbon_compare}
 \renewcommand{\arraystretch}{1.35}
 \begin{tabular}{lrrr}
@@ -958,7 +957,7 @@ third (0.8000), with the highest annual cost (\$40{,}752) and highest annual emi
 \noindent The Random Forest classifier predicts \textbf{AirEconomizer} for this scenario
 vector. Since Air-Side Economization is feasible at the site conditions, it is retained
 as the final recommendation. The composite score confirms this: the Air-Side Economizer
-achieves 0.0000 --- the theoretical minimum --- because it simultaneously has the lowest
+achieves 0.0000, the theoretical minimum, because it simultaneously has the lowest
 annual operating cost (\$1{,}884), the lowest carbon emissions (2{,}977 kg CO$_2$), and
 zero water consumption. Chilled Water scores 0.7283 due to its high water consumption
 (268{,}342 L) and higher cost, while Evaporative Cooling scores 0.8000 due to its
@@ -970,7 +969,7 @@ compliance as a hard deployment gate. The air-side simulation records airflow vi
 on all 22 racks (peak rack load 40.1 kW against a 26.8 kW threshold) and a PUE of 1.291
 under AI inference workloads, indicating that air-side economization is physically
 constrained at this rack density. When thermal compliance and airflow feasibility are
-treated as deployment gates --- as they must be for high-density AI infrastructure ---
+treated as deployment gates as they must be for high-density AI infrastructure ---
 the Chilled Water system becomes the deployment-safe recommendation, as it is the only
 technique that passes ASHRAE A1 thermal limits with zero constraint violations.
 
@@ -1057,8 +1056,8 @@ ML Score (0=best) & \textbf{0.0000} & 0.8000 & 0.7283 \\
 \end{itemize}
 
 \noindent\textbf{Conclusion:} Evaporative cooling wins on efficiency; chilled water wins on
-safety. For AI data centers, chilled water --- or a hybrid evaporative/chilled-water
-system --- is the only deployment-viable choice.
+safety. For AI data centers, chilled water or a hybrid evaporative/chilled-water
+system, is the only deployment-viable choice.
 
 %% ─────────────────────────────────────────────────────────────────────────────
 \newpage

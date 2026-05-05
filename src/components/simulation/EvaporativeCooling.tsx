@@ -874,11 +874,14 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
                 isDark
                   ? "bg-[#1a1f3a] border-[#3f4a68] text-white"
                   : "bg-white border-gray-300 text-gray-900"
-              }`}
+              } ${totalServers < 1 || totalServers > 100 ? "border-red-500 ring-1 ring-red-500" : ""}`}
             />
             <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
               Range: 1 – 100
             </p>
+            {(totalServers < 1 || totalServers > 100) && (
+              <p className="text-red-500 text-xs mt-1">Must be between 1 and 100</p>
+            )}
           </div>
           <div>
             <label
@@ -898,11 +901,14 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
                 isDark
                   ? "bg-[#1a1f3a] border-[#3f4a68] text-white"
                   : "bg-white border-gray-300 text-gray-900"
-              }`}
+              } ${serversPerRack < 1 || serversPerRack > 42 ? "border-red-500 ring-1 ring-red-500" : ""}`}
             />
             <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
               Range: 1 – 42
             </p>
+            {(serversPerRack < 1 || serversPerRack > 42) && (
+              <p className="text-red-500 text-xs mt-1">Must be between 1 and 42</p>
+            )}
           </div>
 
           {/* Rack Count - Auto-calculated */}
@@ -2250,8 +2256,11 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
                   </span>
                 </div>
                 <p className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                  Fraction of wet-bulb temperature approach achieved by evaporative media
+                  Fraction of wet-bulb temperature approach achieved by evaporative media (Range: 60–95%)
                 </p>
+                {(saturationEffectiveness < 60 || saturationEffectiveness > 95) && (
+                  <p className="text-red-500 text-xs mt-1">Must be between 60% and 95%</p>
+                )}
               </div>
 
               {/* Face Velocity */}
@@ -2532,11 +2541,14 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
                 isDark
                   ? "bg-[#1a1f3a] border-[#3f4a68] text-white"
                   : "bg-white border-gray-300 text-gray-900"
-              }`}
+              } ${electricityRate < 0.01 || electricityRate > 1.0 ? "border-red-500 ring-1 ring-red-500" : ""}`}
             />
             <p className={`text-xs mt-1 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-              Local electricity cost per kilowatt-hour (US avg: $0.12)
+              Local electricity cost per kilowatt-hour (Range: $0.01–$1.00, US avg: $0.12)
             </p>
+            {(electricityRate < 0.01 || electricityRate > 1.0) && (
+              <p className="text-red-500 text-xs mt-1">Must be between $0.01 and $1.00 per kWh</p>
+            )}
           </div>
 
           {/* Water Rate */}

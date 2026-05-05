@@ -2,6 +2,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Sidebar } from "../components/shared/Sidebar";
 import { useThemeStore } from "../hooks/useTheme";
+import { useSimulationStore } from "../store/store";
 import {
   ArrowLeft,
   Calendar,
@@ -21,6 +22,8 @@ import {
   FileText,
   LayoutDashboard,
   Sparkles,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { ArrayDataSection } from "../components/simulation/ArrayDataSection";
@@ -37,6 +40,8 @@ interface SimulationData {
   status: string;
   created_at: string;
   updated_at: string;
+  error_message?: string;
+  input_config?: any;
   result?: {
     id: number;
     runtime_minutes: number;
@@ -62,7 +67,12 @@ const SimulationDetail: React.FC = () => {
   const simId = Number(id);
   const navigate = useNavigate();
   const { isDark } = useThemeStore();
+  const simulationFailureReason = useSimulationStore((s) => s.simulationFailureReason);
+  const runSimulation = useSimulationStore((s) => s.runSimulation);
+  const isSimulationRunning = useSimulationStore((s) => s.isSimulationRunning);
   const [simulation, setSimulation] = useState<SimulationData | null>(null);
+  const [isRerunning, setIsRerunning] = useState(false);
+  const [rerunWarning, setRerunWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -120,6 +130,102 @@ const SimulationDetail: React.FC = () => {
       setError(err.message || "Failed to load simulation details");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRerun = async () => {
+    if (!simulation) return;
+    setIsRerunning(true);
+
+    // Listen for the completion event to get the new simulation ID
+    const onComplete = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.simulationId) {
+        navigate(`/simulation/${detail.simulationId}`);
+      }
+      window.removeEventListener("simulation-completed", onComplete);
+      window.removeEventListener("simulation-failed", onFailed);
+    };
+    const onFailed = () => {
+      window.removeEventListener("simulation-completed", onComplete);
+      window.removeEventListener("simulation-failed", onFailed);
+    };
+    window.addEventListener("simulation-completed", onComplete);
+    window.addEventListener("simulation-failed", onFailed);
+
+    try {
+      // Pull stored config — prefer input_config, fall back to _api_payload in result_data
+      const storedConfig = simulation.input_config
+        || simulation.result?.result_data?._api_payload
+        || null;
+
+      if (!storedConfig) {
+        navigate("/input-management");
+        return;
+      }
+
+      const simTypeLower = simulation.simulation_type.toLowerCase();
+      const coolingTechnique = simulation.simulation_type;
+
+      let simulationInput: any;
+
+      if (simTypeLower.includes("evap")) {
+        // For evaporative: the store expects input.evaporativeConfig with weatherData inside it
+        const evapConfig = {
+          ...storedConfig,
+          // weatherData may be at top level or nested — normalise both
+          weatherData: storedConfig.weatherData || storedConfig.evaporativeConfig?.weatherData || [],
+        };
+
+        // If weatherData is empty (stripped in old saves), we can't re-run silently
+        if (!evapConfig.weatherData || evapConfig.weatherData.length === 0) {
+          setRerunWarning("Weather data was not saved with this simulation. Please reconfigure and re-run from the input page.");
+          navigate("/input-management");
+          return;
+        }
+
+        simulationInput = {
+          coolingTechnique,
+          dataCenterName: simulation.name,
+          evaporativeConfig: evapConfig,
+          ...evapConfig,
+        };
+      } else if (simTypeLower.includes("water") || simTypeLower.includes("chilled")) {
+        const waterConfig = {
+          ...storedConfig,
+          weatherData: storedConfig.weatherData || storedConfig.chilledWaterConfig?.weatherData || [],
+        };
+
+        if (!waterConfig.weatherData || waterConfig.weatherData.length === 0) {
+          setRerunWarning("Weather data was not saved with this simulation. Please reconfigure and re-run from the input page.");
+          navigate("/input-management");
+          return;
+        }
+
+        simulationInput = {
+          coolingTechnique,
+          dataCenterName: simulation.name,
+          chilledWaterConfig: waterConfig,
+          ...waterConfig,
+        };
+      } else {
+        // Air-side
+        simulationInput = {
+          coolingTechnique,
+          dataCenterName: simulation.name,
+          airSideConfig: storedConfig,
+          ...storedConfig,
+        };
+      }
+
+      await runSimulation(simulationInput);
+      // Navigation is handled by the simulation-completed event listener above
+    } catch (err: any) {
+      console.error("Re-run failed:", err);
+      window.removeEventListener("simulation-completed", onComplete);
+      window.removeEventListener("simulation-failed", onFailed);
+    } finally {
+      setIsRerunning(false);
     }
   };
 
@@ -624,13 +730,81 @@ const SimulationDetail: React.FC = () => {
                 <XCircle className="w-12 h-12 mx-auto mb-3 text-red-500" />
                 <p className={`text-lg font-medium text-red-500`}>Simulation Failed</p>
                 <p className={`text-sm ${muted} mt-1`}>This simulation encountered an error and could not complete.</p>
-                {rd?.failureReason && (
-                  <div className={`mt-4 mx-auto max-w-sm px-4 py-3 rounded-xl text-sm text-left border ${
+                {(simulation.error_message || rd?.failureReason || simulationFailureReason) && (
+                  <div className={`mt-4 mx-auto max-w-lg px-4 py-3 rounded-xl text-sm text-left border ${
                     isDark ? "bg-red-500/10 border-red-500/30 text-red-300" : "bg-red-50 border-red-200 text-red-700"
                   }`}>
-                    <p className="font-semibold mb-1">Failure Reason:</p>
-                    <p className="leading-relaxed">{rd.failureReason}</p>
+                    <p className="font-semibold mb-1">Error Details:</p>
+                    <p className="leading-relaxed font-mono text-xs break-all">
+                      {simulation.error_message || rd?.failureReason || simulationFailureReason}
+                    </p>
                   </div>
+                )}
+
+                {/* Warning box — shown when weather data is missing for re-run */}
+                {rerunWarning && (
+                  <div className={`mt-4 mx-auto max-w-lg rounded-xl border overflow-hidden`}>
+                    <div className={`flex items-start gap-3 px-4 py-3 ${
+                      isDark ? "bg-amber-500/10 border-amber-500/30" : "bg-amber-50 border-amber-200"
+                    }`}>
+                      <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${
+                        isDark ? "bg-amber-500/20" : "bg-amber-100"
+                      }`}>
+                        <AlertCircle className={`w-4 h-4 ${isDark ? "text-amber-400" : "text-amber-600"}`} />
+                      </div>
+                      <div className="flex-1 text-left">
+                        <p className={`font-semibold text-sm ${isDark ? "text-amber-300" : "text-amber-800"}`}>
+                          Weather Data Not Available
+                        </p>
+                        <p className={`text-xs mt-1 leading-relaxed ${isDark ? "text-amber-400/80" : "text-amber-700"}`}>
+                          {rerunWarning}
+                        </p>
+                        <button
+                          onClick={() => navigate("/input-management")}
+                          className={`mt-2.5 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all hover:scale-105 ${
+                            isDark
+                              ? "bg-amber-500/20 text-amber-300 hover:bg-amber-500/30"
+                              : "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                          }`}
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Go to Configuration
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => setRerunWarning(null)}
+                        className={`shrink-0 text-lg leading-none opacity-50 hover:opacity-100 transition-opacity ${
+                          isDark ? "text-amber-300" : "text-amber-700"
+                        }`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!rerunWarning && (
+                  <button
+                    onClick={handleRerun}
+                    disabled={isRerunning || isSimulationRunning}
+                    className={`mt-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100 ${
+                      isDark
+                        ? "bg-gradient-to-r from-[#5ce1e5] to-[#0ea5e9] text-white"
+                        : "bg-gradient-to-r from-[#0ea5e9] to-[#5ce1e5] text-white"
+                    }`}
+                  >
+                    {isRerunning ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Starting...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        Re-run Simulation
+                      </>
+                    )}
+                  </button>
                 )}
               </>
             ) : simulation.status.toLowerCase() === "cancelled" || simulation.status.toLowerCase() === "canceled" ? (
@@ -775,6 +949,7 @@ const SimulationDetail: React.FC = () => {
             <ArrayDataSection
               resultData={simulation.result.result_data}
               isDark={isDark}
+              simulationId={simulation.id}
             />
           </div>
         )}

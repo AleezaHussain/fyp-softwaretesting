@@ -460,14 +460,24 @@ const CSVUpload: React.FC<{
       </div>
 
       {/* ── Static CSV field description panel ── */}
-      <div className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1428] border-[#2d3a5a]" : "bg-blue-50 border-blue-200"}`}>
+      <div
+        className={`rounded-2xl border overflow-hidden ${isDark ? "bg-[#0f1428] border-[#2d3a5a]" : "bg-blue-50 border-blue-200"}`}
+      >
         {/* Panel header */}
-        <div className={`px-5 py-3 flex items-center gap-2 border-b ${isDark ? "border-[#2d3a5a] bg-[#1a1f3a]" : "border-blue-200 bg-blue-100"}`}>
-          <Info className={`w-4 h-4 shrink-0 ${isDark ? "text-[#5ce1e5]" : "text-blue-600"}`} />
-          <span className={`text-sm font-bold ${isDark ? "text-[#5ce1e5]" : "text-blue-700"}`}>
+        <div
+          className={`px-5 py-3 flex items-center gap-2 border-b ${isDark ? "border-[#2d3a5a] bg-[#1a1f3a]" : "border-blue-200 bg-blue-100"}`}
+        >
+          <Info
+            className={`w-4 h-4 shrink-0 ${isDark ? "text-[#5ce1e5]" : "text-blue-600"}`}
+          />
+          <span
+            className={`text-sm font-bold ${isDark ? "text-[#5ce1e5]" : "text-blue-700"}`}
+          >
             Why these CSV fields?
           </span>
-          <span className={`text-xs ml-1 ${isDark ? "text-gray-500" : "text-blue-500"}`}>
+          <span
+            className={`text-xs ml-1 ${isDark ? "text-gray-500" : "text-blue-500"}`}
+          >
             — how each column is used by the simulation engine
           </span>
         </div>
@@ -481,9 +491,21 @@ const CSVUpload: React.FC<{
               color: isDark ? "#5ce1e5" : "#0ea5e9",
               why: "Maps each weather reading to a specific simulation hour. The engine runs 8,760 hourly steps (one full year). Each row in your CSV corresponds to one hour, so the timestamp tells the simulation which hour of the year this weather condition applies to.",
               usedBy: [
-                { tech: "Air-Side Economizer", detail: "Determines which hour the outdoor conditions are checked against the economizer mode thresholds (T < 24°C, RH < 60%)." },
-                { tech: "Evaporative Cooling", detail: "Aligns ambient temperature and humidity with the hourly IT load from CloudSim to compute wet-bulb depression and supply temperature." },
-                { tech: "Chilled Water", detail: "Feeds the condenser inlet temperature for each hour, which affects chiller COP via the EIR temperature correction factor." },
+                {
+                  tech: "Air-Side Economizer",
+                  detail:
+                    "Determines which hour the outdoor conditions are checked against the economizer mode thresholds (T < 24°C, RH < 60%).",
+                },
+                {
+                  tech: "Evaporative Cooling",
+                  detail:
+                    "Aligns ambient temperature and humidity with the hourly IT load from CloudSim to compute wet-bulb depression and supply temperature.",
+                },
+                {
+                  tech: "Chilled Water",
+                  detail:
+                    "Feeds the condenser inlet temperature for each hour, which affects chiller COP via the EIR temperature correction factor.",
+                },
               ],
             },
             {
@@ -492,9 +514,21 @@ const CSVUpload: React.FC<{
               color: isDark ? "#f59e0b" : "#d97706",
               why: "Outdoor dry-bulb temperature is the primary driver of cooling mode selection and efficiency. It determines how much free cooling is available and how hard the mechanical system must work.",
               usedBy: [
-                { tech: "Air-Side Economizer", detail: "If T ≤ 24°C → FULL_ECON or PARTIAL_TRIM (free cooling active). If T > 24°C → MECHANICAL_ONLY. Higher temperature = more compressor energy." },
-                { tech: "Evaporative Cooling", detail: "Used to compute wet-bulb temperature via psychrometric equations. Supply temperature = T_db − η × (T_db − T_wb). Lower T_db = better cooling." },
-                { tech: "Chilled Water", detail: "Sets the condenser water temperature. Higher ambient → higher condenser temp → lower COP → more chiller power consumed." },
+                {
+                  tech: "Air-Side Economizer",
+                  detail:
+                    "If T ≤ 24°C → FULL_ECON or PARTIAL_TRIM (free cooling active). If T > 24°C → MECHANICAL_ONLY. Higher temperature = more compressor energy.",
+                },
+                {
+                  tech: "Evaporative Cooling",
+                  detail:
+                    "Used to compute wet-bulb temperature via psychrometric equations. Supply temperature = T_db − η × (T_db − T_wb). Lower T_db = better cooling.",
+                },
+                {
+                  tech: "Chilled Water",
+                  detail:
+                    "Sets the condenser water temperature. Higher ambient → higher condenser temp → lower COP → more chiller power consumed.",
+                },
               ],
             },
             {
@@ -503,30 +537,70 @@ const CSVUpload: React.FC<{
               color: isDark ? "#10b981" : "#059669",
               why: "Relative humidity controls how much latent cooling is available (evaporative techniques) and whether the economizer can operate in full free-cooling mode (air-side). High humidity limits both.",
               usedBy: [
-                { tech: "Air-Side Economizer", detail: "If RH > 60% → mode switches from FULL_ECON to PARTIAL_TRIM even if temperature is acceptable. High humidity forces partial mechanical assist." },
-                { tech: "Evaporative Cooling", detail: "High humidity reduces wet-bulb depression (T_db − T_wb), limiting how much the supply air can be cooled. At 100% RH, evaporative cooling provides zero benefit." },
-                { tech: "Chilled Water", detail: "Used for cooling tower approach temperature calculations. High ambient humidity reduces tower rejection efficiency and slightly increases water consumption." },
+                {
+                  tech: "Air-Side Economizer",
+                  detail:
+                    "If RH > 60% → mode switches from FULL_ECON to PARTIAL_TRIM even if temperature is acceptable. High humidity forces partial mechanical assist.",
+                },
+                {
+                  tech: "Evaporative Cooling",
+                  detail:
+                    "High humidity reduces wet-bulb depression (T_db − T_wb), limiting how much the supply air can be cooled. At 100% RH, evaporative cooling provides zero benefit.",
+                },
+                {
+                  tech: "Chilled Water",
+                  detail:
+                    "Used for cooling tower approach temperature calculations. High ambient humidity reduces tower rejection efficiency and slightly increases water consumption.",
+                },
               ],
             },
           ].map(({ field, example, color, why, usedBy }) => (
-            <div key={field} className={`rounded-xl border overflow-hidden ${isDark ? "border-[#2d3a5a]" : "border-blue-200"}`}>
+            <div
+              key={field}
+              className={`rounded-xl border overflow-hidden ${isDark ? "border-[#2d3a5a]" : "border-blue-200"}`}
+            >
               {/* Field name row */}
-              <div className={`flex items-center gap-3 px-4 py-2.5 ${isDark ? "bg-[#1a1f3a]" : "bg-white"}`}>
-                <code className="text-sm font-mono font-bold px-2 py-0.5 rounded" style={{ background: `${color}20`, color }}>
+              <div
+                className={`flex items-center gap-3 px-4 py-2.5 ${isDark ? "bg-[#1a1f3a]" : "bg-white"}`}
+              >
+                <code
+                  className="text-sm font-mono font-bold px-2 py-0.5 rounded"
+                  style={{ background: `${color}20`, color }}
+                >
                   {field}
                 </code>
-                <span className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}>e.g. {example}</span>
+                <span
+                  className={`text-xs ${isDark ? "text-gray-500" : "text-gray-400"}`}
+                >
+                  e.g. {example}
+                </span>
               </div>
               {/* Why explanation */}
-              <div className={`px-4 py-2 text-xs leading-relaxed border-t ${isDark ? "border-[#2d3a5a] text-gray-300 bg-[#0f1428]" : "border-blue-100 text-gray-600 bg-blue-50/50"}`}>
+              <div
+                className={`px-4 py-2 text-xs leading-relaxed border-t ${isDark ? "border-[#2d3a5a] text-gray-300 bg-[#0f1428]" : "border-blue-100 text-gray-600 bg-blue-50/50"}`}
+              >
                 {why}
               </div>
               {/* Per-technique usage */}
-              <div className={`divide-y ${isDark ? "divide-[#2d3a5a]" : "divide-blue-100"}`}>
+              <div
+                className={`divide-y ${isDark ? "divide-[#2d3a5a]" : "divide-blue-100"}`}
+              >
                 {usedBy.map(({ tech, detail }) => (
-                  <div key={tech} className={`flex gap-3 px-4 py-2 text-xs ${isDark ? "bg-[#0a0e27]" : "bg-white"}`}>
-                    <span className="font-semibold shrink-0 w-36" style={{ color }}>{tech}</span>
-                    <span className={isDark ? "text-gray-400" : "text-gray-500"}>{detail}</span>
+                  <div
+                    key={tech}
+                    className={`flex gap-3 px-4 py-2 text-xs ${isDark ? "bg-[#0a0e27]" : "bg-white"}`}
+                  >
+                    <span
+                      className="font-semibold shrink-0 w-36"
+                      style={{ color }}
+                    >
+                      {tech}
+                    </span>
+                    <span
+                      className={isDark ? "text-gray-400" : "text-gray-500"}
+                    >
+                      {detail}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -534,11 +608,15 @@ const CSVUpload: React.FC<{
           ))}
 
           {/* Format note */}
-          <div className={`flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs ${isDark ? "bg-[#1a1f3a] text-gray-400 border border-[#2d3a5a]" : "bg-white text-gray-500 border border-blue-200"}`}>
+          <div
+            className={`flex items-start gap-2 px-3 py-2.5 rounded-xl text-xs ${isDark ? "bg-[#1a1f3a] text-gray-400 border border-[#2d3a5a]" : "bg-white text-gray-500 border border-blue-200"}`}
+          >
             <Info className="w-3.5 h-3.5 shrink-0 mt-0.5 opacity-60" />
             <span>
-              Column names are flexible — the parser accepts any header containing "time"/"date", "temp"/"temperature", or "hum"/"humidity"/"rh".
-              Minimum 2 rows required. Rows with missing temperature or humidity values are automatically skipped.
+              Column names are flexible — the parser accepts any header
+              containing "time"/"date", "temp"/"temperature", or
+              "hum"/"humidity"/"rh". Minimum 2 rows required. Rows with missing
+              temperature or humidity values are automatically skipped.
             </span>
           </div>
         </div>
@@ -1019,6 +1097,16 @@ export const InputManagement: React.FC = () => {
   } = useSimulationStore();
   const isDark = useThemeStore((state) => state.isDark);
 
+  // Always start this page with a clean progress state so previous runs don't leak into a new run.
+  useEffect(() => {
+    const simulationStore = useSimulationStore.getState();
+    simulationStore.setSimulationRunning(false);
+    simulationStore.setSimulationProgress(0);
+    simulationStore.setSimulationStatus("");
+    simulationStore.setSimulationFailureReason(null);
+    simulationStore.setCurrentSimulation(null);
+  }, []);
+
   // ── Step 3 validation ─────────────────────────────────────────────────────
   const validateStep3 = (): string[] => {
     const cfg = configRef.current;
@@ -1038,17 +1126,33 @@ export const InputManagement: React.FC = () => {
         cfg?.numberOfRacks < 1
       )
         errors.push("Number of racks must be at least 1.");
+      if (cfg?.numberOfRacks > 100)
+        errors.push("Number of racks must be at most 100.");
       if (
         (!cfg?.serversPerRack && cfg?.serversPerRack !== 0) ||
         cfg?.serversPerRack < 1
       )
         errors.push("Servers per rack must be at least 1.");
+      if (cfg?.serversPerRack > 50)
+        errors.push("Servers per rack must be at most 50.");
       if (!cfg?.airflowCFM || cfg?.airflowCFM <= 0)
         errors.push("Airflow (CFM) must be greater than 0.");
+      if (cfg?.airflowCFM < 100)
+        errors.push("Airflow (CFM) must be at least 100.");
+      if (cfg?.airflowCFM > 100000)
+        errors.push("Airflow (CFM) must be at most 100,000.");
       if (!cfg?.supplyAirTemp && cfg?.supplyAirTemp !== 0)
         errors.push("Supply air temperature is required.");
+      if (cfg?.supplyAirTemp < 5 || cfg?.supplyAirTemp > 30)
+        errors.push("Supply air temperature must be between 5°C and 30°C.");
       if (!cfg?.returnAirTemp && cfg?.returnAirTemp !== 0)
         errors.push("Return air temperature is required.");
+      if (cfg?.returnAirTemp < 10 || cfg?.returnAirTemp > 50)
+        errors.push("Return air temperature must be between 10°C and 50°C.");
+      if (cfg?.economizerMaxOutdoorTemp !== undefined && (cfg.economizerMaxOutdoorTemp < 10 || cfg.economizerMaxOutdoorTemp > 30))
+        errors.push("Economizer enable temperature must be between 10°C and 30°C.");
+      if (cfg?.economizerMaxHumidity !== undefined && (cfg.economizerMaxHumidity < 40 || cfg.economizerMaxHumidity > 80))
+        errors.push("Maximum outdoor humidity must be between 40% and 80%.");
     }
 
     if (selectedTechnique === "water") {
@@ -1059,13 +1163,25 @@ export const InputManagement: React.FC = () => {
         );
       if (!wCfg?.numberOfRacks || wCfg.numberOfRacks < 1)
         errors.push("Number of racks must be at least 1.");
+      if (wCfg?.numberOfRacks > 50)
+        errors.push("Number of racks must be at most 50.");
       if (!wCfg?.serversPerRack || wCfg.serversPerRack < 1)
         errors.push("Servers per rack must be at least 1.");
+      if (wCfg?.serversPerRack > 42)
+        errors.push("Servers per rack must be at most 42.");
       if (!wCfg?.serverMaxPowerW || wCfg.serverMaxPowerW <= 0)
         errors.push("Server max power (W) must be greater than 0.");
+      if (wCfg?.serverMaxPowerW < 100)
+        errors.push("Server max power must be at least 100W.");
+      if (wCfg?.serverMaxPowerW > 2000)
+        errors.push("Server max power must be at most 2000W.");
+      if (wCfg?.serverIdlePowerW !== undefined && (wCfg.serverIdlePowerW < 50 || wCfg.serverIdlePowerW > 500))
+        errors.push("Server idle power must be between 50W and 500W.");
       if (!wCfg?.chillerType) errors.push("Chiller type is required.");
       if (!wCfg?.baseElectricityRate || wCfg.baseElectricityRate <= 0)
         errors.push("Base electricity rate must be greater than 0.");
+      if (wCfg?.baseElectricityRate > 1.0)
+        errors.push("Base electricity rate must be at most $1.00/kWh.");
     }
 
     if (selectedTechnique === "evaporative") {
@@ -1076,10 +1192,20 @@ export const InputManagement: React.FC = () => {
         );
       if (!eCfg?.totalServers || eCfg.totalServers < 1)
         errors.push("Total servers must be at least 1.");
+      if (eCfg?.totalServers > 100)
+        errors.push("Total servers must be at most 100.");
+      if (eCfg?.serversPerRack > 42)
+        errors.push("Servers per rack must be at most 42.");
       if (!eCfg?.electricityRate || eCfg.electricityRate <= 0)
         errors.push("Electricity rate must be greater than 0.");
+      if (eCfg?.electricityRate < 0.01)
+        errors.push("Electricity rate must be at least $0.01/kWh.");
+      if (eCfg?.electricityRate > 1.0)
+        errors.push("Electricity rate must be at most $1.00/kWh.");
       if (!eCfg?.saturationEffectiveness || eCfg.saturationEffectiveness <= 0)
         errors.push("Saturation effectiveness must be greater than 0.");
+      if (eCfg?.saturationEffectiveness < 60 || eCfg?.saturationEffectiveness > 95)
+        errors.push("Saturation effectiveness must be between 60% and 95%.");
     }
 
     return errors;
@@ -1845,13 +1971,17 @@ export const InputManagement: React.FC = () => {
                       label: "Server",
                       value: currentConfig?.serverName || serverId || "Not set",
                       icon: Server,
-                      description: currentConfig?.manufacturer ? `${currentConfig.manufacturer} · ${currentConfig.model || ""}` : "Server hardware",
+                      description: currentConfig?.manufacturer
+                        ? `${currentConfig.manufacturer} · ${currentConfig.model || ""}`
+                        : "Server hardware",
                     },
                     {
                       label: "Country",
                       value: currentConfig?.country || countryId || "Not set",
                       icon: MapPin,
-                      description: currentConfig?.electricity_tariff ? `$${Number(currentConfig.electricity_tariff).toFixed(3)}/kWh tariff` : "Electricity tariff region",
+                      description: currentConfig?.electricity_tariff
+                        ? `$${Number(currentConfig.electricity_tariff).toFixed(3)}/kWh tariff`
+                        : "Electricity tariff region",
                     },
                     {
                       label: "Total Racks",
@@ -2430,32 +2560,36 @@ export const InputManagement: React.FC = () => {
             >
               <div className="max-w-6xl mx-auto px-6 py-6">
                 {/* Validation errors — shown at step 2 and step 3 */}
-                {(currentStep === 2 || currentStep === 3) && step3Errors.length > 0 && (
-                  <div
-                    className={`mb-4 p-4 rounded-xl border ${isDark ? "bg-red-900/20 border-red-700/40" : "bg-red-50 border-red-200"}`}
-                  >
-                    <p
-                      className={`text-sm font-semibold mb-2 ${isDark ? "text-red-400" : "text-red-700"}`}
+                {(currentStep === 2 || currentStep === 3) &&
+                  step3Errors.length > 0 && (
+                    <div
+                      className={`mb-4 p-4 rounded-xl border ${isDark ? "bg-red-900/20 border-red-700/40" : "bg-red-50 border-red-200"}`}
                     >
-                      Please fix the following before continuing:
-                    </p>
-                    <ul className="space-y-1">
-                      {step3Errors.map((err, i) => (
-                        <li
-                          key={i}
-                          className={`text-sm flex items-start gap-2 ${isDark ? "text-red-300" : "text-red-600"}`}
-                        >
-                          <span className="shrink-0 mt-0.5">⚠</span>
-                          <span>{err}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                      <p
+                        className={`text-sm font-semibold mb-2 ${isDark ? "text-red-400" : "text-red-700"}`}
+                      >
+                        Please fix the following before continuing:
+                      </p>
+                      <ul className="space-y-1">
+                        {step3Errors.map((err, i) => (
+                          <li
+                            key={i}
+                            className={`text-sm flex items-start gap-2 ${isDark ? "text-red-300" : "text-red-600"}`}
+                          >
+                            <span className="shrink-0 mt-0.5">⚠</span>
+                            <span>{err}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                 <div className="flex justify-between">
                   <button
-                    onClick={() => { setStep3Errors([]); handleStepChange(currentStep - 1); }}
+                    onClick={() => {
+                      setStep3Errors([]);
+                      handleStepChange(currentStep - 1);
+                    }}
                     className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold transition-all duration-300 hover:scale-105 ${
                       isDark
                         ? "bg-[#27304a] text-gray-300 hover:bg-[#3f4a68] hover:text-white"

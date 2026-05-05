@@ -288,25 +288,42 @@ const TabSecurity: React.FC<{ isDark: boolean }> = ({ isDark }) => {
       } = await sb.auth.getUser();
       if (!authUser) throw new Error("Not authenticated");
 
-      const { data: sims } = await sb
-        .from("simulations")
+      // Map auth user id -> app users.id (used by simulations/user_activity tables).
+      const { data: profileRow, error: profileErr } = await sb
+        .from("users")
         .select("id")
-        .eq("user_id", authUser.id);
+        .eq("auth_user_id", authUser.id)
+        .maybeSingle();
+      if (profileErr) throw new Error(profileErr.message);
 
-      if (sims?.length) {
-        const simIds = sims.map((s: any) => s.id);
-        await sb
+      if (profileRow?.id !== undefined && profileRow?.id !== null) {
+        const appUserId = profileRow.id;
+
+        const { error: resultDeleteErr } = await sb
           .from("simulation_results")
           .delete()
-          .in("simulation_id", simIds);
-        await sb.from("simulations").delete().eq("user_id", authUser.id);
-      }
+          .eq("user_id", appUserId);
+        if (resultDeleteErr) throw new Error(resultDeleteErr.message);
 
-      await sb.from("user_activity").delete().eq("user_id", authUser.id);
-      await sb
-        .from("users")
-        .update({ name: "[Deleted]", organization: null, role: null })
-        .eq("auth_user_id", authUser.id);
+        const { error: simDeleteErr } = await sb
+          .from("simulations")
+          .delete()
+          .eq("user_id", appUserId);
+        if (simDeleteErr) throw new Error(simDeleteErr.message);
+
+        const { error: activityDeleteErr } = await sb
+          .from("user_activity")
+          .delete()
+          .eq("user_id", appUserId);
+        if (activityDeleteErr) throw new Error(activityDeleteErr.message);
+
+        // Hard-delete profile row so signup can reuse the same email later.
+        const { error: userDeleteErr } = await sb
+          .from("users")
+          .delete()
+          .eq("id", appUserId);
+        if (userDeleteErr) throw new Error(userDeleteErr.message);
+      }
 
       await sb.auth.signOut();
       logout();

@@ -915,7 +915,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-            Supply Air Temp (°C)
+            Supply Air Temp (°C) <span className="font-normal opacity-60">5–30</span>
           </label>
           <input
             type="number"
@@ -924,12 +924,15 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             step={0.1}
             value={supplyAirTemp}
             onChange={(e) => setSupplyAirTemp(Number(e.target.value))}
-            className={`w-full border rounded px-2 py-1 ${isDark ? "bg-[#27304a] border-[#3f4a68] text-white" : "bg-white border-gray-300 text-gray-900"}`}
+            className={`w-full border rounded px-2 py-1 ${isDark ? "bg-[#27304a] border-[#3f4a68] text-white" : "bg-white border-gray-300 text-gray-900"} ${supplyAirTemp < 5 || supplyAirTemp > 30 ? "border-red-500 ring-1 ring-red-500" : ""}`}
           />
+          {(supplyAirTemp < 5 || supplyAirTemp > 30) && (
+            <p className="text-red-500 text-xs mt-1">Must be between 5°C and 30°C</p>
+          )}
         </div>
         <div>
           <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-            Return Air Temp (°C)
+            Return Air Temp (°C) <span className="font-normal opacity-60">10–50</span>
           </label>
           <input
             type="number"
@@ -938,12 +941,15 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             step={0.1}
             value={returnAirTemp}
             onChange={(e) => setReturnAirTemp(Number(e.target.value))}
-            className={`w-full border rounded px-2 py-1 ${isDark ? "bg-[#27304a] border-[#3f4a68] text-white" : "bg-white border-gray-300 text-gray-900"}`}
+            className={`w-full border rounded px-2 py-1 ${isDark ? "bg-[#27304a] border-[#3f4a68] text-white" : "bg-white border-gray-300 text-gray-900"} ${returnAirTemp < 10 || returnAirTemp > 50 ? "border-red-500 ring-1 ring-red-500" : ""}`}
           />
+          {(returnAirTemp < 10 || returnAirTemp > 50) && (
+            <p className="text-red-500 text-xs mt-1">Must be between 10°C and 50°C</p>
+          )}
         </div>
         <div>
           <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-            Airflow (CFM)
+            Airflow (CFM) <span className="font-normal opacity-60">100–100,000</span>
           </label>
           <input
             type="number"
@@ -952,12 +958,15 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             step={10}
             value={airflowCFM}
             onChange={(e) => setAirflowCFM(Number(e.target.value))}
-            className={`w-full border rounded px-2 py-1 ${isDark ? "bg-[#27304a] border-[#3f4a68] text-white" : "bg-white border-gray-300 text-gray-900"}`}
+            className={`w-full border rounded px-2 py-1 ${isDark ? "bg-[#27304a] border-[#3f4a68] text-white" : "bg-white border-gray-300 text-gray-900"} ${airflowCFM < 100 || airflowCFM > 100000 ? "border-red-500 ring-1 ring-red-500" : ""}`}
           />
+          {(airflowCFM < 100 || airflowCFM > 100000) && (
+            <p className="text-red-500 text-xs mt-1">Must be between 100 and 100,000 CFM</p>
+          )}
         </div>
         <div>
           <label className={`block text-xs font-semibold mb-1 ${isDark ? "text-gray-300" : "text-gray-600"}`}>
-            ΔT (Return - Supply, °C)
+            ΔT (Return - Supply, °C) <span className="font-normal opacity-60">1–40</span>
           </label>
           <input
             type="number"
@@ -966,8 +975,11 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
             step={0.1}
             value={deltaT}
             onChange={(e) => setDeltaT(Number(e.target.value))}
-            className={`w-full border rounded px-2 py-1 ${isDark ? "bg-[#27304a] border-[#3f4a68] text-white" : "bg-white border-gray-300 text-gray-900"}`}
+            className={`w-full border rounded px-2 py-1 ${isDark ? "bg-[#27304a] border-[#3f4a68] text-white" : "bg-white border-gray-300 text-gray-900"} ${deltaT < 1 || deltaT > 40 ? "border-red-500 ring-1 ring-red-500" : ""}`}
           />
+          {(deltaT < 1 || deltaT > 40) && (
+            <p className="text-red-500 text-xs mt-1">Must be between 1°C and 40°C</p>
+          )}
         </div>
       </div>
     </div>
@@ -1434,6 +1446,9 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                   </div>
                 </div>
                 <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}>Range: 1-100 racks</p>
+                {(localNumberOfRacks < 1 || localNumberOfRacks > 100) && (
+                  <p className="text-red-500 text-xs mt-1">Must be between 1 and 100</p>
+                )}
               </div>
 
               <div>
@@ -1467,6 +1482,9 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
                   Range: 1-50 servers per rack
                 </p>
+                {(localServersPerRack < 1 || localServersPerRack > 50) && (
+                  <p className="text-red-500 text-xs mt-1">Must be between 1 and 50</p>
+                )}
               </div>
             </div>
 
@@ -1746,6 +1764,9 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 Outdoor air cooling is disabled above this temperature to avoid
                 excessive heat load. (Range: 10–30°C, default 24°C)
               </p>
+              {(economizerMaxOutdoorTemp < 10 || economizerMaxOutdoorTemp > 30) && (
+                <p className="text-red-500 text-xs mt-1">Must be between 10°C and 30°C</p>
+              )}
             </div>
             {/* B) Economizer Max Outdoor Humidity (%) */}
             <div>
@@ -1780,6 +1801,9 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 Economizer operation is restricted when outdoor humidity exceeds
                 this value. (Range: 40–80%, default 60%)
               </p>
+              {(economizerMaxHumidity < 40 || economizerMaxHumidity > 80) && (
+                <p className="text-red-500 text-xs mt-1">Must be between 40% and 80%</p>
+              )}
             </div>
             {/* C) Minimum Outdoor Air Fraction */}
             <div>

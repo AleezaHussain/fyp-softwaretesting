@@ -17,6 +17,7 @@ export interface AuthResponse {
   user?: User;
   profile?: UserProfile;
   error?: string;
+  requiresEmailConfirmation?: boolean;
 }
 
 const isRecoverableSignupError = (message: string): boolean => {
@@ -83,7 +84,7 @@ export const signUp = async (
 
     const { data: existingUser, error: existingUserError } = await supabase
       .from("users")
-      .select("id")
+      .select("id, name, auth_user_id")
       .eq("email", normalizedEmail)
       .maybeSingle();
 
@@ -92,7 +93,25 @@ export const signUp = async (
     }
 
     if (existingUser) {
-      return { success: false, error: "User already exists with this email" };
+      // Legacy cleanup path: older account deletion flow anonymized users rows.
+      // Remove those stale rows so the same email can be reused.
+      const isDeletedMarker = (existingUser as any)?.name === "[Deleted]";
+      if (isDeletedMarker) {
+        const { error: cleanupError } = await supabase
+          .from("users")
+          .delete()
+          .eq("id", (existingUser as any).id);
+
+        if (cleanupError) {
+          return {
+            success: false,
+            error:
+              "A stale deleted-account record still exists for this email. Please contact support to purge it.",
+          };
+        }
+      } else {
+        return { success: false, error: "User already exists with this email" };
+      }
     }
 
     // 1. Sign up with Supabase Auth
@@ -124,13 +143,17 @@ export const signUp = async (
         );
 
         if (ensureError || !profile) {
-          return { success: false, error: ensureError || "Failed to save user profile" };
+          return {
+            success: false,
+            error: ensureError || "Failed to save user profile",
+          };
         }
 
         return {
           success: true,
           user: signInData.user,
           profile,
+          requiresEmailConfirmation: false,
         };
       }
 
@@ -146,13 +169,18 @@ export const signUp = async (
     );
 
     if (ensureError || !profile) {
-      return { success: false, error: ensureError || "Failed to save user profile" };
+      return {
+        success: false,
+        error: ensureError || "Failed to save user profile",
+      };
     }
 
     return {
       success: true,
       user: authData.user,
       profile,
+      // Supabase returns no session when email confirmation is required.
+      requiresEmailConfirmation: !authData.session,
     };
   } catch (error) {
     console.error("Sign up error:", error);
@@ -171,15 +199,26 @@ export const signIn = async (
   password: string,
 ): Promise<AuthResponse> => {
   try {
+    const normalizedEmail = email.trim().toLowerCase();
+
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: normalizedEmail,
       password,
     });
+
     if (error || !data.user) {
-      return { success: false, error: error?.message || "Invalid credentials" };
+      const msg = error?.message || "Invalid credentials";
+      // Give a clear message when email confirmation is the blocker
+      if (msg.toLowerCase().includes("email not confirmed")) {
+        return {
+          success: false,
+          error:
+            "Your email address has not been confirmed yet. Please check your inbox and click the confirmation link, or ask an admin to confirm your account.",
+        };
+      }
+      return { success: false, error: msg };
     }
-    // Optionally fetch user profile from your users table here if needed
-    return { success: true, profile: { ...data.user } };
+    return { success: true, user: data.user };
   } catch (error) {
     return {
       success: false,
@@ -196,6 +235,10 @@ export const signOut = async (): Promise<{
   error?: string;
 }> => {
   try {
+    // Actually call Supabase signOut so the session token is invalidated
+    // and removed from localStorage. Without this, stale sessions block
+    // subsequent logins with a 400 invalid_credentials error.
+    await supabase.auth.signOut();
     return { success: true };
   } catch (error) {
     console.error("Sign out error:", error);

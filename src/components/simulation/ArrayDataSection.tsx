@@ -6,6 +6,7 @@ const RAWDATA_API = import.meta.env.VITE_RAWDATA_EXPLANATION_API_URL ?? "http://
 interface ArrayDataSectionProps {
   resultData: any;
   isDark: boolean;
+  simulationId?: number | string;
 }
 
 // ─── Technique detection ──────────────────────────────────────────────────────
@@ -582,7 +583,7 @@ const GroupHeader: React.FC<{ label: string; color: string; isDark: boolean }> =
 );
 
 // ─── Main component ───────────────────────────────────────────────────────────
-export const ArrayDataSection: React.FC<ArrayDataSectionProps> = ({ resultData, isDark }) => {
+export const ArrayDataSection: React.FC<ArrayDataSectionProps> = ({ resultData, isDark, simulationId }) => {
   const technique = detectTechnique(resultData);
 
   const techniqueLabel = technique === "air" ? "Air Economizer" : technique === "chilled" ? "Chilled Water" : "Evaporative";
@@ -655,8 +656,9 @@ export const ArrayDataSection: React.FC<ArrayDataSectionProps> = ({ resultData, 
     const fields = Object.keys(sampleRows[0] ?? {});
     if (fields.length === 0) return;
 
-    // Build stable cache key — v4 includes improved prompt version
-    const cacheKey = `rawdata_explanation_v4_${techniqueLabel}_${fields.slice(0, 5).join(",")}`;
+    // Build stable cache key — includes simulationId so each simulation gets its own explanation
+    const simIdPart = simulationId ? `_sim${simulationId}` : `_${fields.slice(0, 5).join(",")}`;
+    const cacheKey = `rawdata_explanation_v5_${techniqueLabel}${simIdPart}`;
 
     // Check localStorage cache first
     try {
