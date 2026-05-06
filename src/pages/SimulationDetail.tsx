@@ -62,6 +62,16 @@ const TABS = [
   { id: "raw", label: "Raw Data", icon: Table2 },
 ];
 
+// Helper to safely parse Postgres timestamps (which lack timezone info)
+// Appends 'Z' so JS treats them as UTC, matching how they were stored
+const parseDbDate = (ts: string | null | undefined): Date | null => {
+  if (!ts) return null;
+  // If already has timezone info, parse as-is
+  const normalized = ts.includes('Z') || ts.includes('+') ? ts : ts + 'Z';
+  const d = new Date(normalized);
+  return isNaN(d.getTime()) ? null : d;
+};
+
 const SimulationDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const simId = Number(id);
@@ -686,7 +696,9 @@ const SimulationDetail: React.FC = () => {
                 />
               ),
               label: "Created",
-              value: new Date(simulation.created_at).toLocaleDateString(),
+              value: parseDbDate(simulation.created_at)
+                ? parseDbDate(simulation.created_at)!.toLocaleDateString()
+                : "—",
             },
             {
               icon: (
@@ -695,8 +707,8 @@ const SimulationDetail: React.FC = () => {
                 />
               ),
               label: "Completed",
-              value: simulation.result?.completed_at
-                ? new Date(simulation.result.completed_at).toLocaleDateString()
+              value: parseDbDate(simulation.result?.completed_at)
+                ? parseDbDate(simulation.result!.completed_at)!.toLocaleDateString()
                 : "—",
             },
           ].map(({ icon, label, value }) => (
@@ -882,13 +894,13 @@ const SimulationDetail: React.FC = () => {
                   ["Simulation ID", `#${simulation.id}`],
                   ["Type", simulation.simulation_type],
                   ["Status", simulation.status],
-                  ["Created", new Date(simulation.created_at).toLocaleString()],
+                  ["Created", parseDbDate(simulation.created_at)
+                    ? parseDbDate(simulation.created_at)!.toLocaleString()
+                    : "—"],
                   [
                     "Completed",
-                    simulation.result.completed_at
-                      ? new Date(
-                          simulation.result.completed_at,
-                        ).toLocaleString()
+                    parseDbDate(simulation.result.completed_at)
+                      ? parseDbDate(simulation.result.completed_at)!.toLocaleString()
                       : "—",
                   ],
                   ["Runtime", `${simulation.result.runtime_minutes} min`],

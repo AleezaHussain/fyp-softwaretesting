@@ -340,6 +340,8 @@ export const createSimulation = async (
       description,
       simulation_type: simulationType,
       status: "pending",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
     // Store input config if provided (requires input_config JSONB column)
@@ -801,6 +803,7 @@ export const saveSimulationResults = async (
           : "Simulation completed successfully"),
       result_data:
         typeof enhancedResultData === "object" ? enhancedResultData : {},
+      created_at: new Date().toISOString(),
       completed_at: new Date().toISOString(),
     };
 
