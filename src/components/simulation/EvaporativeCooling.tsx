@@ -331,6 +331,14 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
     [serverType, servers],
   );
 
+  // Sync utilization values from selected server — mirrors air-side behaviour
+  useEffect(() => {
+    if (selectedServer) {
+      setAverageITUtilization(selectedServer.avg_utilization_percent ?? 60);
+      setPeakITUtilization(selectedServer.peak_utilization_percent ?? 90);
+    }
+  }, [selectedServer]);
+
   // ✅ AUTO-CALCULATE: Airflow based on server count and specifications
   // Must be defined AFTER selectedServer to avoid initialization errors
   const maxAirflowCapacity = useMemo(() => {
@@ -1034,7 +1042,7 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
             </p>
           </div>
 
-          {/* Average IT Utilization */}
+          {/* Average IT Utilization — auto-filled from selected server (read-only) */}
           <div>
             <label
               className={`block mb-2 font-semibold ${
@@ -1050,8 +1058,9 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
                 max={100}
                 step={1}
                 value={averageITUtilization}
-                onChange={(e) => setAverageITUtilization(Number(e.target.value))}
-                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                disabled
+                readOnly
+                className="flex-1 h-2 bg-gradient-to-r from-green-200 to-green-500 rounded-lg appearance-none cursor-not-allowed opacity-70"
               />
               <input
                 type="number"
@@ -1059,11 +1068,12 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
                 max={100}
                 step={1}
                 value={averageITUtilization}
-                onChange={(e) => setAverageITUtilization(Number(e.target.value))}
-                className={`w-24 p-2 border rounded-lg text-center ${
+                disabled
+                readOnly
+                className={`w-24 p-2 border rounded-lg text-center cursor-not-allowed opacity-70 ${
                   isDark
-                    ? "bg-[#1a1f3a] border-[#3f4a68] text-white"
-                    : "bg-white border-gray-300 text-gray-900"
+                    ? "bg-[#0f1425] border-[#3f4a68] text-gray-400"
+                    : "bg-gray-100 border-gray-300 text-gray-500"
                 }`}
               />
               <span className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
@@ -1075,12 +1085,10 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
               <span className={isDark ? "text-gray-500" : "text-gray-500"}>60% (Default)</span>
               <span className={isDark ? "text-gray-500" : "text-gray-500"}>100% (Heavy)</span>
             </div>
-            <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-              Average server utilization over time
-            </p>
+            
           </div>
 
-          {/* Peak IT Utilization */}
+          {/* Peak IT Utilization — auto-filled from selected server (read-only) */}
           <div>
             <label
               className={`block mb-2 font-semibold ${
@@ -1096,8 +1104,9 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
                 max={100}
                 step={1}
                 value={peakITUtilization}
-                onChange={(e) => setPeakITUtilization(Number(e.target.value))}
-                className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+                disabled
+                readOnly
+                className="flex-1 h-2 bg-gradient-to-r from-orange-200 to-red-500 rounded-lg appearance-none cursor-not-allowed opacity-70"
               />
               <input
                 type="number"
@@ -1105,11 +1114,12 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
                 max={100}
                 step={1}
                 value={peakITUtilization}
-                onChange={(e) => setPeakITUtilization(Number(e.target.value))}
-                className={`w-24 p-2 border rounded-lg text-center ${
+                disabled
+                readOnly
+                className={`w-24 p-2 border rounded-lg text-center cursor-not-allowed opacity-70 ${
                   isDark
-                    ? "bg-[#1a1f3a] border-[#3f4a68] text-white"
-                    : "bg-white border-gray-300 text-gray-900"
+                    ? "bg-[#0f1425] border-[#3f4a68] text-gray-400"
+                    : "bg-gray-100 border-gray-300 text-gray-500"
                 }`}
               />
               <span className={`text-sm font-semibold ${isDark ? "text-white" : "text-gray-900"}`}>
@@ -1121,9 +1131,7 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
               <span className={isDark ? "text-gray-500" : "text-gray-500"}>90% (Default)</span>
               <span className={isDark ? "text-gray-500" : "text-gray-500"}>100%</span>
             </div>
-            <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-              Maximum server utilization during peak periods
-            </p>
+            
           </div>
 
           {/* Server Type Dropdown */}

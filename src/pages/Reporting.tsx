@@ -1,12 +1,9 @@
 ﻿import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sidebar } from "../components/shared/Sidebar";
-import { useAuthStore } from "../store/store";
 import { useThemeStore } from "../hooks/useTheme";
-import {
-  getUserSimulations,
-  SimulationWithResults,
-} from "../services/simulationService";
+import { SimulationWithResults } from "../services/simulationService";
+import { useSimulationsCache } from "../hooks/useSimulationsCache";
 import {
   ExternalLink,
   TrendingUp,
@@ -231,22 +228,10 @@ const SimResultsTable: React.FC<{
 
 // ─── Main Reporting page ──────────────────────────────────────────────────────
 export const Reporting: React.FC = () => {
-  const user = useAuthStore((state) => state.user);
   const isDark = useThemeStore((state) => state.isDark);
-  const [dbSimulations, setDbSimulations] = useState<SimulationWithResults[]>(
-    [],
-  );
-  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    if (!user?.id) return;
-    setIsLoading(true);
-    getUserSimulations(user.id)
-      .then((r) => {
-        if (r.success && r.data) setDbSimulations(r.data.simulations || []);
-      })
-      .finally(() => setIsLoading(false));
-  }, [user?.id]);
+  // Use cached simulations — no extra DB fetch
+  const { simulations: dbSimulations, isLoading } = useSimulationsCache();
 
   const completed = dbSimulations.filter((s) => s.status === "completed");
 

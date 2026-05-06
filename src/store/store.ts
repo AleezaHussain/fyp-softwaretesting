@@ -228,6 +228,26 @@ export interface SimulationStore {
   runSimulation: (input: SimulationInput) => Promise<SimulationResult>;
   cancelSimulation: (simulationId: number) => Promise<void>;
   deleteSimulation: (simulationId: number) => Promise<void>;
+
+  // ── Simulation list cache — fetched once per login session ──
+  cachedSimulations: any[] | null;          // null = not yet loaded
+  cachedSimulationsUserId: string | null;   // which user the cache belongs to
+  setCachedSimulations: (sims: any[], userId: string) => void;
+  invalidateSimulationsCache: () => void;
+  removeCachedSimulation: (id: number) => void;
+
+  // ── Simulation detail cache — keyed by simulation ID ──
+  cachedSimulationDetails: Record<number, any>;
+  setCachedSimulationDetail: (id: number, data: any) => void;
+  invalidateSimulationDetail: (id: number) => void;
+  clearAllSimulationDetailCache: () => void;
+
+  // ── Weather location cache — countries + cities per country code ──
+  cachedWeatherCountries: any[] | null;
+  cachedWeatherCities: Record<string, any[]>;
+  setCachedWeatherCountries: (countries: any[]) => void;
+  setCachedWeatherCities: (countryCode: string, cities: any[]) => void;
+  clearWeatherCache: () => void;
 }
 
 export const useAuthStore = create<AuthStore>()(
@@ -311,6 +331,9 @@ export const useAuthStore = create<AuthStore>()(
       logout: async () => {
         set({ isLoading: true });
         await authService.signOut();
+        // Clear all simulation caches on logout
+        useSimulationStore.getState().invalidateSimulationsCache();
+        useSimulationStore.getState().clearAllSimulationDetailCache();
         set({
           user: null,
           isAuthenticated: false,
@@ -353,6 +376,51 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
   isSimulationRunning: false,
   simulationProgress: 0,
   simulationStatus: "",
+
+  // ── Simulation list cache ──────────────────────────────────────────────────
+  cachedSimulations: null,
+  cachedSimulationsUserId: null,
+  setCachedSimulations: (sims, userId) =>
+    set({ cachedSimulations: sims, cachedSimulationsUserId: userId }),
+  invalidateSimulationsCache: () =>
+    set({ cachedSimulations: null, cachedSimulationsUserId: null }),
+  removeCachedSimulation: (id) =>
+    set((state) => ({
+      cachedSimulations: state.cachedSimulations
+        ? state.cachedSimulations.filter((s) => Number(s.id) !== id)
+        : null,
+    })),
+
+  // ── Simulation detail cache ────────────────────────────────────────────────
+  cachedSimulationDetails: {},
+  setCachedSimulationDetail: (id, data) =>
+    set((state) => ({
+      cachedSimulationDetails: {
+        ...state.cachedSimulationDetails,
+        [id]: data,
+      },
+    })),
+  invalidateSimulationDetail: (id) =>
+    set((state) => {
+      const next = { ...state.cachedSimulationDetails };
+      delete next[id];
+      return { cachedSimulationDetails: next };
+    }),
+  clearAllSimulationDetailCache: () =>
+    set({ cachedSimulationDetails: {} }),
+
+  // ── Weather location cache ─────────────────────────────────────────────────
+  cachedWeatherCountries: null,
+  cachedWeatherCities: {},
+  setCachedWeatherCountries: (countries) =>
+    set({ cachedWeatherCountries: countries }),
+  setCachedWeatherCities: (countryCode, cities) =>
+    set((state) => ({
+      cachedWeatherCities: { ...state.cachedWeatherCities, [countryCode]: cities },
+    })),
+  clearWeatherCache: () =>
+    set({ cachedWeatherCountries: null, cachedWeatherCities: {} }),
+  // ──────────────────────────────────────────────────────────────────────────
 
   addSimulation: (simulation) =>
     set((state) => ({
@@ -397,11 +465,19 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     const { deleteSimulation } = await import("../services/simulationService");
     const result = await deleteSimulation(simulationId);
     if (result.success) {
-      set((state) => ({
-        simulations: state.simulations.filter(
-          (sim) => Number(sim.id) !== Number(simulationId),
-        ),
-      }));
+      set((state) => {
+        const nextDetails = { ...state.cachedSimulationDetails };
+        delete nextDetails[simulationId];
+        return {
+          simulations: state.simulations.filter(
+            (sim) => Number(sim.id) !== Number(simulationId),
+          ),
+          cachedSimulations: state.cachedSimulations
+            ? state.cachedSimulations.filter((s) => Number(s.id) !== simulationId)
+            : null,
+          cachedSimulationDetails: nextDetails,
+        };
+      });
     } else {
       throw new Error(result.error || "Failed to delete simulation");
     }
@@ -793,7 +869,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             total_it_power_kw: input.itLoad || 100.0,
             servers: input.numberOfRacks * (evapConfig.serversPerRack || 20),
             racks: input.numberOfRacks || 10,
-            workload_type: "AI_TRAINING",
+            workload_type: evapConfig.workloadType || "AI_TRAINING",
             power_utilization_model: "cloudsim_ml",
             cloudsim_config: {
               enable_ml_workload: true,
@@ -955,6 +1031,27 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
         console.log(JSON.parse(JSON.stringify(evapConfig)));
         console.log("━━━ 2. API PAYLOAD SENT TO COOLSIM ━━━");
         console.log(JSON.parse(JSON.stringify(evaporativePayload)));
+
+        // ── WORKLOAD VERIFICATION LOG ─────────────────────────────────────
+        // Confirms workload_type and compute_intensity_factor are dynamic,
+        // not hardcoded. Backend derives intensity from workload type:
+        //   ai_training  → 1.8×  |  ai_inference → 1.4×
+        //   mixed_ai     → 1.3×  |  traditional  → 1.0×
+        const _wt = evaporativePayload.it_load.workload_type;
+        const _ci = evaporativePayload.it_load.cloudsim_config.compute_intensity_factor;
+        const _expectedIntensity: Record<string, number> = {
+          ai_training: 1.8, ai_inference: 1.4, mixed_ai: 1.3, traditional: 1.0,
+        };
+        const _expected = _expectedIntensity[_wt?.toLowerCase()] ?? "backend-derived";
+        console.group("🔬 [EVAP WORKLOAD VERIFICATION]");
+        console.log(`  workload_type sent to backend : "${_wt}"`);
+        console.log(`  compute_intensity_factor sent : ${_ci} (frontend value — backend overrides with ${_expected})`);
+        console.log(`  Expected backend intensity    : ${_expected}×`);
+        console.log(_wt === "AI_TRAINING" || _wt === "ai_training"
+          ? "  ⚠️  NOTE: This was previously hardcoded. Now dynamic from form selection."
+          : "  ✅  Dynamic workload mode confirmed — not hardcoded.");
+        console.groupEnd();
+        // ─────────────────────────────────────────────────────────────────
         console.log(
           "━━━ 2b. WEATHER DATA ━━━",
           `${evapConfig.weatherData?.length ?? 0} points, first row:`,

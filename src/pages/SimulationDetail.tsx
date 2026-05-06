@@ -70,6 +70,9 @@ const SimulationDetail: React.FC = () => {
   const simulationFailureReason = useSimulationStore((s) => s.simulationFailureReason);
   const runSimulation = useSimulationStore((s) => s.runSimulation);
   const isSimulationRunning = useSimulationStore((s) => s.isSimulationRunning);
+  const cachedSimulationDetails = useSimulationStore((s) => s.cachedSimulationDetails);
+  const setCachedSimulationDetail = useSimulationStore((s) => s.setCachedSimulationDetail);
+  const invalidateSimulationDetail = useSimulationStore((s) => s.invalidateSimulationDetail);
   const [simulation, setSimulation] = useState<SimulationData | null>(null);
   const [isRerunning, setIsRerunning] = useState(false);
   const [rerunWarning, setRerunWarning] = useState<string | null>(null);
@@ -85,6 +88,15 @@ const SimulationDetail: React.FC = () => {
       setLoading(false);
       return;
     }
+
+    // Cache hit — serve immediately, no DB call
+    const cached = cachedSimulationDetails[simId];
+    if (cached) {
+      setSimulation(cached);
+      setLoading(false);
+      return;
+    }
+
     fetchSimulationDetails();
     // eslint-disable-next-line
   }, [id]);
@@ -108,7 +120,11 @@ const SimulationDetail: React.FC = () => {
       if (resultError && resultError.code !== "PGRST116")
         console.error("Error fetching results:", resultError);
 
-      setSimulation({ ...simData, result: resultData || undefined });
+      const fullData = { ...simData, result: resultData || undefined };
+      setSimulation(fullData);
+
+      // Store in cache so revisiting this page skips the DB call
+      setCachedSimulationDetail(simId, fullData);
 
       try {
         const { supabase: sb } = await import("../lib/supabase");
@@ -219,6 +235,8 @@ const SimulationDetail: React.FC = () => {
       }
 
       await runSimulation(simulationInput);
+      // Invalidate this simulation's detail cache so the re-run result is fetched fresh
+      invalidateSimulationDetail(simId);
       // Navigation is handled by the simulation-completed event listener above
     } catch (err: any) {
       console.error("Re-run failed:", err);

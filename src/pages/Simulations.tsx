@@ -3,7 +3,7 @@ import { Sidebar } from "../components/shared/Sidebar";
 import { useAuthStore, useSimulationStore } from "../store/store";
 import { useThemeStore } from "../hooks/useTheme";
 import { useNavigate } from "react-router-dom";
-import { getUserSimulations, getUserUUID } from "../services/simulationService";
+import { useSimulationsCache } from "../hooks/useSimulationsCache";
 import {
   Search,
   Filter,
@@ -482,10 +482,11 @@ export const Simulations: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [techniqueFilter, setTechniqueFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [simulations, setSimulations] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
+
+  // Use cached simulations — DB is only hit once per login session
+  const { simulations, isLoading, refresh } = useSimulationsCache();
 
   const totalSimulations = simulations.length;
   const completedSimulations = simulations.filter((s) => s.status === "completed").length;
@@ -522,45 +523,17 @@ export const Simulations: React.FC = () => {
     setCurrentPage(1);
   }, [searchTerm, statusFilter, techniqueFilter]);
 
+  // Refresh cache when a simulation completes or is deleted
   useEffect(() => {
-    const fetchSimulations = async () => {
-      if (!user?.authUserId) return;
-
-      setIsLoading(true);
-      try {
-        const userUUID = await getUserUUID(user.authUserId);
-        if (!userUUID) {
-          setSimulations([]);
-          return;
-        }
-
-        const response = await getUserSimulations(userUUID);
-        if (response.success && response.data) {
-          setSimulations(response.data.simulations || []);
-        } else {
-          setSimulations([]);
-        }
-      } catch (err) {
-        console.error("Fetch error:", err);
-        setSimulations([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSimulations();
-
-    const handleSimDeleted = (e: any) => {
-      if (e?.detail?.id) {
-        setSimulations((prev) => prev.filter((sim) => Number(sim.id) !== Number(e.detail.id)));
-      }
-    };
-
-    window.addEventListener("simulation-deleted", handleSimDeleted);
+    const onCompleted = () => refresh();
+    const onDeleted = () => { /* cache already updated in store.deleteSimulation */ };
+    window.addEventListener("simulation-completed", onCompleted);
+    window.addEventListener("simulation-deleted", onDeleted);
     return () => {
-      window.removeEventListener("simulation-deleted", handleSimDeleted);
+      window.removeEventListener("simulation-completed", onCompleted);
+      window.removeEventListener("simulation-deleted", onDeleted);
     };
-  }, [user?.authUserId]);
+  }, [refresh]);
 
   return (
     <div className={`min-h-screen ${isDark ? "bg-[#0a0e27]" : "bg-gray-50"}`}>

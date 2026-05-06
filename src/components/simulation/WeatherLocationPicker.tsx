@@ -30,6 +30,7 @@ import {
   ChilledWaterWeatherResult,
   EvaporativeWeatherResult,
 } from "../../services/weatherService";
+import { useSimulationStore } from "../../store/store";
 
 type WeatherMode = "air-side" | "chilled-water" | "evaporative";
 
@@ -236,7 +237,13 @@ const ProgressBar: React.FC<{ pct: number; isDark?: boolean }> = ({ pct, isDark 
 
 // ── main component ────────────────────────────────────────────────────────────
 const WeatherLocationPicker: React.FC<Props> = ({ onWeatherLoaded, isDark = false, mode = "air-side" }) => {
-  const [countries, setCountries]       = useState<WeatherCountry[]>([]);
+  // ── Store cache ────────────────────────────────────────────────────────
+  const cachedCountries        = useSimulationStore((s) => s.cachedWeatherCountries);
+  const cachedCities           = useSimulationStore((s) => s.cachedWeatherCities);
+  const setCachedCountries     = useSimulationStore((s) => s.setCachedWeatherCountries);
+  const setCachedCitiesStore   = useSimulationStore((s) => s.setCachedWeatherCities);
+
+  const [countries, setCountries]       = useState<WeatherCountry[]>(cachedCountries ?? []);
   const [cities, setCities]             = useState<WeatherCity[]>([]);
   const [selectedCountry, setSelectedCountry] = useState("");
   const [selectedCityId, setSelectedCityId]   = useState("");
@@ -323,32 +330,54 @@ const WeatherLocationPicker: React.FC<Props> = ({ onWeatherLoaded, isDark = fals
     if (progressRef.current) clearInterval(progressRef.current);
   };
 
-  // ── load countries on mount ────────────────────────────────────────────
-  const loadCountries = useCallback(async () => {
+  // ── load countries on mount — use cache if available ─────────────────
+  const loadCountries = useCallback(async (forceRefresh = false) => {
+    if (!forceRefresh && cachedCountries && cachedCountries.length > 0) {
+      setCountries(cachedCountries);
+      setCountryStatus("success");
+      return;
+    }
     setCountryStatus("loading");
     setErrorMsg("");
     try {
       const data = await weatherService.getCountries();
       setCountries(data);
+      setCachedCountries(data);   // store in cache
       setCountryStatus("success");
     } catch (e: any) {
       setCountryStatus("error");
       setErrorMsg(`Could not load countries: ${e.message}`);
     }
-  }, []);
+  }, [cachedCountries, setCachedCountries]);
 
   useEffect(() => { loadCountries(); }, [loadCountries]);
 
-  // ── load cities when country changes ──────────────────────────────────
+  // ── load cities when country changes — use cache if available ────────
   useEffect(() => {
     if (!selectedCountry) { setCities([]); setSelectedCityId(""); return; }
+
+    // Cache hit
+    if (cachedCities[selectedCountry] && cachedCities[selectedCountry].length > 0) {
+      setCities(cachedCities[selectedCountry]);
+      setCityStatus("success");
+      setSelectedCityId("");
+      setLoadedData(null);
+      setFetchStatus("idle");
+      resetSteps();
+      return;
+    }
+
     setCityStatus("loading");
     setSelectedCityId("");
     setLoadedData(null);
     setFetchStatus("idle");
     resetSteps();
     weatherService.getCities(selectedCountry)
-      .then((data) => { setCities(data); setCityStatus("success"); })
+      .then((data) => {
+        setCities(data);
+        setCachedCitiesStore(selectedCountry, data);  // store in cache
+        setCityStatus("success");
+      })
       .catch((e) => { setCityStatus("error"); setErrorMsg(`Could not load cities: ${e.message}`); });
   }, [selectedCountry]);
 
@@ -487,7 +516,7 @@ const WeatherLocationPicker: React.FC<Props> = ({ onWeatherLoaded, isDark = fals
 
         {(countryStatus === "error" || fetchStatus === "error") && (
           <button
-            onClick={loadCountries}
+            onClick={() => loadCountries(true)}
             className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-700 font-medium"
           >
             <RefreshCw className="w-3.5 h-3.5" /> Retry
@@ -701,7 +730,7 @@ const WeatherLocationPicker: React.FC<Props> = ({ onWeatherLoaded, isDark = fals
                   { col: "relative_humidity",         desc: "Outdoor humidity. High humidity means the air is already moist, so less water can evaporate into it — this limits how much cooling the system can deliver." },
                   { col: "pressure_pa",               desc: "Atmospheric pressure. Used in psychrometric equations to calculate wet-bulb temperature and the exact amount of cooling available." },
                   { col: "wind_speed_ms",             desc: "Wind speed outside. Affects how quickly heat is carried away from the cooling pads and how efficiently the evaporative system operates." },
-                ]).map(({ col, ex, desc }, i) => (
+                ]).map(({ col, desc }, i) => (
                   <div
                     key={col}
                     className={`grid text-xs px-3 py-2.5 border-t ${
@@ -709,14 +738,13 @@ const WeatherLocationPicker: React.FC<Props> = ({ onWeatherLoaded, isDark = fals
                         ? `border-[#2d3a5a] ${i % 2 === 0 ? "bg-[#0f1428]" : "bg-[#0a0e27]"}`
                         : `border-gray-100 ${i % 2 === 0 ? "bg-white" : "bg-gray-50"}`
                     }`}
-                    style={{ gridTemplateColumns: "1fr 1fr 2fr" }}
+                    style={{ gridTemplateColumns: "1fr 2fr" }}
                   >
                     <code className={`font-mono font-bold text-[11px] ${
                       mode === "chilled-water" ? isDark ? "text-blue-400" : "text-blue-600"
                       : mode === "evaporative" ? isDark ? "text-green-400" : "text-green-600"
                       : isDark ? "text-[#5ce1e5]" : "text-cyan-600"
                     }`}>{col}</code>
-                    <span className={`${isDark ? "text-gray-400" : "text-gray-500"}`}>{ex}</span>
                     <span className={`leading-relaxed ${isDark ? "text-gray-300" : "text-gray-600"}`}>{desc}</span>
                   </div>
                 ))}

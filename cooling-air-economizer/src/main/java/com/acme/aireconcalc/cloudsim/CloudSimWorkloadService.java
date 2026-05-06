@@ -468,31 +468,31 @@ public class CloudSimWorkloadService {
             
             // 3-5 training jobs per server with staggered start times
             int numJobs = 3 + (int)(Math.random() * 3);
-            // Each job gets an equal share of VM RAM/BW so total ≤ 100%
             double perJobRamBw = 1.0 / numJobs;
             
             for (int job = 0; job < numJobs; job++) {
-                double jobDurationHours = 6.0 + (Math.random() * 6.0);
+                // FIX: job duration must span the full simulation window divided by
+                // number of jobs — not a hardcoded 6-12 hours.
+                // Each job covers its share of the total simulation hours so that
+                // CloudSim keeps running for the full simulationHours duration.
+                double jobDurationHours = (double) config.simulationHours / numJobs;
                 long length = (long) (jobDurationHours * 3600 * config.mipsPerCore * config.coresPerServer);
                 
                 Cloudlet cloudlet = new CloudletSimple(length, config.coresPerServer);
                 cloudlet.setFileSize(1024).setOutputSize(1024);
                 
-                // Stagger start times throughout the simulation
-                double startDelay = (config.simulationHours / (double)numJobs) * job * 3600.0;
+                // Stagger start times evenly across the simulation window
+                double startDelay = (config.simulationHours / (double) numJobs) * job * 3600.0;
                 cloudlet.setSubmissionDelay(startDelay);
                 
                 // High CPU utilization (80-95%)
                 double jobUtilization = 0.80 + (Math.random() * 0.15);
                 cloudlet.setUtilizationModelCpu(new UtilizationModelDynamic(jobUtilization));
                 
-                // RAM/BW: each job gets 1/numJobs share so concurrent total ≤ 100%
                 cloudlet.setUtilizationModelRam(new UtilizationModelDynamic(perJobRamBw));
                 cloudlet.setUtilizationModelBw(new UtilizationModelDynamic(perJobRamBw));
                 
-                // Pin to this server's VM — prevents broker from stacking onto one VM
                 cloudlet.setVm(vm);
-                
                 cloudlets.add(cloudlet);
             }
         }

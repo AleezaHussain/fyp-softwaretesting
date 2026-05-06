@@ -362,10 +362,14 @@ export const SimulationDetailedView: React.FC<Props> = ({
   }, []);
 
   const fmtV = (v: any, unit: string): string => {
-    if (v == null) return "â€”";
+    if (v == null) return "—";
     if (typeof v !== "number") return String(v);
-    if (unit === "USD")
-      return `$${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    if (unit === "USD") {
+      // Small USD values like OpEx/kWh (e.g. 0.1212) need decimal places
+      if (Math.abs(v) < 1)  return `${v.toFixed(4)}`;
+      if (Math.abs(v) < 10) return `${v.toFixed(2)}`;
+      return `${v.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+    }
     if (v > 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
     if (v > 1_000)
       return v.toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -616,13 +620,6 @@ export const SimulationDetailedView: React.FC<Props> = ({
       ? [
           // â”€â”€ Performance â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
           {
-            label: "PUE Average",
-            value: evapPerf.pue_average ?? evapKeyM.pue_avg,
-            unit: "",
-            tip: "Average Power Usage Effectiveness across all 8,760 hours. 1.0 is ideal; below 1.05 is world-class.",
-            color: "#5ce1e5",
-          },
-          {
             label: "PUE Max",
             value: evapPerf.pue_max,
             unit: "",
@@ -645,7 +642,11 @@ export const SimulationDetailedView: React.FC<Props> = ({
           },
           {
             label: "Availability",
-            value: evapPerf.availability_percent,
+            value: evapPerf.availability_percent > 0
+              ? evapPerf.availability_percent
+              : (evapPerf.total_simulation_hours > 0 && evapPerf.cooling_failure_hours != null
+                  ? ((evapPerf.total_simulation_hours - (evapPerf.cooling_failure_hours ?? 0)) / evapPerf.total_simulation_hours) * 100
+                  : null),
             unit: "%",
             tip: "Percentage of simulation hours where cooling was sufficient. 100% means no cooling failures occurred.",
             color: "#10b981",
@@ -665,14 +666,6 @@ export const SimulationDetailedView: React.FC<Props> = ({
             color: "#6b7280",
           },
           // â”€â”€ Energy â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-          {
-            label: "Total Electricity",
-            value:
-              evapEnergy.electricity_kwh_total ?? rd?.totalEnergyConsumption,
-            unit: "kWh",
-            tip: "Total annual electricity consumed by the entire facility (IT + all cooling loads).",
-            color: "#5ce1e5",
-          },
           {
             label: "IT Energy",
             value: evapEnergy.it_kwh ?? rd?.it_kwh,
@@ -731,15 +724,13 @@ export const SimulationDetailedView: React.FC<Props> = ({
             color: "#10b981",
           },
           {
-            label: "OpEx Total",
-            value: evapOpex.opex_total_usd ?? rd?.opex_total_usd,
-            unit: "USD",
-            tip: "Total annual operational expenditure including all running costs.",
-            color: "#10b981",
-          },
-          {
             label: "OpEx/kWh IT",
-            value: evapOpex.opex_per_kwh_it ?? rd?.opex_per_kwh_it,
+            // opex_per_kwh_it is a small decimal (e.g. 0.1212) — derive from cost/energy if field is 0
+            value: (evapOpex.opex_per_kwh_it != null && evapOpex.opex_per_kwh_it > 0)
+              ? evapOpex.opex_per_kwh_it
+              : (evapCost.total_energy_cost_usd > 0 && evapEnergy.it_kwh > 0
+                  ? evapCost.total_energy_cost_usd / evapEnergy.it_kwh
+                  : null),
             unit: "USD",
             tip: "Operating cost per kWh of IT energy served. Normalises cost for comparison across different IT load scales.",
             color: "#10b981",
@@ -788,13 +779,6 @@ export const SimulationDetailedView: React.FC<Props> = ({
             value: evapWater.evaporation_liters,
             unit: "L",
             tip: "Water lost to evaporation into the supply airstream. This is the primary water consumption mechanism in DEC systems.",
-            color: "#3b82f6",
-          },
-          {
-            label: "Makeup Water",
-            value: evapWater.makeup_liters,
-            unit: "L",
-            tip: "Fresh water added to replace evaporation losses. Zero in pure DEC mode with no recirculating water circuit.",
             color: "#3b82f6",
           },
           {

@@ -3,12 +3,8 @@ import { ChevronDown, Sparkles, MessageCircle, PanelTop, PlusCircle, Bot, User a
 import { Sidebar } from "../components/shared/Sidebar";
 import { useAuthStore } from "../store/store";
 import { useThemeStore } from "../hooks/useTheme";
-import {
-  getCurrentAuthUser,
-  getUserSimulations,
-  getUserUUID,
-  SimulationWithResults,
-} from "../services/simulationService";
+import { SimulationWithResults } from "../services/simulationService";
+import { useSimulationsCache } from "../hooks/useSimulationsCache";
 
 type ChatMessage = {
   id: string;
@@ -143,9 +139,15 @@ const ADVISORY_API_BASE = (
 
 const Advisory = () => {
   const user = useAuthStore((state) => state.user);
-  const [simulations, setSimulations] = useState<SimulationWithResults[]>([]);
-  const [loadingSims, setLoadingSims] = useState(false);
   const [simError, setSimError] = useState("");
+
+  // Use cached simulations — only completed ones are useful for advisory
+  const { simulations, isLoading: loadingSims, error: simCacheError } = useSimulationsCache({ onlyCompleted: true });
+
+  // Sync cache error to local error state
+  useEffect(() => {
+    if (simCacheError) setSimError(simCacheError);
+  }, [simCacheError]);
 
   const [selectedSimulationId, setSelectedSimulationId] = useState<number | null>(
     null,
@@ -229,54 +231,8 @@ const Advisory = () => {
       setChatThreads([]);
       return;
     }
-
     refreshChatThreads(chatStorageKey);
   }, [chatStorageKey]);
-
-  useEffect(() => {
-    const loadSimulations = async () => {
-      setLoadingSims(true);
-      setSimError("");
-
-      try {
-        let userUUID: string | null = null;
-
-        if (user?.authUserId) {
-          userUUID = await getUserUUID(user.authUserId);
-        }
-
-        if (!userUUID) {
-          const authUser = await getCurrentAuthUser();
-          if (!authUser) {
-            throw new Error("You must be logged in to view simulations.");
-          }
-          userUUID = await getUserUUID(authUser.id);
-        }
-
-        if (!userUUID) {
-          throw new Error("User profile not found.");
-        }
-
-        const { success, data, error } = await getUserSimulations(userUUID);
-
-        if (!success || !data) {
-          throw new Error(error || "Failed to load simulations.");
-        }
-
-        // Only show simulations that have completed — others have no results to advise on
-        const completed = data.simulations.filter(
-          (sim) => sim.status === "completed",
-        );
-        setSimulations(completed);
-      } catch (err) {
-        setSimError(err instanceof Error ? err.message : "Unknown error.");
-      } finally {
-        setLoadingSims(false);
-      }
-    };
-
-    loadSimulations();
-  }, [user?.authUserId]);
 
   useEffect(() => {
     if (!chatStorageKey || !selectedSimulationId) {

@@ -221,6 +221,78 @@ def _llm_justification(
 
     wins_block = "\n".join(wins)
 
+    # ── Same-technique branch: current == recommended ─────────────────────────
+    if recommended == current:
+        prompt = f"""You are a senior data center cooling engineer writing a formal ML-backed recommendation report.
+
+The ML model has confirmed that {recommended} — the technique currently in use — is already the optimal choice for this site. Your job is to write a confident 6-8 sentence paragraph that validates this decision, explains why no switch is needed, and shows how {recommended} outperforms both alternatives. Every claim must cite exact numbers from the data below.
+
+════════════════════════════════════════════════
+CURRENT & RECOMMENDED TECHNIQUE: {recommended}
+════════════════════════════════════════════════
+Annual operating cost:  ${best_row['annual_cost']:,.0f}
+Annual CO2 emissions:   {best_row['annual_emissions_kg']:,.0f} kg
+Annual water usage:     {best_row['annual_water_liters']:,.0f} liters
+Annual energy:          {best_row.get('energy_kwh', 0):,.0f} kWh
+Constraint violations:  {best_row.get('violations', 0)}  (fully feasible)
+
+════════════════════════════════════════════════
+FULL METRIC-BY-METRIC COMPARISON VS ALTERNATIVES
+════════════════════════════════════════════════
+{comparison_block}
+
+════════════════════════════════════════════════
+METRIC WIN SUMMARY
+════════════════════════════════════════════════
+{wins_block}
+
+════════════════════════════════════════════════
+SITE OPERATING CONDITIONS
+════════════════════════════════════════════════
+Outdoor temperature:  {scenario.get('tempC', 'N/A')}°C
+Relative humidity:    {scenario.get('rh', 'N/A')}%
+Average IT load:      {scenario.get('itLoadKW', 'N/A')} kW
+Electricity tariff:   ${scenario.get('electricityPrice', 'N/A')}/kWh
+Grid carbon factor:   {scenario.get('carbonFactor', 'N/A')} kgCO2/kWh
+
+════════════════════════════════════════════════
+REQUIRED PARAGRAPH STRUCTURE (6-8 sentences)
+════════════════════════════════════════════════
+S1 — CONFIRM THE DECISION: State that the ML model has validated {recommended} as the optimal technique already in use. Open with its strongest metric advantage over the most expensive alternative using exact numbers.
+S2 — CURRENT PERFORMANCE: Present all four metrics of {recommended} — cost, emissions, water, energy — and state it has {best_row.get('violations', 0)} violations. Frame this as proof the current setup is working correctly.
+S3 — BEAT {alt1_name}: Compare {recommended} against {alt1_name} with exact numbers. If {alt1_name} is infeasible, state its violation count and explain it cannot be deployed. Cover cost, emissions, and feasibility.
+S4 — BEAT {alt2_name}: Compare {recommended} against {alt2_name} with exact numbers. Cover cost, emissions, and any tradeoffs — always resolve in favor of {recommended}.
+S5 — SITE CONDITIONS FIT: Explain why {scenario.get('tempC','N/A')}°C temperature, {scenario.get('rh','N/A')}% humidity, and {scenario.get('itLoadKW','N/A')} kW IT load make {recommended} the right fit for this specific site.
+S6/S7 — OPTIMIZATION CLOSE: Recommend focusing on optimization — setpoint tuning, maintenance, and control improvements — to extract further performance gains. Close with a confident statement that no technique switch is needed.
+
+════════════════════════════════════════════════
+STRICT RULES
+════════════════════════════════════════════════
+- NEVER say the current technique is "failing" or has problems — it is confirmed as the best choice
+- NEVER frame this as a switch recommendation — the message is "you are already using the right technique"
+- Use ONLY numbers from the data above — never invent figures
+- No bullet points, no headers, no markdown — flowing professional paragraph only
+- Every sentence must contain at least one specific number
+- Return ONLY the paragraph, nothing else"""
+
+        try:
+            text = _groq_call(
+                prompt=prompt,
+                system=(
+                    "You are a senior data center cooling engineer validating an existing infrastructure decision. "
+                    "Write a confident, positive paragraph confirming the current technique is optimal. "
+                    "Never suggest the current technique is failing. Use only the data provided."
+                ),
+                max_tokens=900,
+            )
+            sentences = [s.strip() for s in text.replace("\n", " ").split(". ") if s.strip()]
+            sentences = [s if s.endswith(".") else s + "." for s in sentences]
+            return sentences[:8]
+        except Exception as e:
+            print(f"[LLM justification (same-technique) failed]: {e}")
+            return []
+
+    # ── Different-technique branch: current != recommended ────────────────────
     prompt = f"""You are a senior data center cooling engineer writing a formal ML-backed recommendation report for a data center manager making a critical infrastructure and budget decision.
 
 The ML model has definitively selected {recommended} as the optimal cooling technique over {current}. Your job is to write a detailed, multi-metric justification of 8-10 sentences that proves {recommended} is superior to BOTH alternatives across every dimension. Every single claim must cite exact numbers from the data below. Do not hedge — be decisive and authoritative.
