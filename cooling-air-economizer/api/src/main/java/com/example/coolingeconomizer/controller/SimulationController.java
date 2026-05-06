@@ -111,13 +111,16 @@ public class SimulationController {
             csConfig.computeIntensityFactor = in.computeIntensityFactor;
 
             boolean useProvidedWeather = request.weatherData != null && !request.weatherData.isEmpty();
-            int simulationHours = useProvidedWeather ? request.weatherData.size() : 24;
+            int requestedHours = request.simulationDuration > 0 ? request.simulationDuration : 8760;
+            int simulationHours = requestedHours;
+            
             if (useProvidedWeather) {
-                int requestedHours = request.simulationDuration > 0 ? request.simulationDuration : 8760;
-                if (simulationHours > requestedHours) {
+                // Trim weather data to match requested duration if needed
+                if (request.weatherData.size() > requestedHours) {
                     request.weatherData = request.weatherData.subList(0, requestedHours);
-                    simulationHours = requestedHours;
                 }
+                // Use the minimum of weather data size and requested duration
+                simulationHours = Math.min(request.weatherData.size(), requestedHours);
             }
             csConfig.simulationHours = simulationHours;
 

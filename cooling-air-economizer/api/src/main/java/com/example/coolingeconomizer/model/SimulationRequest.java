@@ -112,6 +112,13 @@ public class SimulationRequest {
 
     /*
      * =====================================================
+     * SIMULATION CONTROL
+     * =====================================================
+     */
+    public Integer simulationDuration; // Simulation duration in hours (e.g., 720 for 1 month, 8760 for 1 year)
+    
+    /*
+     * =====================================================
      * WEATHER
      * =====================================================
      */

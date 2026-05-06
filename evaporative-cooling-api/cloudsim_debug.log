@@ -229,3 +229,57 @@ First 10 hours IT load:
   Hour 9: 15.398284827619607 kW (util=0.51)
 ========================================
 
+
+========================================
+CloudSim Simulation Started: Wed May 06 18:14:41 PKT 2026
+========================================
+Config: 50 servers, 730 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+CloudSim initialized in sync mode
+Hour 0024: 2.9 hours/sec, ETA: 4.1 min
+Hour 0048: 5.2 hours/sec, ETA: 2.2 min
+Hour 0072: 6.7 hours/sec, ETA: 1.6 min
+Hour 0096: 7.3 hours/sec, ETA: 1.5 min
+Hour 0120: 7.8 hours/sec, ETA: 1.3 min
+Hour 0144: 8.5 hours/sec, ETA: 1.2 min
+Hour 0168: 8.7 hours/sec, ETA: 1.1 min
+Hour 0192: 8.7 hours/sec, ETA: 1.0 min
+Hour 0216: 8.9 hours/sec, ETA: 1.0 min
+Hour 0240: 8.6 hours/sec, ETA: 0.9 min
+Hour 0264: 8.2 hours/sec, ETA: 0.9 min
+Hour 0288: 7.8 hours/sec, ETA: 0.9 min
+Hour 0312: 7.5 hours/sec, ETA: 0.9 min
+Hour 0336: 7.3 hours/sec, ETA: 0.9 min
+Hour 0360: 7.0 hours/sec, ETA: 0.9 min
+Hour 0384: 6.7 hours/sec, ETA: 0.9 min
+Hour 0408: 6.5 hours/sec, ETA: 0.8 min
+Hour 0432: 6.3 hours/sec, ETA: 0.8 min
+Hour 0456: 6.1 hours/sec, ETA: 0.8 min
+Hour 0480: 5.9 hours/sec, ETA: 0.7 min
+Hour 0504: 5.7 hours/sec, ETA: 0.7 min
+Hour 0528: 5.5 hours/sec, ETA: 0.6 min
+Hour 0552: 5.4 hours/sec, ETA: 0.6 min
+Hour 0576: 5.2 hours/sec, ETA: 0.5 min
+Hour 0600: 5.0 hours/sec, ETA: 0.4 min
+Hour 0624: 4.9 hours/sec, ETA: 0.4 min
+Hour 0648: 4.6 hours/sec, ETA: 0.3 min
+Hour 0672: 4.2 hours/sec, ETA: 0.2 min
+Hour 0696: 3.9 hours/sec, ETA: 0.1 min
+Hour 0720: 3.7 hours/sec, ETA: 0.0 min
+Simulation completed in 203.92 seconds
+
+Generated workload profile: 730 hours
+First 10 hours IT load:
+  Hour 0: 12.108232071321538 kW (util=0.35)
+  Hour 1: 12.1933312547137 kW (util=0.35)
+  Hour 2: 12.316386582646524 kW (util=0.36)
+  Hour 3: 12.091419803283175 kW (util=0.35)
+  Hour 4: 12.180560021420746 kW (util=0.35)
+  Hour 5: 20.07658353555615 kW (util=0.57)
+  Hour 6: 22.11822918133699 kW (util=0.62)
+  Hour 7: 24.017277193575957 kW (util=0.67)
+  Hour 8: 25.427997268993217 kW (util=0.71)
+  Hour 9: 27.229873323717353 kW (util=0.77)
+========================================
+

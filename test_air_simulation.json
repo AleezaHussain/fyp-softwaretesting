@@ -1,0 +1,27 @@
+{
+  "numberOfRacks": 10,
+  "serversPerRack": 20,
+  "serverMaxPowerW": 500,
+  "serverIdlePowerW": 100,
+  "simulationDuration": 730,
+  "aiWorkloadMode": "AI_TRAINING",
+  "computeIntensityFactor": 1.2,
+  "forecastYears": 5,
+  "energyEscalationRate": 0.035,
+  "carbonTaxProjected": 126.0,
+  "climateChangeOffsetC": 2.0,
+  "electricityTariff": 0.15,
+  "carbonIntensity": 0.055,
+  "airflowCFM": 2000.0,
+  "economizerMaxOutdoorTemp": 24.0,
+  "economizerMaxHumidity": 60.0,
+  "minOutdoorAirFraction": 0.2,
+  "capexEconomizerUSD": 25000.0,
+  "fans": {
+    "bestFans": 5,
+    "averageFans": 10,
+    "oldFans": 5
+  },
+  "coresPerServer": 8,
+  "mipsPerCore": 2000
+}

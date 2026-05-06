@@ -143,9 +143,17 @@ public class EconomizerController {
                 }
             }
             
-            // Determine simulation hours
+            // Determine simulation hours - respect simulationDuration from frontend
             boolean useProvidedWeather = req.weatherData != null && !req.weatherData.isEmpty();
-            cloudSimConfig.simulationHours = useProvidedWeather ? req.weatherData.size() : 24;
+            int requestedHours = req.simulationDuration > 0 ? req.simulationDuration : 8760;
+            
+            if (useProvidedWeather) {
+                // Use the minimum of weather data size and requested duration
+                cloudSimConfig.simulationHours = Math.min(req.weatherData.size(), requestedHours);
+            } else {
+                // No weather data provided, use requested duration or default to 24 hours
+                cloudSimConfig.simulationHours = requestedHours > 0 ? requestedHours : 24;
+            }
             
             // Generate workload profile using CloudSim
             CloudSimWorkloadService workloadService = new CloudSimWorkloadService();

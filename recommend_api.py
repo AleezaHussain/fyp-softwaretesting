@@ -339,37 +339,41 @@ Grid carbon factor:   {scenario.get('carbonFactor', 'N/A')} kgCO2/kWh
 ════════════════════════════════════════════════
 REQUIRED PARAGRAPH STRUCTURE (8-10 sentences)
 ════════════════════════════════════════════════
-S1 — OPEN WITH THE STRONGEST EVIDENCE: If there are airflow violations, hotspots, or cooling failures — open with those exact numbers and make clear the current technique is failing. If no failures, open with the biggest cost or emissions advantage of {recommended} over the most expensive alternative.
-S2 — CURRENT TECHNIQUE RISK: Quantify the financial and operational risk of staying with {current}. Use its actual cost, emissions, PUE, and any failure findings with exact numbers.
-S3 — INTRODUCE THE RECOMMENDATION: Present {recommended} with all four metrics — cost, emissions, water, energy — and state it has {best_row.get('violations',0)} violations. Frame this as the complete solution.
-S4 — DOMINATE {alt1_name} ON ITS WEAKEST POINTS: Lead with the metrics where {recommended} clearly beats {alt1_name}. If {alt1_name} is infeasible, open with that — state its violation count and explain it cannot be deployed regardless of any metric. If {recommended} loses on one metric vs {alt1_name}, frame it as an acceptable tradeoff given the overall advantage (e.g. "while {recommended} uses X more liters of water, it saves $Y in operating cost and Z kg CO2 — a clear net win").
-S5 — COMPLETE THE {alt1_name} CASE: Cover remaining metrics. Always end this sentence with a conclusion that favors {recommended}.
-S6 — DOMINATE {alt2_name} ON ITS WEAKEST POINTS: Same approach — lead with where {recommended} wins. If {recommended} loses on a metric, frame it as a justified tradeoff with exact numbers showing the net benefit.
-S7 — COMPLETE THE {alt2_name} CASE: Cover remaining metrics. Always end with a conclusion favoring {recommended}.
-S8 — SITE CONDITIONS FIT: Explain why {scenario.get('tempC','N/A')}°C temperature, {scenario.get('rh','N/A')}% humidity, {scenario.get('itLoadKW','N/A')} kW IT load, and ${scenario.get('electricityPrice','N/A')}/kWh electricity make {recommended} the optimal technical fit for this specific site.
-S9/S10 — DECISIVE CLOSE: One or two sentences. State clearly that {recommended} is the right decision — financially, operationally, and environmentally. Leave no doubt.
+S1 — OPEN WITH THE RECOMMENDATION: State that {recommended} is recommended with 0 violations. If there are airflow violations, hotspots, or cooling failures in the current technique, open with those exact numbers.
+S2 — CURRENT TECHNIQUE CONTEXT: State what the current technique is and its actual metrics (cost, emissions, water) with exact numbers from the data.
+S3 — INTRODUCE THE RECOMMENDATION METRICS: Present {recommended} with its annual cost, emissions, and water usage — exact numbers.
+S4 — COMPARE VS {alt1_name} HONESTLY: Use the EXACT comparison from the data. If {recommended} costs more, say "costs $X more per year" with exact numbers. If it costs less, say "costs $X less per year". Do the same for emissions and water. Never invert.
+S5 — EXPLAIN {alt1_name} TRADEOFF NATURALLY: If {recommended} loses on some metrics, explain why it's still the better choice using plain language — mention site conditions (temperature, humidity, IT load), reliability, or long-term suitability. Avoid mentioning "weighted scoring" or "ML model" — just explain the practical reasons.
+S6 — COMPARE VS {alt2_name} HONESTLY: Same approach — use exact numbers. State whether {recommended} costs more or less, emits more or less, uses more or less water. Never invert.
+S7 — EXPLAIN {alt2_name} TRADEOFF NATURALLY: If {recommended} loses on some metrics, explain the practical reasons why it's still better — site-specific fit, reliability, operational stability. Keep it conversational.
+S8 — SITE CONDITIONS FIT: Explain why {scenario.get('tempC','N/A')}°C temperature, {scenario.get('rh','N/A')}% humidity, and {scenario.get('itLoadKW','N/A')} kW IT load make {recommended} the right fit for this specific site's climate and workload.
+S9/S10 — DECISIVE CLOSE: State that {recommended} is the right decision for this data center's specific conditions and operational requirements.
 
 ════════════════════════════════════════════════
-STRICT RULES
+STRICT RULES — FACTUAL ACCURACY IS MANDATORY
 ════════════════════════════════════════════════
-- Use ONLY numbers from the data above — never invent or estimate figures
+- Use ONLY numbers from the FULL METRIC-BY-METRIC COMPARISON section above
+- NEVER invert comparisons: if the data says {recommended} "COSTS MORE $X/yr" you MUST say it costs more, not that it saves
+- NEVER say {recommended} "saves" or "reduces" if the data shows it costs more or emits more
+- If {recommended} loses on a metric, acknowledge it with exact numbers, then explain why it's still the better choice using practical reasons (site conditions, reliability, operational fit) — NOT technical terms like "weighted scoring" or "ML model"
+- Keep explanations conversational and practical — avoid jargon like "weighted scoring", "ML model", "feasibility constraints"
+- Every sentence must contain at least one specific number from the data
 - No bullet points, no headers, no markdown — flowing professional paragraph only
 - Do NOT start with "Based on", "In conclusion", or "The simulation shows"
-- Every sentence must contain at least one specific number
-- CRITICAL: Never present a weakness of {recommended} without immediately following it with a stronger counterpoint that justifies the recommendation. Every tradeoff must be resolved in favor of {recommended}.
-- Be decisive — this is a formal engineering recommendation, not a balanced analysis
+- Be decisive but factually accurate — accuracy is more important than making the recommendation sound perfect
 - Return ONLY the justification paragraph, nothing else"""
 
     try:
         text = _groq_call(
             prompt=prompt,
             system=(
-                "You are a senior data center cooling engineer writing formal infrastructure recommendations. "
-                "Write precise, authoritative, multi-metric justifications using only the data provided. "
-                "Never invent numbers. Your job is to build the strongest possible case for the recommended technique. "
-                "When the recommended technique has a weakness on one metric, always frame it as an acceptable tradeoff "
-                "by immediately citing the stronger advantages — never leave a weakness unresolved. "
-                "The recommendation must sound decisive and final, not balanced or neutral."
+                "You are a senior data center cooling engineer writing recommendations for facility managers. "
+                "Write clear, practical justifications using ONLY the exact data provided. "
+                "CRITICAL: Never invert comparisons. If the data says the recommended technique costs MORE than an alternative, "
+                "you MUST state it costs more with the exact number, then explain in plain language why it's still the better choice "
+                "for this site's specific conditions (temperature, humidity, workload, reliability needs). "
+                "Avoid technical jargon like 'weighted scoring', 'ML model', 'feasibility constraints' — use conversational language. "
+                "Factual accuracy is mandatory. Be decisive but honest."
             ),
             max_tokens=900,
         )
