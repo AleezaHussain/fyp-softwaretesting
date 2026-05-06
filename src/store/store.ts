@@ -293,6 +293,13 @@ export const useAuthStore = create<AuthStore>()(
           };
 
           set({ user, isAuthenticated: true, isLoading: false, error: null });
+
+          // Log login activity using the auth UUID
+          try {
+            const { logActivity } = await import('../services/activityService');
+            await logActivity(profile.auth_user_id, 'login', { metadata: { email: profile.email } });
+          } catch { /* ignore */ }
+
           return { success: true };
         } catch (error) {
           const errorMessage =

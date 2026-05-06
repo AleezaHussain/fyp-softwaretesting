@@ -52,15 +52,28 @@ export async function logActivity(
 ): Promise<void> {
   if (!userId) return;
   try {
-    await supabase.from('user_activity').insert({
-      user_id: userId,
+    // Always use the Supabase auth UUID — user_activity.user_id references auth.users(id)
+    // The userId passed in may be the integer users.id — resolve the real auth UUID first.
+    let authUUID = userId;
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (authUser?.id) authUUID = authUser.id;
+    } catch { /* use provided userId */ }
+
+    const { error } = await supabase.from('user_activity').insert({
+      user_id: authUUID,
       action,
       entity_type: opts?.entity_type ?? null,
       entity_id: opts?.entity_id ? String(opts.entity_id) : null,
       metadata: opts?.metadata ?? null,
+      created_at: new Date().toISOString(),
     });
-  } catch {
-    // silently ignore — activity logging must never break the app
+
+    if (error) {
+      console.warn('[activityService] logActivity failed:', error.message, '| user_id:', authUUID, '| action:', action);
+    }
+  } catch (err) {
+    console.warn('[activityService] logActivity exception:', err);
   }
 }
 

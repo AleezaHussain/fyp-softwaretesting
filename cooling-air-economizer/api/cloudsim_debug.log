@@ -1082,3 +1082,69 @@ First 10 hours IT load:
   Hour 9: 387.7644835242193 kW (util=0.17)
 ========================================
 
+
+========================================
+CloudSim Simulation Started: Wed May 06 19:54:29 PKT 2026
+========================================
+Config: 252 servers, 730 hours, mode=AI_INFERENCE
+Created datacenter with 252 hosts
+Submitted 252 VMs
+Submitted 1236 cloudlets
+Starting simulation...
+Simulation completed at time: 1.051577029399949E7
+Finished cloudlets: 1236/1236
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=2628000000, finishTime=1.051448554199122E7
+  Cloudlet 1: status=SUCCESS, length=485508, finishTime=2673.8566155245976
+  Cloudlet 2: status=SUCCESS, length=525316, finishTime=2868.556615524823
+  Cloudlet 3: status=SUCCESS, length=578667, finishTime=3029.7066155250095
+  Cloudlet 4: status=SUCCESS, length=755660, finishTime=3280.3966155252997
+
+Generated workload profile: 730 hours
+First 10 hours IT load:
+  Hour 0: 649.0228687528681 kW (util=0.98)
+  Hour 1: 213.6695954060932 kW (util=0.39)
+  Hour 2: 213.37571400426313 kW (util=0.39)
+  Hour 3: 213.16686819550597 kW (util=0.39)
+  Hour 4: 213.72096053278096 kW (util=0.39)
+  Hour 5: 213.36117263699063 kW (util=0.39)
+  Hour 6: 212.9087633279315 kW (util=0.39)
+  Hour 7: 213.57221985227434 kW (util=0.39)
+  Hour 8: 213.4704907666787 kW (util=0.39)
+  Hour 9: 213.55220269971053 kW (util=0.39)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Wed May 06 20:25:00 PKT 2026
+========================================
+Config: 84 servers, 730 hours, mode=AI_INFERENCE
+Created datacenter with 84 hosts
+Submitted 84 VMs
+Submitted 416 cloudlets
+Starting simulation...
+Simulation completed at time: 1.0515539949999657E7
+Finished cloudlets: 416/416
+
+First 5 cloudlets status:
+  Cloudlet 0: status=SUCCESS, length=2628000000, finishTime=1.0514834465998178E7
+  Cloudlet 1: status=SUCCESS, length=517439, finishTime=2794.627427349868
+  Cloudlet 2: status=SUCCESS, length=626837, finishTime=3337.942673259572
+  Cloudlet 3: status=SUCCESS, length=355649, finishTime=2096.6317250107277
+  Cloudlet 4: status=SUCCESS, length=782096, finishTime=3652.321690702467
+
+Generated workload profile: 730 hours
+First 10 hours IT load:
+  Hour 0: 67.40476022816127 kW (util=0.97)
+  Hour 1: 22.086194162524915 kW (util=0.27)
+  Hour 2: 22.138607408488397 kW (util=0.27)
+  Hour 3: 22.20591537693974 kW (util=0.27)
+  Hour 4: 22.187760961203768 kW (util=0.27)
+  Hour 5: 22.107213735782828 kW (util=0.27)
+  Hour 6: 22.189242642490633 kW (util=0.27)
+  Hour 7: 22.15992198260061 kW (util=0.27)
+  Hour 8: 22.261019986374222 kW (util=0.27)
+  Hour 9: 22.12036798629839 kW (util=0.27)
+========================================
+

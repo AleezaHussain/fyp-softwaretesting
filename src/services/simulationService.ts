@@ -801,6 +801,7 @@ export const saveSimulationResults = async (
           : "Simulation completed successfully"),
       result_data:
         typeof enhancedResultData === "object" ? enhancedResultData : {},
+      created_at: new Date().toISOString(),
       completed_at: new Date().toISOString(),
     };
 

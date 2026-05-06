@@ -521,7 +521,11 @@ const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({
   };
 
   const timeAgo = (ts: string) => {
-    const diff = Date.now() - new Date(ts).getTime();
+    if (!ts) return "unknown";
+    const date = new Date(ts);
+    if (isNaN(date.getTime())) return "unknown";
+    const diff = Date.now() - date.getTime();
+    if (diff < 0) return "just now";
     const m = Math.floor(diff / 60000);
     if (m < 1) return "just now";
     if (m < 60) return `${m}m ago`;
@@ -623,11 +627,11 @@ const RecentActivity: React.FC<{ userId: string; isDark: boolean }> = ({
                   <span
                     className={`text-xs ${isDark ? "text-gray-600" : "text-gray-300"}`}
                   >
-                    {new Date(a.created_at).toLocaleDateString(undefined, {
+                    {a.created_at ? new Date(a.created_at).toLocaleDateString(undefined, {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
-                    })}
+                    }) : "—"}
                   </span>
                   {isClickable && (
                     <ChevronRight
@@ -1662,7 +1666,7 @@ export const Dashboard: React.FC = () => {
 
           {/* Right Column - Recent Activity */}
           <div className="min-w-0 overflow-hidden">
-            <RecentActivity userId={user?.id ?? ""} isDark={isDark} />
+            <RecentActivity userId={user?.authUserId ?? user?.id ?? ""} isDark={isDark} />
           </div>
         </div>
       </main>

@@ -686,7 +686,9 @@ const SimulationDetail: React.FC = () => {
                 />
               ),
               label: "Created",
-              value: new Date(simulation.created_at).toLocaleDateString(),
+              value: simulation.created_at && !isNaN(new Date(simulation.created_at).getTime())
+                ? new Date(simulation.created_at).toLocaleDateString()
+                : "—",
             },
             {
               icon: (
@@ -882,7 +884,9 @@ const SimulationDetail: React.FC = () => {
                   ["Simulation ID", `#${simulation.id}`],
                   ["Type", simulation.simulation_type],
                   ["Status", simulation.status],
-                  ["Created", new Date(simulation.created_at).toLocaleString()],
+                  ["Created", simulation.created_at && !isNaN(new Date(simulation.created_at).getTime())
+                    ? new Date(simulation.created_at).toLocaleString()
+                    : "—"],
                   [
                     "Completed",
                     simulation.result.completed_at
