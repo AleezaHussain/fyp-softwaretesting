@@ -1266,6 +1266,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       energyEscalationRate: val((input as any).energyEscalationRate),
       carbonTaxProjected: val((input as any).carbonTaxProjected),
       climateChangeOffsetC: val(input.climateChangeOffsetC),
+      simulationDuration: val((input as any).simulationDuration) ?? 8760,
       ...(input as any).fans,
     };
 
@@ -1279,7 +1280,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
     console.log(JSON.parse(JSON.stringify(payload)));
     console.log(
       "━━━ SENDING TO ━━━",
-      "http://localhost:8080/api/simulate (EconomizerController — full fields)",
+      "http://localhost:8080/api/simulation/run (SimulationController — with duration support)",
     );
 
     try {
@@ -1287,6 +1288,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       const airStartTime = Date.now();
 
       set({
+        isSimulationRunning: true,
         simulationProgress: 30,
         simulationStatus: "Initializing Air Economizer simulation...",
       });
@@ -1311,7 +1313,7 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
 
       let response: Response;
       try {
-        response = await fetch("http://localhost:8080/api/simulate", {
+        response = await fetch("http://localhost:8080/api/simulation/run", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -1651,7 +1653,15 @@ const transformAirEconomizerResults = (
   const opExUSD = s.annualOpExUSD ?? s.estimatedOpExUSD ?? 0;
   const capexUSD = s.totalCapexUSD ?? 0;
   const annualSavings = s.annualSavingsUSD ?? 0;
-  const payback = s.paybackPeriodYears ?? 999;
+  
+  // Calculate payback period on frontend: CAPEX / Annual Savings
+  let payback = 999; // Default to 999 if no savings
+  if (annualSavings > 0 && capexUSD > 0) {
+    payback = capexUSD / annualSavings;
+  } else if (capexUSD === 0) {
+    payback = 0; // No upfront cost
+  }
+  
   const energySavPct = s.energySavingsPercent ?? 0;
   const carbonSavings = s.carbonSavings_kg ?? 0;
   const waterLiters = s.waterUsage_liters ?? 0;

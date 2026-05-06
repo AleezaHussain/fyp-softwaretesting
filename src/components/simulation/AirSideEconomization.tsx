@@ -18,6 +18,7 @@ import {
   Cpu,
   HardDrive,
   MemoryStick,
+  Clock,
 } from "lucide-react";
 
 // Import Supabase
@@ -161,6 +162,9 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   // ========================================================================
   const [aiWorkloadMode, setAiWorkloadMode] = useState<string>("AI_TRAINING");
   const [computeIntensityFactor, setComputeIntensityFactor] = useState(1.2);
+
+  // Simulation Duration (for demo purposes)
+  const [simulationDuration, setSimulationDuration] = useState<number>(8760); // Default: full year
 
   // Advanced Economizer Controls (Optional)
   const [economizerMaxOutdoorTemp, setEconomizerMaxOutdoorTemp] = useState(24); // °C, default 24
@@ -613,8 +617,11 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   };
 
   // Handle location data upload
-  const handleLocationDataUpload = (data: any[]) => {
-    setLocalLocationData(data);
+  const handleLocationDataUpload = (result: any) => {
+    // Extract the data array from the result object
+    const weatherData = result.data || result || [];
+    setLocalLocationData(weatherData);
+    console.log("[AirSideEconomization] Weather data loaded:", weatherData.length, "hours");
   };
 
   // Handle fan count changes
@@ -832,6 +839,8 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
       // CloudSim Parameters (enableCloudSim hardcoded to true in store)
       aiWorkloadMode,
       computeIntensityFactor,
+      // Simulation Duration
+      simulationDuration,
       // Financial Projection Parameters (2025-2030)
       forecastYears,
       energyEscalationRate: annualElectricityInflation / 100, // Convert % to decimal
@@ -886,6 +895,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
     deltaT,
     aiWorkloadMode,
     computeIntensityFactor,
+    simulationDuration,
     annualElectricityInflation,
     carbonPrice,
     carbonPriceGrowth,
@@ -1529,6 +1539,46 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                 </div>
               );
             })()}
+          </div>
+        </div>
+
+        {/* Simulation Duration Selector */}
+        <div className={`rounded-2xl p-6 border shadow-sm ${isDark ? "bg-[#1a1f3a] border-[#3f4a68]" : "bg-white border-gray-200"}`}>
+          <div className={`flex items-center gap-3 mb-6 pb-4 border-b ${isDark ? "border-[#3f4a68]" : "border-gray-200"}`}>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? "bg-purple-900/30" : "bg-purple-100"}`}>
+              <Clock className={`w-5 h-5 ${isDark ? "text-purple-400" : "text-purple-600"}`} />
+            </div>
+            <div>
+              <h4 className={`font-bold text-lg ${isDark ? "text-white" : "text-gray-900"}`}>
+                ⏱️ Simulation Duration
+              </h4>
+              <p className={`text-sm ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+                Select simulation timeframe for faster demo or accurate annual analysis
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <label className={`block text-sm font-semibold mb-3 ${isDark ? "text-white" : "text-gray-900"}`}>
+              Time Horizon
+            </label>
+            <select
+              value={simulationDuration}
+              onChange={(e) => setSimulationDuration(Number(e.target.value))}
+              className={`w-full border-2 rounded-xl px-4 py-3.5 focus:outline-none font-medium appearance-none ${
+                isDark
+                  ? "bg-[#27304a] border-[#3f4a68] text-white focus:border-[#5ce1e5]"
+                  : "bg-white border-gray-300 text-gray-900 focus:border-blue-500"
+              }`}
+            >
+              <option value={730}>1 Month (730 hours) - ~3 min</option>
+              <option value={2190}>3 Months (2190 hours) - ~9 min</option>
+              <option value={4380}>6 Months (4380 hours) - ~18 min</option>
+              <option value={8760}>Full Year (8760 hours) - ~35 min</option>
+            </select>
+            <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
+              Shorter durations run faster for demos. Full year for accurate annual analysis.
+            </p>
           </div>
         </div>
 

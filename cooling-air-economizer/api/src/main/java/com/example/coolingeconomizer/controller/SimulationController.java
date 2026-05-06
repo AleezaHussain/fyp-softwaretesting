@@ -22,6 +22,7 @@ public class SimulationController {
     public Map<String, Object> runSimulation(@RequestBody SimulationRequest request) {
         // Log all received request data
         logger.info("[API] Received SimulationRequest: " + request);
+        logger.info("[API] simulationDuration: " + request.simulationDuration);
         logger.info("[API] economizerMaxOutdoorTemp: " + request.economizerMaxOutdoorTemp);
         logger.info("[API] economizerMaxHumidity: " + request.economizerMaxHumidity);
         logger.info("[API] minOutdoorAirFraction: " + request.minOutdoorAirFraction);
@@ -103,6 +104,67 @@ public class SimulationController {
                             " | minOA=" + in.minOutdoorAirFraction +
                             " | maxAirflowCFM=" + in.maxAirflowCFM);
 
+            // ═══════════════════════════════════════════════════════════════════
+            // CLOUDSIM WORKLOAD GENERATION
+            // ═══════════════════════════════════════════════════════════════════
+            logger.info("[CloudSim] Generating dynamic workload profile...");
+            
+            // Configure CloudSim workload generation
+            com.acme.aireconcalc.cloudsim.CloudSimWorkloadService.WorkloadConfig cloudSimConfig = 
+                new com.acme.aireconcalc.cloudsim.CloudSimWorkloadService.WorkloadConfig();
+            
+            cloudSimConfig.numberOfServers = in.numServers;
+            cloudSimConfig.serversPerRack = request.serversPerRack > 0 ? request.serversPerRack : 10;
+            cloudSimConfig.serverMaxPowerW = in.serverMaxPowerW;
+            cloudSimConfig.serverIdlePowerW = in.serverIdlePowerW;
+            cloudSimConfig.coresPerServer = request.coresPerServer != null ? request.coresPerServer : 4;
+            cloudSimConfig.mipsPerCore = request.mipsPerCore != null ? request.mipsPerCore : 1000;
+            cloudSimConfig.computeIntensityFactor = in.computeIntensityFactor;
+            
+            // Determine simulation hours from weather data or default
+            int simulationHours = 24;
+            boolean useProvidedWeather = request.weatherData != null && !request.weatherData.isEmpty();
+            if (useProvidedWeather) {
+                simulationHours = request.weatherData.size();
+                
+                // Trim weather data to match simulation duration
+                int requestedHours = request.simulationDuration > 0 ? request.simulationDuration : 8760;
+                if (simulationHours > requestedHours) {
+                    System.out.println("✅ Trimming weather data from " + simulationHours + " to " + requestedHours + " hours");
+                    request.weatherData = request.weatherData.subList(0, requestedHours);
+                    simulationHours = requestedHours;
+                }
+            }
+            
+            cloudSimConfig.simulationHours = simulationHours;
+            
+            // Parse AI workload mode
+            String workloadModeStr = request.aiWorkloadMode != null ? request.aiWorkloadMode : "ENTERPRISE";
+            com.acme.aireconcalc.cloudsim.CloudSimWorkloadService.AIWorkloadMode workloadMode;
+            try {
+                workloadMode = com.acme.aireconcalc.cloudsim.CloudSimWorkloadService.AIWorkloadMode.valueOf(workloadModeStr);
+            } catch (IllegalArgumentException e) {
+                logger.warn("[CloudSim] Invalid workload mode: " + workloadModeStr + ", defaulting to ENTERPRISE");
+                workloadMode = com.acme.aireconcalc.cloudsim.CloudSimWorkloadService.AIWorkloadMode.ENTERPRISE;
+            }
+            cloudSimConfig.workloadMode = workloadMode;
+            
+            // Generate workload profile using CloudSim
+            com.acme.aireconcalc.cloudsim.CloudSimWorkloadService cloudSimService = 
+                new com.acme.aireconcalc.cloudsim.CloudSimWorkloadService();
+            
+            long cloudSimStart = System.currentTimeMillis();
+            com.acme.aireconcalc.cloudsim.CloudSimWorkloadService.WorkloadResult cloudSimResult = 
+                cloudSimService.generateWorkloadProfile(cloudSimConfig);
+            long cloudSimDuration = System.currentTimeMillis() - cloudSimStart;
+            
+            double cloudSimSpeedHoursPerSec = (double) simulationHours / (cloudSimDuration / 1000.0);
+            logger.info("[CloudSim] Simulation completed in " + String.format("%.3f", cloudSimDuration / 1000.0) + 
+                       " seconds (" + String.format("%.1f", cloudSimSpeedHoursPerSec) + " hours/sec)");
+            logger.info("[CloudSim] Generated workload profile: " + cloudSimResult.totalHours + " hours");
+            logger.info("[CloudSim] Sample IT loads: h0=" + String.format("%.2f", cloudSimResult.hourlyITLoadKW[0]) + 
+                       " kW, h1=" + (cloudSimResult.totalHours > 1 ? String.format("%.2f", cloudSimResult.hourlyITLoadKW[1]) : "N/A") + " kW");
+
             // 2. Run Hourly Simulation
             AirEconomizerModel model = new AirEconomizerModel();
             List<Map<String, Object>> hourlyProfile = new ArrayList<>();
@@ -111,12 +173,7 @@ public class SimulationController {
             double totalCoolingEnergy = 0;
             double totalCarbon = 0;
 
-            int steps = 24; // Default to 24 hours
-
-            // Determine weather source
-            boolean useProvidedWeather = request.weatherData != null && !request.weatherData.isEmpty();
-            if (useProvidedWeather)
-                steps = request.weatherData.size();
+            int steps = cloudSimResult.totalHours;
 
             for (int h = 0; h < steps; h++) {
                 // Prepare Weather
@@ -134,20 +191,16 @@ public class SimulationController {
                     w.relativeHumidity = 50.0;
                 }
 
-                // Prepare Utilization
-                double util = 0.5; // default
-                if (request.averageUtilization > 0) {
-                    // Simple variation
-                    double base = request.averageUtilization / 100.0;
-                    double peak = request.peakUtilization / 100.0;
-                    // Sine wave fluctuation between base and peak
-                    util = base + (peak - base) * Math.sin((h % 24) * Math.PI / 12.0);
-                    util = Math.max(0.1, Math.min(1.0, util));
-                } else {
-                    util = SimUtils.getHourlyUtilization(h % 24, 0.2, 0.8);
-                }
-
-                AirEconomizerModel.StepResult res = model.computeTimeStep(in, w, h, util);
+                // Get IT load from CloudSim workload profile
+                double itLoadKW = cloudSimResult.hourlyITLoadKW[h];
+                double utilization = cloudSimResult.hourlyUtilization[h];
+                
+                // Calculate cooling load based on IT load
+                // The economizer model needs utilization to determine cooling mode
+                AirEconomizerModel.StepResult res = model.computeTimeStep(in, w, h, utilization);
+                
+                // Override IT load with CloudSim value
+                res.itLoad_kW = itLoadKW;
 
                 // Accumulate
                 totalItEnergy += res.itLoad_kW;
@@ -287,6 +340,14 @@ public class SimulationController {
         public double energyEscalationRate;
         public double carbonTaxProjected;
         public double climateChangeOffsetC;
+
+        // Simulation Duration (for demo purposes)
+        public int simulationDuration; // hours (default 8760)
+
+        // CloudSim Parameters
+        public Integer coresPerServer;
+        public Long mipsPerCore;
+        public String aiWorkloadMode;
 
         public FanConfig fans;
 

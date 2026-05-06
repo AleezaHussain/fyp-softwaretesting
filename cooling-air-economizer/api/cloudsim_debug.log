@@ -856,3 +856,130 @@ First 10 hours IT load:
   Hour 9: 275.665001156671 kW (util=0.43)
 ========================================
 
+
+========================================
+CloudSim Simulation Started: Wed May 06 06:59:52 PKT 2026
+========================================
+Config: 50 servers, 24 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+CloudSim initialized in sync mode
+Hour 0024: 44.3 hours/sec, ETA: 0.0 min
+Simulation completed in 0.546 seconds
+
+Generated workload profile: 24 hours
+First 10 hours IT load:
+  Hour 0: 2.250161764988826 kW (util=0.34)
+  Hour 1: 2.2462043698029155 kW (util=0.34)
+  Hour 2: 2.2279285614520754 kW (util=0.34)
+  Hour 3: 2.260562709581098 kW (util=0.35)
+  Hour 4: 2.2600419541732846 kW (util=0.35)
+  Hour 5: 3.7134258894792045 kW (util=0.56)
+  Hour 6: 4.052315959663194 kW (util=0.62)
+  Hour 7: 4.448067381106331 kW (util=0.67)
+  Hour 8: 4.685804907988901 kW (util=0.71)
+  Hour 9: 5.002845663999501 kW (util=0.76)
+========================================
+
+
+========================================
+CloudSim Simulation Started: Wed May 06 07:03:51 PKT 2026
+========================================
+Config: 50 servers, 8760 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+CloudSim initialized in sync mode
+Hour 0024: 73.8 hours/sec, ETA: 2.0 min
+Hour 0048: 55.0 hours/sec, ETA: 2.6 min
+Hour 0072: 48.9 hours/sec, ETA: 3.0 min
+Hour 0096: 42.4 hours/sec, ETA: 3.4 min
+Hour 0120: 35.8 hours/sec, ETA: 4.0 min
+Hour 0144: 30.6 hours/sec, ETA: 4.7 min
+Hour 0168: 26.7 hours/sec, ETA: 5.4 min
+Hour 0192: 22.5 hours/sec, ETA: 6.3 min
+Hour 0216: 19.2 hours/sec, ETA: 7.4 min
+Hour 0240: 17.0 hours/sec, ETA: 8.3 min
+Hour 0264: 15.2 hours/sec, ETA: 9.3 min
+Hour 0288: 13.6 hours/sec, ETA: 10.4 min
+Hour 0312: 12.3 hours/sec, ETA: 11.4 min
+Hour 0336: 11.3 hours/sec, ETA: 12.4 min
+Hour 0360: 10.3 hours/sec, ETA: 13.6 min
+Hour 0384: 9.5 hours/sec, ETA: 14.7 min
+Hour 0408: 8.8 hours/sec, ETA: 15.9 min
+Hour 0432: 7.8 hours/sec, ETA: 17.7 min
+Hour 0456: 6.9 hours/sec, ETA: 20.0 min
+Hour 0480: 6.0 hours/sec, ETA: 23.0 min
+Hour 0504: 5.3 hours/sec, ETA: 25.9 min
+Hour 0528: 4.8 hours/sec, ETA: 28.4 min
+Hour 0552: 4.4 hours/sec, ETA: 30.8 min
+Hour 0576: 4.1 hours/sec, ETA: 33.4 min
+Hour 0600: 3.8 hours/sec, ETA: 36.0 min
+Hour 0624: 3.5 hours/sec, ETA: 38.6 min
+Hour 0648: 3.3 hours/sec, ETA: 41.4 min
+Hour 0672: 3.1 hours/sec, ETA: 42.9 min
+Hour 0696: 3.0 hours/sec, ETA: 44.4 min
+Hour 0720: 2.7 hours/sec, ETA: 49.5 min
+Hour 0744: 2.4 hours/sec, ETA: 54.9 min
+Hour 0768: 2.2 hours/sec, ETA: 60.7 min
+Hour 0792: 2.0 hours/sec, ETA: 67.4 min
+Hour 0816: 1.8 hours/sec, ETA: 73.5 min
+Hour 0840: 1.7 hours/sec, ETA: 77.7 min
+Hour 0864: 1.6 hours/sec, ETA: 82.5 min
+Hour 0888: 1.5 hours/sec, ETA: 89.0 min
+Hour 0912: 1.4 hours/sec, ETA: 92.1 min
+Hour 0936: 1.4 hours/sec, ETA: 94.2 min
+Hour 0960: 1.3 hours/sec, ETA: 97.7 min
+
+========================================
+CloudSim Simulation Started: Wed May 06 07:27:32 PKT 2026
+========================================
+Config: 50 servers, 730 hours, mode=AI_TRAINING
+Created datacenter with 50 hosts
+Submitted 50 VMs
+CloudSim initialized in sync mode
+Hour 0024: 34.6 hours/sec, ETA: 0.3 min
+Hour 0048: 45.8 hours/sec, ETA: 0.2 min
+Hour 0072: 41.3 hours/sec, ETA: 0.3 min
+Hour 0096: 36.8 hours/sec, ETA: 0.3 min
+Hour 0120: 31.4 hours/sec, ETA: 0.3 min
+Hour 0144: 27.4 hours/sec, ETA: 0.4 min
+Hour 0168: 24.6 hours/sec, ETA: 0.4 min
+Hour 0192: 19.6 hours/sec, ETA: 0.5 min
+Hour 0216: 15.7 hours/sec, ETA: 0.5 min
+Hour 0240: 14.2 hours/sec, ETA: 0.6 min
+Hour 0264: 12.7 hours/sec, ETA: 0.6 min
+Hour 0288: 11.1 hours/sec, ETA: 0.7 min
+Hour 0312: 10.0 hours/sec, ETA: 0.7 min
+Hour 0336: 9.2 hours/sec, ETA: 0.7 min
+Hour 0360: 8.4 hours/sec, ETA: 0.7 min
+Hour 0384: 7.7 hours/sec, ETA: 0.8 min
+Hour 0408: 7.2 hours/sec, ETA: 0.8 min
+Hour 0432: 6.4 hours/sec, ETA: 0.8 min
+Hour 0456: 5.6 hours/sec, ETA: 0.8 min
+Hour 0480: 5.3 hours/sec, ETA: 0.8 min
+Hour 0504: 5.0 hours/sec, ETA: 0.8 min
+Hour 0528: 4.7 hours/sec, ETA: 0.7 min
+Hour 0552: 4.3 hours/sec, ETA: 0.7 min
+Hour 0576: 4.0 hours/sec, ETA: 0.6 min
+Hour 0600: 3.8 hours/sec, ETA: 0.6 min
+Hour 0624: 3.6 hours/sec, ETA: 0.5 min
+Hour 0648: 3.5 hours/sec, ETA: 0.4 min
+Hour 0672: 3.3 hours/sec, ETA: 0.3 min
+Hour 0696: 3.2 hours/sec, ETA: 0.2 min
+Hour 0720: 3.1 hours/sec, ETA: 0.1 min
+Simulation completed in 243.253 seconds
+
+Generated workload profile: 730 hours
+First 10 hours IT load:
+  Hour 0: 2.25181919121224 kW (util=0.34)
+  Hour 1: 2.2449283390795847 kW (util=0.34)
+  Hour 2: 2.2355909014724062 kW (util=0.34)
+  Hour 3: 2.2374337595126663 kW (util=0.34)
+  Hour 4: 2.2464492122490016 kW (util=0.34)
+  Hour 5: 3.7412288385417884 kW (util=0.57)
+  Hour 6: 4.063213716573813 kW (util=0.62)
+  Hour 7: 4.431594059144471 kW (util=0.67)
+  Hour 8: 4.664918730065156 kW (util=0.71)
+  Hour 9: 4.939346643604007 kW (util=0.76)
+========================================
+
