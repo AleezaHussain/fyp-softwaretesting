@@ -48,6 +48,22 @@ public class ChilledWaterSimulationService {
             calculateAndValidateWetBulbTemperatures(request);
 
             // ===================================================================
+            // STEP 1.5: TRIM WEATHER DATA TO SIMULATION DURATION
+            // ===================================================================
+            // Frontend always sends 8760 hours, but we only use the first N hours
+            int simulationHours = 8760; // Default to full year
+            if (request.getSimulation() != null && request.getSimulation().getTime_horizon_hours() > 0) {
+                simulationHours = request.getSimulation().getTime_horizon_hours();
+            }
+            
+            List<WeatherDataPointDTO> weatherData = request.getWeatherData().getDataPoints();
+            if (weatherData.size() > simulationHours) {
+                weatherData = weatherData.subList(0, simulationHours);
+                request.getWeatherData().setDataPoints(weatherData);
+                System.out.printf("✅ Trimmed weather data to %d hours (from 8760)\n", simulationHours);
+            }
+
+            // ===================================================================
             // STEP 2: Configure Scenario from Request
             // ===================================================================
             EdgeDataCenterScenario scenario = buildScenarioFromRequest(request);

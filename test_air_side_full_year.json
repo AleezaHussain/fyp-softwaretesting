@@ -1,0 +1,22 @@
+{
+  "numberOfRacks": 5,
+  "serversPerRack": 50,
+  "serverMaxPowerW": 500,
+  "serverIdlePowerW": 100,
+  "computeIntensityFactor": 1.2,
+  "forecastYears": 5,
+  "energyEscalationRate": 0.035,
+  "carbonTaxProjected": 126,
+  "electricityTariff": 0.15,
+  "carbonIntensity": 0.055,
+  "airflowCFM": 2000,
+  "economizerMaxOutdoorTemp": 24,
+  "economizerMaxHumidity": 60,
+  "minOutdoorAirFraction": 0.2,
+  "fans": {
+    "bestFans": 10,
+    "averageFans": 20,
+    "oldFans": 5
+  },
+  "weatherData": []
+}

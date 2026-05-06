@@ -20,6 +20,9 @@ public class SimulationRequest {
     @Valid
     private SiteParametersDTO siteParameters;
     
+    @Valid
+    private SimulationConfig simulation;
+    
     @NotNull(message = "IT infrastructure is required")
     @Valid
     private ITInfrastructureDTO itInfrastructure;
@@ -36,6 +39,29 @@ public class SimulationRequest {
     @Valid
     private EconomicEnvironmentalDTO economicEnvironmental;
 
+    /**
+     * Simulation configuration (duration, time step, etc.)
+     */
+    public static class SimulationConfig {
+        public int time_horizon_hours = 8760;
+        public int time_step_seconds = 3600;
+
+        public int getTime_horizon_hours() {
+            return time_horizon_hours;
+        }
+
+        public void setTime_horizon_hours(int time_horizon_hours) {
+            this.time_horizon_hours = time_horizon_hours;
+        }
+
+        public int getTime_step_seconds() {
+            return time_step_seconds;
+        }
+
+        public void setTime_step_seconds(int time_step_seconds) {
+            this.time_step_seconds = time_step_seconds;
+        }
+    }
 
     public WeatherDataDTO getWeatherData() {
         return weatherData;
@@ -59,6 +85,14 @@ public class SimulationRequest {
 
     public void setSiteParameters(SiteParametersDTO siteParameters) {
         this.siteParameters = siteParameters;
+    }
+
+    public SimulationConfig getSimulation() {
+        return simulation;
+    }
+
+    public void setSimulation(SimulationConfig simulation) {
+        this.simulation = simulation;
     }
 
     public ITInfrastructureDTO getItInfrastructure() {

@@ -130,7 +130,12 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
     currentConfig?.foulingFactor || 1.0
   );
 
-  // 7. Economic & Environmental State
+  // 7. Simulation Duration State
+  const [simulationDuration, setSimulationDuration] = useState<number>(
+    currentConfig?.simulationDuration || 8760
+  );
+
+  // 8. Economic & Environmental State
   const [baseElectricityRate, setBaseElectricityRate] = useState<number>(
     currentConfig?.baseElectricityRate || 0.12
   );
@@ -908,6 +913,7 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
       supplyWaterTempC,
       isInEfficientZone,
       foulingFactor,
+      simulationDuration,
       baseElectricityRate,
       touEnabled,
       peakMultiplier,
@@ -947,6 +953,7 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
     supplyWaterTempC,
     isInEfficientZone,
     foulingFactor,
+    simulationDuration,
     baseElectricityRate,
     touEnabled,
     peakMultiplier,
@@ -1307,6 +1314,45 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
                       </div>
                     </div>
                   )}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Simulation Duration Options */}
+          <div className="space-y-4 mb-6">
+            <div className={`text-sm font-medium ${isDark ? "text-gray-300" : "text-gray-700"}`}>
+              Simulation Duration
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { hours: 730, label: "1 Month", duration: "~3 min" },
+                { hours: 2190, label: "3 Months", duration: "~9 min" },
+                { hours: 4380, label: "6 Months", duration: "~18 min" },
+                { hours: 8760, label: "Full Year", duration: "~35 min" },
+              ].map((option) => (
+                <button
+                  key={option.hours}
+                  onClick={() => setSimulationDuration(option.hours)}
+                  className={`
+                    p-3 rounded-lg border-2 transition-all duration-300 text-center
+                    ${simulationDuration === option.hours
+                      ? isDark
+                        ? "bg-blue-500/20 border-blue-500 shadow-lg"
+                        : "bg-blue-50 border-blue-500 shadow-lg"
+                      : isDark
+                        ? "bg-[#1a1f3a] border-[#3f4a68] hover:border-[#4f5a78]"
+                        : "bg-white border-gray-200 hover:border-gray-300"
+                    }
+                  `}
+                >
+                  <div className={`font-semibold text-sm ${isDark ? "text-white" : "text-gray-900"}`}>
+                    {option.label}
+                  </div>
+                  <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
+                    {option.duration}
+                  </div>
                 </button>
               ))}
             </div>

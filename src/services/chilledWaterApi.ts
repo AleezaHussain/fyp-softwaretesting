@@ -28,6 +28,9 @@ export interface ChilledWaterSimulationRequest {
     altitudeDisplay: number;
     altitudeUnit: string;
   };
+  simulation: {
+    time_horizon_hours: number;
+  };
   itInfrastructure: {
     numberOfRacks: number;
     serversPerRack: number;
@@ -284,6 +287,9 @@ export function transformConfigToApiRequest(
       altitude: config.altitude || 0,
       altitudeDisplay: config.altitudeDisplay || config.altitude || 0,
       altitudeUnit: config.altitudeUnit || 'meters',
+    },
+    simulation: {
+      time_horizon_hours: config.simulationDuration || 8760,
     },
     itInfrastructure: {
       numberOfRacks: config.numberOfRacks || 5,

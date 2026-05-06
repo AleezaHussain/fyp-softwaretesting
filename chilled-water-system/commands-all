@@ -1,0 +1,43 @@
+uvicorn recommend_api:app --reload --host 0.0.0.0 --port 8001
+
+cd evaporative-cooling-api
+mvn spring-boot:run
+
+cd chilled-water-system
+mvn spring-boot:run
+
+npm run dev
+
+cd cooling-air-economizer/api
+netstat -ano | findstr :8080
+taskkill /PID 5004 /F
+mvn spring-boot:run
+
+mvn -pl dc-core -DskipTests package
+mvn -pl dc-core exec:java
+
+ .venv\Scripts\Activate.ps1;uvicorn weather_api:app --host 0.0.0.0 --port 8085 --reload
+.venv\Scripts\Activate.ps1;python -m uvicorn graph_explanation_api:app --host 0.0.0.0 --port 8004 --reload
+
+.venv\Scripts\Activate.ps1;python -m uvicorn metrics_explanation_api:app --host 0.0.0.0 --port 8005 --reload
+
+& ".\.venv\Scripts\python.exe" -m uvicorn raw_data_explanation_api:app --host 0.0.0.0 --port 8006 --reload
+D:\study\FYP\fyp-softwaretesting\.venv\Scripts\pip.exe install fastapi uvicorn pydantic supabase
+ D:\study\FYP\fyp-softwaretesting\.venv\Scripts\python.exe -m uvicorn advisory_api:app --host 0.0.0.0 --port 8002 --reload
+
+
+ cooling air side
+ java -jar cooling-air-economizer/api/target/cooling-air-economizer-api-0.0.1-SNAPSHOT.jar
+
+
+.venv\Scripts\Activate.ps1
+
+& ".\.venv\Scripts\python.exe" -m uvicorn raw_data_explanation_api:app --host 0.0.0.0 --port 8006 --reload
+
+POST http://localhost:8080/api/simulation/run-full-year
+
+java -jar target/chilled-water-ssytem-0.1.0-SNAPSHOT.jar --server.port=8081
+
+
+
+java -jar evaporative-cooling-api/target/evaporative-cooling-api-1.0.0.jar --server.port=8082

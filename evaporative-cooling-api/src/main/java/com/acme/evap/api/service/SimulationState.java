@@ -40,7 +40,7 @@ public class SimulationState {
     public void addHourlyData(int hour, EvaporativeCoolingService.WeatherPoint weather, 
                              double itLoadKW, double totalElectricalKW, double fanPowerKW,
                              double dxPowerKW, double pumpPowerKW, 
-                             EvaporativeCoolingService.EvapCoolingResult evapResult,
+                             double coolingCapacityKW, double waterEvaporationLph,
                              double pue, double inletTempC, String coolingMode) {
         
         HourlyData data = new HourlyData();
@@ -52,13 +52,13 @@ public class SimulationState {
         data.fanPowerKW = fanPowerKW;
         data.dxPowerKW = dxPowerKW;
         data.pumpPowerKW = pumpPowerKW;
-        data.coolingCapacityKW = evapResult.coolingCapacityKW;
-        data.waterEvaporationLph = evapResult.waterEvaporationLph;
+        data.coolingCapacityKW = coolingCapacityKW;
+        data.waterEvaporationLph = waterEvaporationLph;
         data.pue = pue;
         data.inletTempC = inletTempC;
         data.coolingMode = coolingMode;
-        data.supplyTempC = evapResult.supplyTempC;
-        data.supplyHumidity = evapResult.supplyHumidity;
+        data.supplyTempC = inletTempC;
+        data.supplyHumidity = weather.relativeHumidity;
         
         hourlyData.add(data);
         
@@ -68,11 +68,11 @@ public class SimulationState {
         totalDXKWh += dxPowerKW;
         totalPumpKWh += pumpPowerKW;
         totalITKWh += itLoadKW;
-        totalWaterLiters += evapResult.waterEvaporationLph;
+        totalWaterLiters += waterEvaporationLph;
         
         // Update peak values
         maxInletTempC = Math.max(maxInletTempC, inletTempC);
-        maxHumidity = Math.max(maxHumidity, evapResult.supplyHumidity);
+        maxHumidity = Math.max(maxHumidity, weather.relativeHumidity);
         maxPUE = Math.max(maxPUE, pue);
         
         // Calculate wet bulb depression
@@ -88,12 +88,12 @@ public class SimulationState {
             hasViolations = true;
         }
         
-        if (evapResult.supplyHumidity > 80.0) {
+        if (weather.relativeHumidity > 80.0) {
             humidityViolations++;
             hasViolations = true;
         }
         
-        if (evapResult.coolingCapacityKW < (itLoadKW * 1.1)) { // 10% margin
+        if (coolingCapacityKW < (itLoadKW * 1.1)) { // 10% margin
             capacityViolations++;
             hasViolations = true;
         }

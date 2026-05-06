@@ -211,6 +211,11 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
     currentConfig?.rackPowerDensity || 0, // 0 = auto-calculated
   );
 
+  // Simulation Duration (for demo purposes)
+  const [simulationDuration, setSimulationDuration] = useState<number>(
+    currentConfig?.simulationDuration || 8760, // Default: full year
+  );
+
   // State for server data from database
   const [servers, setServers] = useState<ServerType[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -732,6 +737,7 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
         scenarioType,
         temperatureOffset,
         humidityAdjustment,
+        simulationDuration,
       });
     }
   }, [
@@ -788,6 +794,7 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
     scenarioType,
     temperatureOffset,
     humidityAdjustment,
+    simulationDuration,
     onConfigChange,
   ]);
 
@@ -959,6 +966,34 @@ const EvaporativeCoolingForm: React.FC<EvaporativeCoolingFormProps> = ({
               {powerUtilizationModel === "linear" 
                 ? "Standard linear power scaling" 
                 : "Non-linear model for AI/GPU workloads"}
+            </p>
+          </div>
+
+          {/* Simulation Duration - For Demo Purposes */}
+          <div>
+            <label
+              className={`block mb-2 font-semibold ${
+                isDark ? "text-white" : "text-gray-900"
+              }`}
+            >
+              ⏱️ Simulation Duration
+            </label>
+            <select
+              value={simulationDuration}
+              onChange={(e) => setSimulationDuration(Number(e.target.value))}
+              className={`w-full p-3 border rounded-lg ${
+                isDark
+                  ? "bg-[#1a1f3a] border-[#3f4a68] text-white"
+                  : "bg-white border-gray-300 text-gray-900"
+              }`}
+            >
+              <option value={730}>1 Month (730 hours) - ~3 min</option>
+              <option value={2190}>3 Months (2190 hours) - ~9 min</option>
+              <option value={4380}>6 Months (4380 hours) - ~18 min</option>
+              <option value={8760}>Full Year (8760 hours) - ~35 min</option>
+            </select>
+            <p className={`text-xs mt-1 ${isDark ? "text-gray-500" : "text-gray-500"}`}>
+              Shorter durations run faster for demos. Full year for accurate annual analysis.
             </p>
           </div>
 

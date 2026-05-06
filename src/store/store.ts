@@ -775,10 +775,17 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
       console.log("💧 [EVAPORATIVE] Configuration found:", evapConfig);
 
       try {
+        // Set simulation running state
+        set({
+          isSimulationRunning: true,
+          simulationProgress: 20,
+          simulationStatus: "Starting Evaporative Cooling simulation...",
+        });
+
         // Create evaporative payload
         const evaporativePayload = {
           simulation: {
-            time_horizon_hours: 8760,
+            time_horizon_hours: evapConfig.simulationDuration || 8760,  // Use frontend-selected duration
             time_step_seconds: 3600,
             use_des_mode: true,
           },

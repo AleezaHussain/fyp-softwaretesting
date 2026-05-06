@@ -19,7 +19,7 @@ public class WeatherDataDTO {
     private Double elevation;
     
     @NotEmpty(message = "Weather data points are required")
-    @Size(min = 8760, max = 8760, message = "Must have exactly 8760 hourly data points")
+    @Size(min = 730, max = 8760, message = "Must have between 730 and 8760 hourly data points")
     @Valid
     private List<WeatherDataPointDTO> dataPoints;
     
