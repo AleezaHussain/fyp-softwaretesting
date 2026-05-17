@@ -43,8 +43,16 @@ java -jar target/chilled-water-ssytem-0.1.0-SNAPSHOT.jar --server.port=8081
 
 
 
-java -jar evaporative-cooling-api/target/evaporative-cooling-api-1.0.0.jar --server.port=8082
+ezafyp\fyp> cd  chilled-water-system
+PS D:\aleezafyp\fyp\chilled-water-system> java -jar evaporative-cooling-api/target/evaporative-cooling-api-1.0.0.jar --server.port=8082
 
-
+cd evaporative-cooling-api
+Error: Unable to access jarfile evaporative-cooling-api/target/evaporative-cooling-api-1.0.0.jar
+PS D:\aleezafyp\fyp\chilled-water-system> 
+PS D:\aleezafyp\fyp\chilled-water-system> 
 mvn -f cooling-air-economizer/api/pom.xml spring-boot:run
 
+
+
+
+PS D:\aleezafyp\fyp\evaporative-cooling-api> java -jar target/evaporative-cooling-api-1.0.0.jar

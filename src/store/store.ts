@@ -999,10 +999,11 @@ export const useSimulationStore = create<SimulationStore>((set, get) => ({
             "Hour,DryBulbTemp_C,RelativeHumidity_%,Pressure_kPa,WindSpeed_m/s";
           const rows = weatherData.map((data, index) => {
             const hour = index + 1;
-            const temp = data.temperature || 25.0;
-            const humidity = data.humidity || 50.0;
-            const pressure = 101.3;
-            const windSpeed = 2.0;
+            // Fix: Use correct field names for evaporative weather data
+            const temp = data.dry_bulb_c || data.temperature || 25.0;
+            const humidity = data.relative_humidity || data.humidity || 50.0;
+            const pressure = data.pressure_pa ? (data.pressure_pa / 1000.0) : 101.3; // Convert Pa to kPa
+            const windSpeed = data.wind_speed_ms || 2.0;
 
             return `${hour},${temp},${humidity},${pressure},${windSpeed}`;
           });

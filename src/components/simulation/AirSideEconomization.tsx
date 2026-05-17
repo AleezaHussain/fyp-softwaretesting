@@ -164,7 +164,7 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
   const [computeIntensityFactor, setComputeIntensityFactor] = useState(1.2);
 
   // Simulation Duration (for demo purposes)
-  const [simulationDuration, setSimulationDuration] = useState<number>(8760); // Default: full year
+  const [simulationDuration, setSimulationDuration] = useState<number>(730); // Default: 1 month
 
   // Advanced Economizer Controls (Optional)
   const [economizerMaxOutdoorTemp, setEconomizerMaxOutdoorTemp] = useState(24); // °C, default 24
@@ -1571,13 +1571,13 @@ const AirSideEconomization: React.FC<AirSideEconomizationProps> = ({
                   : "bg-white border-gray-300 text-gray-900 focus:border-blue-500"
               }`}
             >
-              <option value={730}>1 Month (730 hours) - ~3 min</option>
-              <option value={2190}>3 Months (2190 hours) - ~9 min</option>
-              <option value={4380}>6 Months (4380 hours) - ~18 min</option>
-              <option value={8760}>Full Year (8760 hours) - ~35 min</option>
+              <option value={730}>1 Month (730 hours)</option>
+              <option value={2190}>3 Months (2190 hours)</option>
+              <option value={4380}>6 Months (4380 hours)</option>
+              <option value={8760}>12 Months (8760 hours)</option>
             </select>
             <p className={`text-xs mt-2 ${isDark ? "text-gray-400" : "text-gray-500"}`}>
-              Shorter durations run faster for demos. Full year for accurate annual analysis.
+              Select simulation duration based on analysis needs. Longer periods provide more comprehensive results.
             </p>
           </div>
         </div>

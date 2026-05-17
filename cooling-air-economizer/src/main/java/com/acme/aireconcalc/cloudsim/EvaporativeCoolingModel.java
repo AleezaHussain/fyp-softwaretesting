@@ -17,7 +17,7 @@ package com.acme.aireconcalc.cloudsim;
 public class EvaporativeCoolingModel {
     
     // ASHRAE thermal guidelines for data centers
-    private static final double T_SUPPLY_TARGET = 18.0;  // Target supply air temperature (°C)
+    private static final double T_SUPPLY_MIN = 16.0;     // Minimum supply air temperature (°C)
     private static final double T_SUPPLY_MAX = 27.0;     // Maximum allowable supply temperature (°C) - ASHRAE A2
     private static final double T_RETURN = 30.0;         // Return air temperature (°C)
     
@@ -59,12 +59,12 @@ public class EvaporativeCoolingModel {
         double t_iec = calculateIECOutletTemp(t_db, t_wb);
         
         // DEC: Best efficiency, but requires low humidity
-        if (t_dec <= T_SUPPLY_TARGET && rh <= DEC_MAX_RH) {
+        if (t_dec <= 22.0 && rh <= DEC_MAX_RH) {
             return "DEC";
         }
         
         // IEC: Good efficiency, works at higher humidity
-        if (t_iec <= T_SUPPLY_TARGET && rh <= IEC_MAX_RH) {
+        if (t_iec <= 22.0 && rh <= IEC_MAX_RH) {
             return "IEC";
         }
         
@@ -130,10 +130,10 @@ public class EvaporativeCoolingModel {
                 break;
             case "DX":
                 // DX can achieve any target temperature (mechanical cooling)
-                baseOutletTemp = T_SUPPLY_TARGET;
+                baseOutletTemp = 18.0;
                 break;
             default:
-                baseOutletTemp = T_SUPPLY_TARGET;
+                baseOutletTemp = 18.0;
         }
         
         return baseOutletTemp;
@@ -264,7 +264,8 @@ public class EvaporativeCoolingModel {
      * @return Target supply temperature (°C)
      */
     public double getTargetSupplyTemp() {
-        return T_SUPPLY_TARGET;
+        // Dynamic target based on weather conditions (16-22°C range)
+        return 18.0; // Default, can be made dynamic based on wet bulb temperature
     }
     
     /**
@@ -279,6 +280,6 @@ public class EvaporativeCoolingModel {
     @Override
     public String toString() {
         return String.format("EvaporativeCoolingModel[DEC=%.0f%%, IEC=%.0f%%, T_supply=%.1f°C]",
-                           DEC_EFFECTIVENESS * 100, IEC_EFFECTIVENESS * 100, T_SUPPLY_TARGET);
+                           DEC_EFFECTIVENESS * 100, IEC_EFFECTIVENESS * 100, 18.0);
     }
 }

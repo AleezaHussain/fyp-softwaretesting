@@ -1,0 +1,17 @@
+{
+  "numberOfRacks": 5,
+  "serversPerRack": 10,
+  "serverMaxPowerW": 500,
+  "serverIdlePowerW": 100,
+  "simulationDuration": 730,
+  "aiWorkloadMode": "AI_TRAINING",
+  "electricityTariff": 0.15,
+  "carbonIntensity": 0.055,
+  "airflowCFM": 2000,
+  "computeIntensityFactor": 1.2,
+  "forecastYears": 5,
+  "energyEscalationRate": 0.035,
+  "carbonTaxProjected": 126.0,
+  "climateChangeOffsetC": 2.0,
+  "capexEconomizerUSD": 25000
+}

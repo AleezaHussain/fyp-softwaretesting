@@ -59,8 +59,8 @@ public class ThermalEvaporativeHost extends HostSimple {
         this.coolingModel = new EvaporativeCoolingModel(psychro);
         this.weatherService = WeatherService.getInstance();
         
-        // Initialize state
-        this.currentOutletTemp = 18.0;  // Target supply temperature
+        // Initialize state - use dynamic temperature based on weather
+        this.currentOutletTemp = 20.0;  // Initial temperature (will be updated by weather service)
         this.currentCoolingMode = "DX";
         this.waterConsumedThisStep = 0.0;
         this.totalWaterConsumed = 0.0;

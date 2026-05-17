@@ -1327,10 +1327,10 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
             
             <div className="grid grid-cols-2 gap-3">
               {[
-                { hours: 730, label: "1 Month", duration: "~3 min" },
-                { hours: 2190, label: "3 Months", duration: "~9 min" },
-                { hours: 4380, label: "6 Months", duration: "~18 min" },
-                { hours: 8760, label: "Full Year", duration: "~35 min" },
+                { hours: 730, label: "1 Month" },
+                { hours: 2190, label: "3 Months" },
+                { hours: 4380, label: "6 Months" },
+                { hours: 8760, label: "Full Year" },
               ].map((option) => (
                 <button
                   key={option.hours}
@@ -1349,9 +1349,6 @@ const ChilledWaterCoolingForm: React.FC<ChilledWaterCoolingFormProps> = ({
                 >
                   <div className={`font-semibold text-sm ${isDark ? "text-white" : "text-gray-900"}`}>
                     {option.label}
-                  </div>
-                  <div className={`text-xs ${isDark ? "text-gray-400" : "text-gray-600"}`}>
-                    {option.duration}
                   </div>
                 </button>
               ))}

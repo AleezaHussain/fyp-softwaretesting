@@ -27,9 +27,33 @@ public class EvaporativeCoolingService {
         return Math.max(2.0, Math.min(5.0, dynamicCOP));
     }
     
-    private double[] generateCloudSimWorkload(SimulationRequest request) {
+    private double[] generateCloudSimWorkload(SimulationRequest request, List<WeatherPoint> weatherData) {
         System.out.println("\n[CloudSim] Generating dynamic workload profile...");
         long startTime = System.currentTimeMillis();
+        
+        // ═══════════════════════════════════════════════════════════════════════════
+        // CRITICAL FIX: Initialize CloudSim WeatherService with uploaded weather data
+        // ═══════════════════════════════════════════════════════════════════════════
+        System.out.println("[CloudSim] Initializing WeatherService with uploaded weather data...");
+        
+        // Convert WeatherPoint to WeatherData for CloudSim
+        List<com.acme.aireconcalc.WeatherData> cloudSimWeatherData = new ArrayList<>();
+        for (WeatherPoint wp : weatherData) {
+            com.acme.aireconcalc.WeatherData wd = new com.acme.aireconcalc.WeatherData();
+            wd.dryBulbC = wp.dryBulbTempC;
+            wd.relativeHumidity = wp.relativeHumidity;
+            // Note: WeatherData class doesn't have pressure/windSpeed fields
+            cloudSimWeatherData.add(wd);
+        }
+        
+        // Initialize the singleton WeatherService with real weather data
+        com.acme.aireconcalc.cloudsim.WeatherService weatherService = 
+            com.acme.aireconcalc.cloudsim.WeatherService.getInstance();
+        weatherService.initialize(cloudSimWeatherData);
+        
+        System.out.println("[CloudSim] WeatherService initialized with " + cloudSimWeatherData.size() + " hours of weather data");
+        System.out.println("[CloudSim] First weather point: T=" + cloudSimWeatherData.get(0).dryBulbC + "°C, RH=" + cloudSimWeatherData.get(0).relativeHumidity + "%");
+        // ═══════════════════════════════════════════════════════════════════════════
         
         CloudSimWorkloadService.WorkloadConfig config = new CloudSimWorkloadService.WorkloadConfig();
         config.numberOfServers = request.it_load.servers;
@@ -98,7 +122,7 @@ public class EvaporativeCoolingService {
         }
         
         System.out.println("[STEP 1] CloudSim Workload Generation");
-        double[] cloudSimWorkload = generateCloudSimWorkload(request);
+        double[] cloudSimWorkload = generateCloudSimWorkload(request, weatherData);
         System.out.println("[STEP 1] Complete\n");
         
         SimulationState state = new SimulationState();
@@ -250,7 +274,8 @@ public class EvaporativeCoolingService {
         double wetBulbTempC = calculateWetBulbTemp(weather.dryBulbTempC, weather.relativeHumidity);
         
         double actualEffectiveness = effectiveness * wettingEfficiency;
-        double targetSupplyTempC = 18.0;
+        // Use dynamic target based on weather conditions instead of hardcoded 18.0°C
+        double targetSupplyTempC = Math.max(16.0, Math.min(22.0, wetBulbTempC + 2.0));
         
         if ("DEC".equals(mode)) {
             result.supplyTempC = weather.dryBulbTempC - actualEffectiveness * (weather.dryBulbTempC - wetBulbTempC);
